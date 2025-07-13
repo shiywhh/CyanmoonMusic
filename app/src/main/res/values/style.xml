@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="dialog" parent="MaterialAlertDialog.Material3">
+        <item name="android:windowSoftInputMode">stateVisible|adjustPan</item>
+    </style>
+
+
+    <style name="CommProgressDialog" parent="ThemeOverlay.Material3.Dialog.Alert">
+        <item name="android:background">@color/dialog_background</item> <!-- 白色背景，适用于日间模式 -->
+    </style>
+
+    <style name="ThemeProgressDialogStyle" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <!--        <item name="android:progressTint">?attr/defaultThemeColor</item>-->
+        <item name="android:indeterminateTint">@color/design_default_color_on_primary</item>
+        <item name="android:backgroundTint">@color/dialog_background</item>
+    </style>
+
+
+    <!-- 圆形图片 -->
+    <style name="circleImageStyle">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_3">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">3dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_4">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">4dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_5">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">5dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_6">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">6dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_8">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_7">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">7dp</item>
+    </style>
+
+
+    <style name="roundedCornerImageStyle_10">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">10dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_12">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_14">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">14dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_16">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_20">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_26">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">26dp</item>
+    </style>
+
+    <style name="roundedCornerImageStyle_30">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">30dp</item>
+    </style>
+
+
+    <style name="bottomItemActive" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:height">28dp</item>
+    </style>
+</resources>

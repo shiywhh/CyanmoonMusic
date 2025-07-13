@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.magicalstory.music"
-        minSdk 21
+        minSdk 23
         targetSdk 35
         versionCode 1
         versionName "1.0"
@@ -26,14 +26,39 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+    buildFeatures {
+        viewBinding true
+    }
+
+    //去掉重复的垃圾
+    sourceSets {
+
+        debug {
+            java.srcDirs = ['src/main/java', 'build/generated/data_binding_base_class_source_out/debug/out']
+        }
+    }
 }
 
 dependencies {
+
+    implementation libs.immersionbar
+
+    implementation libs.palette
+    implementation(libs.okhttp)
+    implementation libs.gson
+    implementation libs.glide
+    // implementation files('libs/open_sdk_3.5.16.4_r8c01346_lite.jar') // 注释掉不存在的JAR文件
+    annotationProcessor libs.compiler
+    implementation libs.core
+    debugImplementation libs.glance
+    implementation libs.mmkv.static
 
     implementation libs.appcompat
     implementation libs.material
     implementation libs.activity
     implementation libs.constraintlayout
+    implementation libs.navigation.fragment
+    implementation libs.navigation.ui
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
