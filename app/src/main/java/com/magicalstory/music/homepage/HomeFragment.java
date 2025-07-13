@@ -20,8 +20,10 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
+import androidx.navigation.Navigation;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.magicalstory.music.R;
 import com.google.android.material.search.SearchView;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.base.BaseFragment;
@@ -122,6 +124,12 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         // 扫描按钮点击事件
         binding.buttonScan.setOnClickListener(v -> requestMusicPermissionAndScan());
+        
+        // 最近添加的歌曲标题点击事件
+        binding.itemHeaderSongsLastestAdded.setOnClickListener(v -> {
+            // 跳转到最近添加的歌曲页面
+            navigateToRecentSongs();
+        });
     }
 
     private void setupSearchView() {
@@ -363,6 +371,14 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         } else {
             binding.layoutRandomRecommendations.setVisibility(View.GONE);
         }
+    }
+
+    /**
+     * 跳转到最近添加的歌曲页面
+     */
+    private void navigateToRecentSongs() {
+        // 使用Navigation组件进行跳转，动画已在nav_graph.xml中配置
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs);
     }
 
     @Override

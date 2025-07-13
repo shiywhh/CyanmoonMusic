@@ -44,4 +44,6 @@
     <string name="album_cover">专辑封面</string>
     <string name="album_menus">专辑菜单</string>
     <string name="album_play_button">专辑播放按钮</string>
+    <string name="play">播放</string>
+    <string name="recent_added">最近添加</string>
 </resources>

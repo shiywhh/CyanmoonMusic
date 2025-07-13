@@ -9,7 +9,15 @@
         android:id="@+id/nav_home"
         android:name="com.magicalstory.music.homepage.HomeFragment"
         android:label="@string/nav_home"
-        tools:layout="@layout/fragment_home" />
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_home_to_recent_songs"
+            app:destination="@id/nav_recent_songs"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_playlist"
@@ -28,5 +36,11 @@
         android:name="com.magicalstory.music.homepage.ProfileFragment"
         android:label="@string/nav_profile"
         tools:layout="@layout/fragment_profile" />
+
+    <fragment
+        android:id="@+id/nav_recent_songs"
+        android:name="com.magicalstory.music.homepage.RecentSongsFragment"
+        android:label="最近添加的歌曲"
+        tools:layout="@layout/fragment_recent_songs" />
 
 </navigation>
