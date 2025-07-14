@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MotionScene 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:motion="http://schemas.android.com/apk/res-auto">
+
+    <Transition
+        motion:constraintSetEnd="@+id/end"
+        motion:constraintSetStart="@+id/start"
+        motion:duration="400"
+        motion:motionInterpolator="easeInOut">
+        
+        <OnSwipe
+            motion:touchAnchorId="@+id/player_container"
+            motion:touchAnchorSide="top"
+            motion:dragDirection="dragUp"
+            motion:maxVelocity="4.0" />
+        
+        <OnClick
+            motion:targetId="@+id/player_container"
+            motion:clickAction="toggle" />
+    </Transition>
+
+    <!-- Mini Player State -->
+    <ConstraintSet android:id="@+id/start">
+        <!-- Player Container -->
+        <Constraint
+            android:id="@+id/player_container"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            motion:layout_constraintBottom_toTopOf="@+id/bottomNavigation"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent" />
+        
+        <!-- Player Background -->
+        <Constraint
+            android:id="@+id/player_background"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            motion:layout_constraintTop_toTopOf="@+id/player_container"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent" />
+        
+        <!-- Drag Indicator - Hidden in mini player -->
+        <Constraint
+            android:id="@+id/drag_indicator"
+            android:layout_width="@dimen/drag_indicator_width"
+            android:layout_height="@dimen/drag_indicator_height"
+            motion:layout_constraintTop_toTopOf="@+id/player_container"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="6dp"
+            android:alpha="0.0" />
+        
+        <!-- Shared Album Art - Mini size -->
+        <Constraint
+            android:id="@+id/album_art"
+            android:layout_width="@dimen/player_album_art_size"
+            android:layout_height="@dimen/player_album_art_size"
+            motion:layout_constraintTop_toTopOf="@+id/player_container"
+            motion:layout_constraintBottom_toBottomOf="@+id/player_container"
+            motion:layout_constraintStart_toStartOf="parent"
+            android:layout_marginStart="12dp"
+            android:alpha="1.0" />
+        
+        <!-- Shared Song Title - Mini position -->
+        <Constraint
+            android:id="@+id/song_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toTopOf="@+id/player_container"
+            motion:layout_constraintStart_toEndOf="@+id/album_art"
+            motion:layout_constraintEnd_toStartOf="@+id/controls_container"
+            motion:layout_constraintBottom_toTopOf="@+id/artist_name"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:alpha="1.0" />
+        
+        <!-- Shared Artist Name - Mini position -->
+        <Constraint
+            android:id="@+id/artist_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/song_title"
+            motion:layout_constraintStart_toEndOf="@+id/album_art"
+            motion:layout_constraintEnd_toStartOf="@+id/controls_container"
+            motion:layout_constraintBottom_toBottomOf="@+id/player_container"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="8dp"
+            android:gravity="start"
+            android:textSize="14sp"
+            android:maxLines="1"
+            android:alpha="1.0" />
+        
+        <!-- Progress Container - Hidden in mini player -->
+        <Constraint
+            android:id="@+id/progress_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/artist_name"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginStart="@dimen/player_content_margin"
+            android:layout_marginEnd="@dimen/player_content_margin"
+            android:layout_marginTop="20dp"
+            android:alpha="0.0" />
+        
+        <!-- Controls Container - Mini position -->
+        <Constraint
+            android:id="@+id/controls_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toTopOf="@+id/player_container"
+            motion:layout_constraintBottom_toBottomOf="@+id/player_container"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginEnd="12dp"
+            android:alpha="1.0" />
+        
+        <!-- Individual Control Buttons -->
+        <Constraint
+            android:id="@+id/shuffle_button"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="0.0" />
+        
+        <Constraint
+            android:id="@+id/previous_button"
+            android:layout_width="@dimen/player_control_button_size"
+            android:layout_height="@dimen/player_control_button_size"
+            android:alpha="0.0" />
+        
+        <Constraint
+            android:id="@+id/play_pause_container"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/next_button"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/repeat_button"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="0.0" />
+    </ConstraintSet>
+
+    <!-- Full Player State -->
+    <ConstraintSet android:id="@+id/end">
+        <!-- Player Container -->
+        <Constraint
+            android:id="@+id/player_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toBottomOf="parent" />
+        
+        <!-- Player Background -->
+        <Constraint
+            android:id="@+id/player_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toBottomOf="parent" />
+        
+        <!-- Drag Indicator - Visible in full player -->
+        <Constraint
+            android:id="@+id/drag_indicator"
+            android:layout_width="@dimen/drag_indicator_width"
+            android:layout_height="@dimen/drag_indicator_height"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="20dp"
+            android:alpha="1.0" />
+        
+        <!-- Shared Album Art - Large size and centered -->
+        <Constraint
+            android:id="@+id/album_art"
+            android:layout_width="280dp"
+            android:layout_height="280dp"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="120dp"
+            android:alpha="1.0" />
+        
+        <!-- Shared Song Title - Large size and centered -->
+        <Constraint
+            android:id="@+id/song_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/album_art"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toTopOf="@+id/artist_name"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="@dimen/player_content_margin"
+            android:layout_marginEnd="@dimen/player_content_margin"
+            android:gravity="center"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:alpha="1.0" />
+        
+        <!-- Shared Artist Name - Large size and centered -->
+        <Constraint
+            android:id="@+id/artist_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/song_title"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toTopOf="@+id/progress_container"
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="@dimen/player_content_margin"
+            android:layout_marginEnd="@dimen/player_content_margin"
+            android:gravity="center"
+            android:textSize="18sp"
+            android:maxLines="1"
+            android:alpha="1.0" />
+        
+        <!-- Progress Container - Visible in full player -->
+        <Constraint
+            android:id="@+id/progress_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/artist_name"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toTopOf="@+id/controls_container"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="@dimen/player_content_margin"
+            android:layout_marginEnd="@dimen/player_content_margin"
+            android:alpha="1.0" />
+        
+        <!-- Controls Container - Full player position -->
+        <Constraint
+            android:id="@+id/controls_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            motion:layout_constraintTop_toBottomOf="@+id/progress_container"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="@dimen/player_content_margin"
+            android:layout_marginEnd="@dimen/player_content_margin"
+            android:layout_marginBottom="40dp"
+            android:alpha="1.0" />
+        
+        <!-- Individual Control Buttons -->
+        <Constraint
+            android:id="@+id/shuffle_button"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/previous_button"
+            android:layout_width="@dimen/player_control_button_size"
+            android:layout_height="@dimen/player_control_button_size"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/play_pause_container"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/next_button"
+            android:layout_width="@dimen/player_control_button_size"
+            android:layout_height="@dimen/player_control_button_size"
+            android:alpha="1.0" />
+        
+        <Constraint
+            android:id="@+id/repeat_button"
+            android:layout_width="@dimen/player_button_size"
+            android:layout_height="@dimen/player_button_size"
+            android:alpha="1.0" />
+    </ConstraintSet>
+
+</MotionScene> 

@@ -1,5 +1,5 @@
 <resources>
-    <color name="md_theme_primary">#415F91</color>
+    <color name="md_theme_primary">#3353BE</color>
     <color name="md_theme_onPrimary">#FFFFFF</color>
     <color name="md_theme_primaryContainer">#D6E3FF</color>
     <color name="md_theme_onPrimaryContainer">#284777</color>
@@ -15,7 +15,7 @@
     <color name="md_theme_onError">#FFFFFF</color>
     <color name="md_theme_errorContainer">#FFDAD6</color>
     <color name="md_theme_onErrorContainer">#93000A</color>
-    <color name="md_theme_background">#F9F9FF</color>
+    <color name="md_theme_background">#FAF8FF</color>
     <color name="md_theme_onBackground">#191C20</color>
     <color name="md_theme_surface">#F9F9FF</color>
     <color name="md_theme_onSurface">#191C20</color>
@@ -140,6 +140,7 @@
     <color name="md_theme_surfaceContainer_highContrast">#E2E2E9</color>
     <color name="md_theme_surfaceContainerHigh_highContrast">#D3D4DB</color>
     <color name="md_theme_surfaceContainerHighest_highContrast">#C5C6CD</color>
+    <color name="md_theme_navigationBarBackground">#E8EBF9</color>
 
     <!-- 常用颜色定义 -->
     <!-- 背景颜色 -->

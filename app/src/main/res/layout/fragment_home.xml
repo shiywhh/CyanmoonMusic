@@ -6,6 +6,7 @@
     android:layout_height="match_parent">
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/nested_scroll_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
@@ -17,7 +18,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingTop="32dp"
-            android:paddingBottom="100dp">
+            android:paddingBottom="180dp">
 
             <com.google.android.material.search.SearchBar
                 android:id="@+id/open_search_bar"
@@ -275,7 +276,7 @@
                     android:scrollbars="none" />
             </LinearLayout>
 
-            <!-- 最近播放的专辑 -->
+            <!-- 最近播放专辑 -->
             <LinearLayout
                 android:id="@+id/layout_recent_albums"
                 android:layout_width="match_parent"

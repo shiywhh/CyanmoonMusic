@@ -1,40 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
+    android:background="@color/md_theme_background"
     android:layout_height="match_parent"
+    android:orientation="horizontal"
     tools:context=".MainActivity">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/nav_host_fragment"
-        android:name="androidx.navigation.fragment.NavHostFragment"
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/main"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:defaultNavHost="true"
-        app:layout_constraintBottom_toTopOf="@+id/bottomNavigation"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:navGraph="@navigation/nav_graph"
-        tools:layout="@layout/fragment_home" />
+        tools:context=".MainActivity">
+
+        <!-- Navigation Host Fragment -->
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/nav_host_fragment"
+            app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"
+            android:name="androidx.navigation.fragment.NavHostFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:defaultNavHost="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:navGraph="@navigation/nav_graph"
+            tools:layout="@layout/fragment_home" />
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottomNavigation"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/bottom_nav_height"
+            android:layout_gravity="bottom"
+            android:background="?attr/colorSurface"
+            app:itemActiveIndicatorStyle="@style/bottomItemActive"
+            app:itemIconSize="22dp"
+            app:itemPaddingTop="@dimen/margin_10"
+            app:labelVisibilityMode="labeled"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:menu="@menu/bottom_navigation_menu" />
+
+        <!-- Bottom Sheet Player -->
+        <FrameLayout
+            android:id="@+id/player_bottom_sheet"
+            android:layout_width="match_parent"
+            app:enableEdgeToEdge="true"
+            app:gestureInsetBottomIgnored="true"
+            android:layout_height="match_parent"
+            android:background="@color/md_theme_navigationBarBackground"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+            app:behavior_peekHeight="@dimen/bottom_nav_mini_player_peek_height"
+            app:behavior_hideable="true"
+            app:behavior_fitToContents="true"
+            app:behavior_expandedOffset="0dp"
+            app:behavior_saveFlags="peekHeight|fitToContents|hideable"
+            app:behavior_skipCollapsed="false">
+
+            <!-- Full Player (Behind) -->
+            <include layout="@layout/fragment_full_player" />
+
+            <!-- Mini Player (In Front) -->
+            <include layout="@layout/fragment_mini_player" />
+
+        </FrameLayout>
 
 
-    <!-- Bottom Navigation -->
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottomNavigation"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/bottom_nav_height"
-        android:layout_gravity="bottom"
-        android:background="?attr/colorSurface"
-        android:elevation="8dp"
-        app:itemActiveIndicatorStyle="@style/bottomItemActive"
-        app:itemIconSize="22dp"
-        app:itemPaddingTop="@dimen/margin_10"
-        app:labelVisibilityMode="labeled"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:menu="@menu/bottom_navigation_menu" />
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

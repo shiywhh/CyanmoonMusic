@@ -1,7 +1,6 @@
 package com.magicalstory.music.homepage;
 
 import android.Manifest;
-import android.animation.ObjectAnimator;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -11,18 +10,17 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.IBinder;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.navigation.Navigation;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.magicalstory.music.R;
 import com.google.android.material.search.SearchView;
 import com.magicalstory.music.MainActivity;
@@ -59,6 +57,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private ArtistHorizontalAdapter recentArtistsAdapter;
     private SongHorizontalAdapter myFavoritesAdapter;
     private SongHorizontalAdapter randomRecommendationsAdapter;
+
+    // 滚动位置保存
+    private int scrollY = 0;
+    private static final String KEY_SCROLL_Y = "scroll_y";
 
     // 扫描完成广播接收器
     private final BroadcastReceiver scanCompleteReceiver = new BroadcastReceiver() {
@@ -124,11 +126,35 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         // 扫描按钮点击事件
         binding.buttonScan.setOnClickListener(v -> requestMusicPermissionAndScan());
-        
+
         // 最近添加的歌曲标题点击事件
         binding.itemHeaderSongsLastestAdded.setOnClickListener(v -> {
             // 跳转到最近添加的歌曲页面
             navigateToRecentSongs();
+        });
+
+        // 最近播放专辑标题点击事件
+        binding.itemHeaderRecentAlbums.setOnClickListener(v -> {
+            // 跳转到专辑页面
+            navigateToAlbums();
+        });
+
+        // 最近听过的艺术家标题点击事件
+        binding.itemHeaderRecentArtists.setOnClickListener(v -> {
+            // 跳转到艺术家页面
+            navigateToArtists();
+        });
+
+        // 我的收藏标题点击事件
+        binding.itemHeaderMyFavorites.setOnClickListener(v -> {
+            // 跳转到我的收藏页面
+            navigateToMyFavorites();
+        });
+
+        // 随机推荐标题点击事件
+        binding.itemHeaderRandomRecommendations.setOnClickListener(v -> {
+            // 跳转到随机推荐页面
+            navigateToRandomRecommendations();
         });
     }
 
@@ -148,27 +174,36 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private void hideBottomNavigation() {
         if (getActivity() instanceof MainActivity) {
             MainActivity mainActivity = (MainActivity) getActivity();
-            BottomNavigationView bottomNav = mainActivity.getBinding().bottomNavigation;
-
-            // 使用官方推荐的方式向下隐藏
-            ObjectAnimator animator = ObjectAnimator.ofFloat(bottomNav, "translationY",
-                    0f, bottomNav.getHeight());
-            animator.setDuration(300);
-            animator.start();
+            mainActivity.hideBottomNavigation();
         }
     }
 
     private void showBottomNavigation() {
         if (getActivity() instanceof MainActivity) {
             MainActivity mainActivity = (MainActivity) getActivity();
-            BottomNavigationView bottomNav = mainActivity.getBinding().bottomNavigation;
-
-            // 向上显示
-            ObjectAnimator animator = ObjectAnimator.ofFloat(bottomNav, "translationY",
-                    bottomNav.getHeight(), 0f);
-            animator.setDuration(300);
-            animator.start();
+            mainActivity.showBottomNavigation();
         }
+    }
+
+    /**
+     * 检查搜索框是否展开
+     * @return true表示展开，false表示收起
+     */
+    public boolean isSearchViewExpanded() {
+        return binding != null && binding.openSearchView != null &&
+                binding.openSearchView.getCurrentTransitionState() == SearchView.TransitionState.SHOWN;
+    }
+
+    /**
+     * 关闭搜索框
+     * @return true表示成功关闭，false表示搜索框未展开
+     */
+    public boolean closeSearchView() {
+        if (binding != null && binding.openSearchView != null && isSearchViewExpanded()) {
+            binding.openSearchView.hide();
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -336,7 +371,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             binding.layoutSongsLastestAdded.setVisibility(View.GONE);
         }
 
-        // 加载最近播放的专辑（取前10个）
+        // 加载最近播放专辑（取前10个）
         List<Album> recentAlbums = LitePal.limit(10).find(Album.class);
         if (recentAlbums != null && !recentAlbums.isEmpty()) {
             recentAlbumsAdapter.updateData(recentAlbums);
@@ -381,6 +416,81 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs);
     }
 
+    /**
+     * 跳转到专辑页面
+     */
+    private void navigateToAlbums() {
+        // 使用Navigation组件进行跳转，动画已在nav_graph.xml中配置
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_albums);
+    }
+
+    /**
+     * 跳转到艺术家页面
+     */
+    private void navigateToArtists() {
+        // 使用Navigation组件进行跳转，动画已在nav_graph.xml中配置
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_artists);
+    }
+
+    /**
+     * 跳转到我的收藏页面
+     */
+    private void navigateToMyFavorites() {
+        // 使用Navigation组件进行跳转，传递数据类型参数
+        android.os.Bundle bundle = new android.os.Bundle();
+        bundle.putString("dataType", "favorite");
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
+    }
+
+    /**
+     * 跳转到随机推荐页面
+     */
+    private void navigateToRandomRecommendations() {
+        // 使用Navigation组件进行跳转，传递数据类型参数
+        android.os.Bundle bundle = new android.os.Bundle();
+        bundle.putString("dataType", "random");
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull android.os.Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // 保存滚动位置
+        if (binding != null && binding.nestedScrollView != null) {
+            scrollY = binding.nestedScrollView.getScrollY();
+            outState.putInt(KEY_SCROLL_Y, scrollY);
+        }
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable android.os.Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (savedInstanceState != null) {
+            scrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // 保存当前滚动位置
+        if (binding != null && binding.nestedScrollView != null) {
+            scrollY = binding.nestedScrollView.getScrollY();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        showBottomNavigation();
+        // 恢复滚动位置
+        if (binding != null && binding.nestedScrollView != null && scrollY > 0) {
+            binding.nestedScrollView.post(() -> {
+                binding.nestedScrollView.scrollTo(0, scrollY);
+            });
+        }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -395,5 +505,12 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             getContext().unbindService(serviceConnection);
             serviceBound = false;
         }
+    }
+
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        hideBottomNavigation();
     }
 }

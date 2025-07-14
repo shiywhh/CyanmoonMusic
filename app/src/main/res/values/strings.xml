@@ -16,7 +16,7 @@
     <string name="random_play">随机播放</string>
     
     <!-- 内容区域 -->
-    <string name="recent_albums">最近播放的专辑</string>
+    <string name="recent_albums">最近播放专辑</string>
     <string name="recent_artists">最近听过的艺术家</string>
     <string name="my_collection">我的收藏</string>
     <string name="random_recommendations">随机推荐</string>
@@ -44,6 +44,17 @@
     <string name="album_cover">专辑封面</string>
     <string name="album_menus">专辑菜单</string>
     <string name="album_play_button">专辑播放按钮</string>
+    <string name="artist_avatar">艺术家头像</string>
+    <string name="artist_menus">艺术家菜单</string>
+    <string name="artist_play_button">艺术家播放按钮</string>
     <string name="play">播放</string>
     <string name="recent_added">最近添加</string>
+    
+    <!-- 播放器相关字符串 -->
+    <string name="album_art">专辑封面</string>
+    <string name="play_pause">播放/暂停</string>
+    <string name="next">下一首</string>
+    <string name="previous">上一首</string>
+    <string name="shuffle">随机播放</string>
+    <string name="repeat">重复播放</string>
 </resources>

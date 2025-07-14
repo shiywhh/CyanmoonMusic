@@ -1,16 +1,28 @@
 package com.magicalstory.music.base;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.fragment.app.Fragment;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.viewbinding.ViewBinding;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.magicalstory.music.MainActivity;
+import com.magicalstory.music.utils.screen.DensityUtil;
 
 /**
  * 基础Fragment类，所有Fragment都应该继承这个类
@@ -20,7 +32,8 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
 
     protected VB binding;
     public Activity context;
-    
+    private BroadcastReceiver bottomSheetStateReceiver;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -41,11 +54,18 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         initView();
         initData();
         initListener();
+        // 在初始化完成后注册fab相关的广播
+        initFabHandling();
     }
-    
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // 取消注册广播接收器
+        if (bottomSheetStateReceiver != null) {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(bottomSheetStateReceiver);
+            bottomSheetStateReceiver = null;
+        }
         binding = null;
     }
 
@@ -56,6 +76,15 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
      * @return ViewBinding实例
      */
     protected abstract VB getViewBinding(LayoutInflater inflater, ViewGroup container);
+
+    /**
+     * 获取当前页面的FloatingActionButton
+     * 子类如果有fab需要处理，则重写此方法返回fab实例
+     * @return FloatingActionButton实例，如果没有则返回null
+     */
+    protected FloatingActionButton getFab() {
+        return null;
+    }
 
     /**
      * 初始化视图
@@ -79,12 +108,77 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
     }
 
     /**
-     * 显示Toast消息
-     * @param message 消息内容
+     * 初始化fab处理
      */
-    protected void showToast(String message) {
-        if (getActivity() != null) {
-            Toast.makeText(getActivity(), message, Toast.LENGTH_SHORT).show();
+    private void initFabHandling() {
+        FloatingActionButton fab = getFab();
+        if (fab != null) {
+            // 初始化fab的padding
+            if (((MainActivity) context).showMiniPlayer()) {
+                updateFabPaddingBottom(true);
+            }
+
+            // 注册广播接收器
+            registerBottomSheetStateReceiver();
         }
     }
+
+    /**
+     * 注册底部面板状态变化的广播接收器
+     */
+    private void registerBottomSheetStateReceiver() {
+        bottomSheetStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context1, Intent intent) {
+                if (MainActivity.ACTION_BOTTOM_SHEET_STATE_CHANGED.equals(intent.getAction())) {
+                    // 根据底部面板状态更新fab的paddingBottom
+                    updateFabPaddingBottom(((MainActivity) context).showMiniPlayer());
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter(MainActivity.ACTION_BOTTOM_SHEET_STATE_CHANGED);
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(bottomSheetStateReceiver, filter);
+    }
+
+    /**
+     * 根据底部面板状态更新fab的marginBottom
+     */
+    private void updateFabPaddingBottom(boolean isExpanded) {
+        FloatingActionButton fab = getFab();
+        if (fab == null) return;
+
+        // 计算fab的marginBottom
+        int targetMarginBottom = 0;
+
+        if (isExpanded) {
+            targetMarginBottom = DensityUtil.dip2px(context, 120);
+        } else {
+            targetMarginBottom = DensityUtil.dip2px(context, 30);
+        }
+
+        // 获取当前的marginBottom
+        CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) fab.getLayoutParams();
+        int currentMarginBottom = params.bottomMargin;
+
+        // 如果当前margin和目标margin相同，则不需要动画
+        if (currentMarginBottom == targetMarginBottom) {
+            return;
+        }
+
+        // 创建ValueAnimator来实现平滑的margin变化
+        ValueAnimator animator = ValueAnimator.ofInt(currentMarginBottom, targetMarginBottom);
+        animator.setDuration(300); // 动画持续时间300ms
+        animator.setInterpolator(new DecelerateInterpolator()); // 使用减速插值器，让动画更自然
+
+        animator.addUpdateListener(animation -> {
+            int animatedValue = (int) animation.getAnimatedValue();
+            params.bottomMargin = animatedValue;
+            fab.setLayoutParams(params);
+        });
+
+        animator.start();
+    }
+
+
 }
