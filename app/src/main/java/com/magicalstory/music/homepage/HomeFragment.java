@@ -13,6 +13,8 @@ import android.os.IBinder;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -34,6 +36,11 @@ import com.magicalstory.music.homepage.adapter.ArtistHorizontalAdapter;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
+import com.magicalstory.music.utils.network.NetUtils;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -42,6 +49,12 @@ import org.litepal.LitePal;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.io.IOException;
+
+import okhttp3.Call;
+import okhttp3.Response;
 
 public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
@@ -61,6 +74,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     // 滚动位置保存
     private int scrollY = 0;
     private static final String KEY_SCROLL_Y = "scroll_y";
+
+    // 网络请求相关
+    private ExecutorService executorService;
+    private Handler mainHandler;
 
     // 扫描完成广播接收器
     private final BroadcastReceiver scanCompleteReceiver = new BroadcastReceiver() {
@@ -385,6 +402,11 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         if (recentArtists != null && !recentArtists.isEmpty()) {
             recentArtistsAdapter.updateData(recentArtists);
             binding.layoutRecentArtists.setVisibility(View.VISIBLE);
+            
+            // 获取艺术家封面
+            for (Artist artist : recentArtists) {
+                fetchArtistCover(artist);
+            }
         } else {
             binding.layoutRecentArtists.setVisibility(View.GONE);
         }
@@ -452,6 +474,89 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
     }
 
+    /**
+     * 获取艺术家封面
+     */
+    private void fetchArtistCover(Artist artist) {
+        // 如果已经尝试过获取封面，则不再重复获取
+        if (artist.isCoverFetched()) {
+            return;
+        }
+
+        if (executorService == null) {
+            executorService = Executors.newCachedThreadPool();
+        }
+        if (mainHandler == null) {
+            mainHandler = new Handler(Looper.getMainLooper());
+        }
+
+        executorService.execute(() -> {
+            try {
+                String artistName = artist.getArtistName();
+                String url = "https://music.163.com/api/search/get/web?s=" + 
+                           java.net.URLEncoder.encode(artistName, "UTF-8") + "&type=100";
+                
+                Response response = NetUtils.getInstance().getDataSynFromNet(url);
+                if (response != null && response.isSuccessful()) {
+                    String jsonResponse = response.body().string();
+                    parseAndSaveArtistCover(artist, jsonResponse);
+                } else {
+                    // 获取失败，标记为已尝试过
+                    artist.setCoverFetched(true);
+                    artist.save();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                // 异常情况下也标记为已尝试过
+                artist.setCoverFetched(true);
+                artist.save();
+            }
+        });
+    }
+
+    /**
+     * 解析并保存艺术家封面
+     */
+    private void parseAndSaveArtistCover(Artist artist, String jsonResponse) {
+        try {
+            JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
+            if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200 && jsonObject.has("result")) {
+                JsonObject result = jsonObject.getAsJsonObject("result");
+                if (result.has("artists")) {
+                    JsonArray artists = result.getAsJsonArray("artists");
+                    if (artists.size() > 0) {
+                        JsonObject artistInfo = artists.get(0).getAsJsonObject();
+                        if (artistInfo.has("picUrl")) {
+                            String picUrl = artistInfo.get("picUrl").getAsString();
+                            if (picUrl != null && !picUrl.isEmpty()) {
+                                // 更新数据库
+                                artist.setCoverUrl(picUrl);
+                                artist.setCoverFetched(true);
+                                artist.save();
+                                
+                                // 回到主线程更新UI
+                                mainHandler.post(() -> {
+                                    if (recentArtistsAdapter != null) {
+                                        recentArtistsAdapter.notifyDataSetChanged();
+                                    }
+                                });
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            // 如果没有获取到封面，也标记为已尝试过
+            artist.setCoverFetched(true);
+            artist.save();
+        } catch (Exception e) {
+            e.printStackTrace();
+            // 异常情况下也标记为已尝试过
+            artist.setCoverFetched(true);
+            artist.save();
+        }
+    }
+
     @Override
     public void onSaveInstanceState(@NonNull android.os.Bundle outState) {
         super.onSaveInstanceState(outState);
@@ -504,6 +609,12 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         if (serviceBound) {
             getContext().unbindService(serviceConnection);
             serviceBound = false;
+        }
+
+        // 清理ExecutorService
+        if (executorService != null) {
+            executorService.shutdown();
+            executorService = null;
         }
     }
 

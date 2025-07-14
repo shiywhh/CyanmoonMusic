@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <litepal>
     <dbname value="MagicalMusic" />
-    <version value="2" />
+    <version value="5" />
     <list>
         <mapping class="com.magicalstory.music.model.Song" />
         <mapping class="com.magicalstory.music.model.Album" />
         <mapping class="com.magicalstory.music.model.Artist" />
+        <mapping class="com.magicalstory.music.model.Playlist" />
+        <mapping class="com.magicalstory.music.model.PlaylistSong" />
+        <mapping class="com.magicalstory.music.model.PlayHistory" />
+        <mapping class="com.magicalstory.music.model.FavoriteSong" />
     </list>
 </litepal>

@@ -1,10 +1,13 @@
 package com.magicalstory.music;
 
 import android.animation.ValueAnimator;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -21,6 +24,10 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.gyf.immersionbar.ImmersionBar;
 import com.magicalstory.music.databinding.ActivityMainBinding;
 import com.magicalstory.music.homepage.HomeFragment;
+import com.magicalstory.music.model.Song;
+import com.magicalstory.music.player.MiniPlayerFragment;
+import com.magicalstory.music.player.FullPlayerFragment;
+import com.magicalstory.music.service.MusicService;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -34,8 +41,32 @@ public class MainActivity extends AppCompatActivity {
     private int miniPlayerHeight;
     public boolean VoidHideBottomNavigation = false;
 
+    // 播放器Fragment
+    private MiniPlayerFragment miniPlayerFragment;
+    private FullPlayerFragment fullPlayerFragment;
+    
+    // 音乐服务
+    private MusicService musicService;
+    private boolean isServiceBound = false;
+
     // 广播常量
     public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.BOTTOM_SHEET_STATE_CHANGED";
+    
+    // 服务连接
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            MusicService.MusicBinder binder = (MusicService.MusicBinder) service;
+            musicService = binder.getService();
+            isServiceBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            musicService = null;
+            isServiceBound = false;
+        }
+    };
 
 
     @Override
@@ -52,7 +83,9 @@ public class MainActivity extends AppCompatActivity {
 
         setupBottomNavigation();
         setupBottomSheet();
+        setupPlayerFragments();
         setupBackPressHandler();
+        bindMusicService();
     }
 
     private void setupStatusBar() {
@@ -80,14 +113,16 @@ public class MainActivity extends AppCompatActivity {
                 binding.bottomNavigation.setSelectedItemId(R.id.nav_home);
                 
                 // 添加tab切换监听器
-                binding.bottomNavigation.setOnItemSelectedListener(new BottomNavigationView.OnNavigationItemSelectedListener() {
-                    @Override
-                    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                        // 在切换fragment时设置VoidHideBottomNavigation=true避免误操作
-                        VoidHideBottomNavigation = true;
-                        // 调用默认的导航处理
-                        return NavigationUI.onNavDestinationSelected(item, navController);
+                binding.bottomNavigation.setOnItemSelectedListener((BottomNavigationView.OnNavigationItemSelectedListener) item -> {
+
+                    VoidHideBottomNavigation = true;
+
+                    if (bottomSheetBehavior.getState()== BottomSheetBehavior.STATE_EXPANDED) {
+                        return false;
                     }
+
+                    // 调用默认的导航处理
+                    return NavigationUI.onNavDestinationSelected(item, navController);
                 });
             }
         } catch (Exception e) {
@@ -104,14 +139,17 @@ public class MainActivity extends AppCompatActivity {
         miniPlayerContainer = bottomSheet.findViewById(R.id.mini_player_container);
         fullPlayerContainer = bottomSheet.findViewById(R.id.full_player_container);
 
-        // 初始状态设置 - 两个播放器都保持可见，但只有mini player有透明度
+        // 初始状态设置为HIDDEN - 默认不显示播放器
+        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        
+        // 初始状态设置 - 两个播放器都隐藏
         if (miniPlayerContainer != null) {
-            miniPlayerContainer.setVisibility(View.VISIBLE);
-            miniPlayerContainer.setAlpha(1.0f); // mini player 初始完全显示
+            miniPlayerContainer.setVisibility(View.GONE);
+            miniPlayerContainer.setAlpha(0.0f);
         }
         if (fullPlayerContainer != null) {
-            fullPlayerContainer.setVisibility(View.VISIBLE);
-            fullPlayerContainer.setAlpha(0.0f); // full player 初始完全透明
+            fullPlayerContainer.setVisibility(View.GONE);
+            fullPlayerContainer.setAlpha(0.0f);
         }
 
         // 设置 mini player 点击监听器
@@ -179,7 +217,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                             // 发送隐藏状态广播
                             sendBottomSheetStateChangedBroadcast(false, false);
-                            // 可以在这里添加暂停音乐的逻辑
+                            // 停止音乐播放
+                            stopMusicPlayback();
                             break;
                         case BottomSheetBehavior.STATE_DRAGGING:
                         case BottomSheetBehavior.STATE_SETTLING:
@@ -351,6 +390,21 @@ public class MainActivity extends AppCompatActivity {
         animator.start();
     }
 
+    /**
+     * 设置播放器Fragment
+     */
+    private void setupPlayerFragments() {
+        // 创建播放器Fragment
+        miniPlayerFragment = new MiniPlayerFragment();
+        fullPlayerFragment = new FullPlayerFragment();
+
+        // 添加到Fragment容器
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.mini_player_container, miniPlayerFragment)
+                .replace(R.id.full_player_container, fullPlayerFragment)
+                .commit();
+    }
+
     //是否展开mini播放器
     public boolean showMiniPlayer() {
         return bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_COLLAPSED;
@@ -443,5 +497,111 @@ public class MainActivity extends AppCompatActivity {
         if (!handleBackPress()) {
             super.onBackPressed();
         }
+    }
+
+    /**
+     * 播放歌曲
+     */
+    public void playSong(Song song) {
+        if (miniPlayerFragment != null) {
+            miniPlayerFragment.playSong(song);
+        }
+        if (fullPlayerFragment != null) {
+            fullPlayerFragment.playSong(song);
+        }
+        
+        // 如果bottomSheet处于隐藏状态，则显示为收起状态
+        if (bottomSheetBehavior != null && 
+            bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+    }
+
+    /**
+     * 设置播放列表
+     */
+    public void setPlaylist(java.util.List<Song> songs) {
+        if (miniPlayerFragment != null) {
+            miniPlayerFragment.setPlaylist(songs);
+        }
+        if (fullPlayerFragment != null) {
+            fullPlayerFragment.setPlaylist(songs);
+        }
+    }
+
+    /**
+     * 获取当前是否在播放
+     */
+    public boolean isPlaying() {
+        return miniPlayerFragment != null && miniPlayerFragment.isPlaying();
+    }
+
+    /**
+     * 获取当前播放的歌曲
+     */
+    public Song getCurrentSong() {
+        return miniPlayerFragment != null ? miniPlayerFragment.getCurrentSong() : null;
+    }
+
+    /**
+     * 获取MiniPlayerFragment
+     */
+    public MiniPlayerFragment getMiniPlayerFragment() {
+        return miniPlayerFragment;
+    }
+
+    /**
+     * 获取FullPlayerFragment
+     */
+    public FullPlayerFragment getFullPlayerFragment() {
+        return fullPlayerFragment;
+    }
+    
+    /**
+     * 停止音乐播放但保持服务运行
+     */
+    private void stopMusicPlayback() {
+        if (musicService != null) {
+            musicService.stopPlayback();
+        }
+    }
+    
+    /**
+     * 显示播放器
+     */
+    public void showPlayer() {
+        if (bottomSheetBehavior != null && 
+            bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+    }
+    
+    /**
+     * 启动并绑定音乐服务
+     */
+    private void bindMusicService() {
+        Intent intent = new Intent(this, MusicService.class);
+        // 先启动服务，确保服务在后台运行
+        startService(intent);
+        // 然后绑定服务以获得Binder对象
+        bindService(intent, serviceConnection, BIND_AUTO_CREATE);
+    }
+    
+    /**
+     * 解绑音乐服务
+     */
+    private void unbindMusicService() {
+        if (isServiceBound) {
+            unbindService(serviceConnection);
+            isServiceBound = false;
+        }
+        // 注意：不要调用stopService，让服务继续在后台运行
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unbindMusicService();
+        // 注意：不要停止音乐服务，让它在后台继续运行
     }
 }

@@ -2,6 +2,7 @@ package com.magicalstory.music;
 
 import android.app.Application;
 
+import com.magicalstory.music.utils.network.NetworkUtils;
 import com.tencent.mmkv.MMKV;
 
 import org.litepal.LitePal;
@@ -17,5 +18,7 @@ public class applicantion extends Application {
         super.onCreate();
         MMKV.initialize(this);
         LitePal.initialize(this);
+        NetworkUtils.initialize(this);
+
     }
 }

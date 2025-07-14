@@ -21,6 +21,7 @@ import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
+import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemSongHorizontalBinding;
 import com.magicalstory.music.databinding.ItemSongSquareBinding;
@@ -100,6 +101,13 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(song, position);
                 }
+                
+                // 播放歌曲
+                if (context instanceof MainActivity) {
+                    MainActivity mainActivity = (MainActivity) context;
+                    mainActivity.setPlaylist(songList);
+                    mainActivity.playSong(song);
+                }
             });
         } else if (holder instanceof ViewHolder) {
             ViewHolder horizontalHolder = (ViewHolder) holder;
@@ -116,6 +124,13 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             horizontalHolder.itemView.setOnClickListener(v -> {
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(song, position);
+                }
+                
+                // 播放歌曲
+                if (context instanceof MainActivity) {
+                    MainActivity mainActivity = (MainActivity) context;
+                    mainActivity.setPlaylist(songList);
+                    mainActivity.playSong(song);
                 }
             });
         }

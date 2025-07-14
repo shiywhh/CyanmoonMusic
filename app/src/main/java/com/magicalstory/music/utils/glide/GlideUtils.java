@@ -7,17 +7,47 @@ package com.magicalstory.music.utils.glide;
  */
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.StatFs;
+import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.FutureTarget;
+import com.magicalstory.music.R;
 
 import java.io.File;
 import java.util.concurrent.ExecutionException;
 
 public class GlideUtils {
+
+    /**
+     * 加载专辑封面
+     *
+     * @param context 上下文
+     * @param albumId 专辑ID
+     * @param imageView 图片视图
+     */
+    public static void loadAlbumCover(Context context, long albumId, ImageView imageView) {
+        try {
+            // 构建专辑封面的URI
+            Uri albumUri = Uri.parse("content://media/external/audio/albumart/" + albumId);
+            
+            Glide.with(context)
+                    .load(albumUri)
+                    .placeholder(R.drawable.place_holder_album)
+                    .error(R.drawable.place_holder_album)
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .into(imageView);
+        } catch (Exception e) {
+            e.printStackTrace();
+            // 如果加载失败，显示默认封面
+            Glide.with(context)
+                    .load(R.drawable.place_holder_album)
+                    .into(imageView);
+        }
+    }
 
     /**
      * 获取Glide缓存大小

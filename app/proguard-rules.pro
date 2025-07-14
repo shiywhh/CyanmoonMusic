@@ -12,8 +12,7 @@
 #   public *;
 #}
 
--keep class com.magicalstory.music.database.** { *; }
--keep class com.magicalstory.music.entity.** { *; }
+-keep class com.magicalstory.music.model.** { *; }
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.

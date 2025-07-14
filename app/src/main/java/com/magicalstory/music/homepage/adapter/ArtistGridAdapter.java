@@ -70,12 +70,23 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
     }
     
     private void loadArtistAvatar(com.google.android.material.imageview.ShapeableImageView imageView, Artist artist) {
-        // 使用默认的艺术家头像
-        Glide.with(context)
-                .load(R.drawable.place_holder_artist)
+        RequestOptions options = new RequestOptions()
+                .transform(new RoundedCorners(16))
                 .placeholder(R.drawable.place_holder_artist)
-                .error(R.drawable.place_holder_artist)
-                .into(imageView);
+                .error(R.drawable.place_holder_artist);
+
+        // 如果艺术家有封面URL，则加载网络图片，否则使用默认图标
+        if (artist.getCoverUrl() != null && !artist.getCoverUrl().isEmpty()) {
+            Glide.with(context)
+                    .load(artist.getCoverUrl())
+                    .apply(options)
+                    .into(imageView);
+        } else {
+            Glide.with(context)
+                    .load(R.drawable.place_holder_artist)
+                    .apply(options)
+                    .into(imageView);
+        }
     }
     
     @Override

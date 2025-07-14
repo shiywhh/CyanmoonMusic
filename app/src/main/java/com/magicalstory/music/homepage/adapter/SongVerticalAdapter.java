@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemSongVerticalBinding;
 import com.magicalstory.music.model.Song;
@@ -67,6 +68,13 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
         holder.itemView.setOnClickListener(v -> {
             if (onItemClickListener != null) {
                 onItemClickListener.onItemClick(song, position);
+            }
+            
+            // 播放歌曲
+            if (context instanceof MainActivity) {
+                MainActivity mainActivity = (MainActivity) context;
+                mainActivity.setPlaylist(songList);
+                mainActivity.playSong(song);
             }
         });
     }

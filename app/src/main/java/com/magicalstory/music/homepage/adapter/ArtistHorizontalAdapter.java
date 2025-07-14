@@ -59,7 +59,7 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
         holder.binding.tvSongCount.setText(songCountText);
         
         // 加载艺术家头像（使用默认图标）
-        loadArtistAvatar(holder.binding.ivAvatar);
+        loadArtistAvatar(holder.binding.ivAvatar, artist);
         
         // 设置点击事件
         holder.itemView.setOnClickListener(v -> {
@@ -69,17 +69,24 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
         });
     }
     
-    private void loadArtistAvatar(ImageView imageView) {
+    private void loadArtistAvatar(ImageView imageView, Artist artist) {
         RequestOptions options = new RequestOptions()
                 .transform(new RoundedCorners(16))
                 .placeholder(R.drawable.place_holder_artist)
                 .error(R.drawable.place_holder_artist);
         
-        // 艺术家头像使用默认图标
-        Glide.with(context)
-                .load(R.drawable.place_holder_artist)
-                .apply(options)
-                .into(imageView);
+        // 如果艺术家有封面URL，则加载网络图片，否则使用默认图标
+        if (artist.getCoverUrl() != null && !artist.getCoverUrl().isEmpty()) {
+            Glide.with(context)
+                    .load(artist.getCoverUrl())
+                    .apply(options)
+                    .into(imageView);
+        } else {
+            Glide.with(context)
+                    .load(R.drawable.place_holder_artist)
+                    .apply(options)
+                    .into(imageView);
+        }
     }
     
     @Override

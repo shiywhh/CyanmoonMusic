@@ -11,6 +11,8 @@ public class Artist extends LitePalSupport {
     private int songCount;          // 歌曲数量
     private int albumCount;         // 专辑数量
     private long artistId;          // 系统艺术家ID
+    private String coverUrl;        // 艺术家封面URL
+    private boolean coverFetched;   // 是否已经尝试过获取封面
 
     public Artist() {}
 
@@ -19,6 +21,7 @@ public class Artist extends LitePalSupport {
         this.songCount = songCount;
         this.albumCount = albumCount;
         this.artistId = artistId;
+        this.coverFetched = false;
     }
 
     // Getters and Setters
@@ -60,5 +63,21 @@ public class Artist extends LitePalSupport {
 
     public void setArtistId(long artistId) {
         this.artistId = artistId;
+    }
+
+    public String getCoverUrl() {
+        return coverUrl;
+    }
+
+    public void setCoverUrl(String coverUrl) {
+        this.coverUrl = coverUrl;
+    }
+
+    public boolean isCoverFetched() {
+        return coverFetched;
+    }
+
+    public void setCoverFetched(boolean coverFetched) {
+        this.coverFetched = coverFetched;
     }
 }
