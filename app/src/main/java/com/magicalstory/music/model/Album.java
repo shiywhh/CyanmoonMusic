@@ -16,6 +16,7 @@ public class Album extends LitePalSupport {
     private long firstYear;         // 首次发行年份
     private long lastYear;          // 最后发行年份
     private long lastplayed;        // 最后播放时间
+    private String genre;           // 流派
 
     public Album() {}
 
@@ -105,5 +106,13 @@ public class Album extends LitePalSupport {
 
     public void setLastplayed(long lastplayed) {
         this.lastplayed = lastplayed;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public void setGenre(String genre) {
+        this.genre = genre;
     }
 }

@@ -69,4 +69,13 @@ public class TimeUtils {
     public static String formatTime(int milliseconds) {
         return formatTime((long) milliseconds);
     }
+    
+    /**
+     * 将时长（毫秒）格式化为时长字符串
+     * @param duration 时长（毫秒）
+     * @return 格式化后的时长字符串，如 "3:45" 或 "1:23:45"
+     */
+    public static String formatDuration(long duration) {
+        return formatTime(duration);
+    }
 } 

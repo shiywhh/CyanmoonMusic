@@ -87,4 +87,45 @@
     <string name="unknown_format">未知格式</string>
     <string name="unknown_bitrate">未知码率</string>
     <string name="unknown_sample_rate">未知采样率</string>
+    
+    <!-- 专辑详情页面相关字符串 -->
+    <string name="album_name">专辑名称</string>
+    <string name="play_all">全部播放</string>
+    <string name="shuffle_play">随机播放</string>
+    <string name="songs">歌曲</string>
+    <string name="view_all">查看全部</string>
+    <string name="other_albums_from_artist">来自该艺术家的其他专辑</string>
+    <string name="other_albums_from_artist_format">来自 %s 的其他专辑</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    
+    <!-- 专辑详情功能提示 -->
+    <string name="tag_editor_coming_soon">标签编辑器功能开发中...</string>
+    <string name="added_to_play_queue">已添加到播放队列</string>
+    <string name="add_to_playlist_coming_soon">添加到播放列表功能开发中...</string>
+    <string name="load_album_detail_failed">加载专辑详情失败</string>
+    
+    <!-- 菜单项 -->
+    <string name="edit_tags">编辑标签</string>
+    <string name="play_next">下一首播放</string>
+    <string name="add_to_playlist">添加到播放列表</string>
+    
+    <!-- 标签编辑器 -->
+    <string name="tag_editor">标签编辑器</string>
+    <string name="save">保存</string>
+    <string name="album">专辑</string>
+    <string name="album_artist">专辑艺术家</string>
+    <string name="genre">流派</string>
+    <string name="year">年份</string>
+    <string name="track_total">Track total</string>
+    <string name="disc_total">Disc total</string>
+    <string name="click_to_select_image">点击选择图片</string>
+    <string name="select_image">选择图片</string>
+    <string name="tags_saved_successfully">标签保存成功</string>
+    <string name="save_tags_failed">保存标签失败</string>
+    <string name="permission_required">需要权限才能访问图片</string>
+    <string name="no_image_selected">未选择图片</string>
+    <string name="error_loading_image">加载图片失败</string>
+    <string name="added_to_queue_next">已添加到播放队列下一首</string>
+    <string name="create_playlist">创建播放列表</string>
+    <string name="no_songs_to_add">没有歌曲可以添加</string>
 </resources>

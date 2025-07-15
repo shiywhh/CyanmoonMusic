@@ -1,4 +1,4 @@
-package com.magicalstory.music.homepage.adapter;
+package com.magicalstory.music.adapter;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -264,6 +264,14 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
         seconds = seconds % 60;
 
         return String.format("%d:%02d", minutes, seconds);
+    }
+
+    /**
+     * 更新数据
+     */
+    public void updateData(List<Song> newSongList) {
+        this.songList = newSongList;
+        notifyDataSetChanged();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

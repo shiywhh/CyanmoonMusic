@@ -1,8 +1,9 @@
-package com.magicalstory.music.homepage.adapter;
+package com.magicalstory.music.adapter;
 
 import android.content.Context;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
@@ -65,14 +66,17 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
         // 加载专辑封面
         loadAlbumArt(holder.binding.ivCover, album);
         
-        // 设置点击事件
+        // 设置专辑封面点击事件 - 跳转到专辑详情页面
         holder.itemView.setOnClickListener(v -> {
             if (onItemClickListener != null) {
                 onItemClickListener.onItemClick(album, position);
             }
-            
-            // 播放专辑歌曲
-            if (context instanceof MainActivity mainActivity) {
+        });
+
+        holder.binding.btnPlay.setOnClickListener(v -> {
+            //在这里添加播放专辑音乐
+            if (context instanceof MainActivity) {
+                MainActivity mainActivity = (MainActivity) context;
                 playAlbumSongs(mainActivity, album);
             }
         });
@@ -96,28 +100,58 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
     }
     
     private void loadAlbumArt(ImageView imageView, Album album) {
-        // 构建专辑封面URI
-        String albumArtUri = null;
-        if (album.getAlbumId() > 0) {
-            albumArtUri = "content://media/external/audio/albumart/" + album.getAlbumId();
-        }
-        
         RequestOptions options = new RequestOptions()
                 .transform(new RoundedCorners(16))
                 .placeholder(R.drawable.place_holder_album)
                 .error(R.drawable.place_holder_album);
         
-        if (!TextUtils.isEmpty(albumArtUri)) {
-            Glide.with(context)
-                    .load(albumArtUri)
-                    .apply(options)
-                    .into(imageView);
+        String albumArt = album.getAlbumArt();
+        if (!TextUtils.isEmpty(albumArt)) {
+            // 检查是否是歌曲路径（回退封面）
+            if (albumArt.startsWith("/") && albumArt.contains(".")) {
+                // 这是歌曲路径，从歌曲文件中加载封面
+                Glide.with(context)
+                        .load(albumArt)
+                        .apply(options)
+                        .into(imageView);
+            } else if (albumArt.startsWith("http")) {
+                // 这是网络URL
+                Glide.with(context)
+                        .load(albumArt)
+                        .apply(options)
+                        .into(imageView);
+            } else if (albumArt.startsWith("content://media/external/audio/albumart/")) {
+                // 这是系统专辑封面URI
+                Glide.with(context)
+                        .load(albumArt)
+                        .apply(options)
+                        .into(imageView);
+            } else {
+                // 其他情况，尝试直接加载
+                Glide.with(context)
+                        .load(albumArt)
+                        .apply(options)
+                        .into(imageView);
+            }
         } else {
-            // 没有封面时显示默认图标
-            Glide.with(context)
-                    .load(R.drawable.ic_album)
-                    .apply(options)
-                    .into(imageView);
+            // 构建系统专辑封面URI
+            String albumArtUri = null;
+            if (album.getAlbumId() > 0) {
+                albumArtUri = "content://media/external/audio/albumart/" + album.getAlbumId();
+            }
+            
+            if (!TextUtils.isEmpty(albumArtUri)) {
+                Glide.with(context)
+                        .load(albumArtUri)
+                        .apply(options)
+                        .into(imageView);
+            } else {
+                // 没有封面时显示默认图标
+                Glide.with(context)
+                        .load(R.drawable.ic_album)
+                        .apply(options)
+                        .into(imageView);
+            }
         }
     }
     

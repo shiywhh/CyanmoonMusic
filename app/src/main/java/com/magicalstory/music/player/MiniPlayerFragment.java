@@ -457,11 +457,11 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     }
     
     /**
-     * 滚动到指定位置（带渐变动画）
+     * 滚动到指定位置（直接跳转）
      */
     private void scrollToPosition(int position) {
         if (binding.miniPlayerRecyclerView != null && !isUserScrolling) {
-            binding.miniPlayerRecyclerView.smoothScrollToPosition(position);
+            binding.miniPlayerRecyclerView.scrollToPosition(position);
         }
     }
 } 

@@ -107,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
             if (navHostFragment != null) {
                 // 从NavHostFragment获取NavController
                 NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+                
                 // 设置底部导航与NavController关联
                 NavigationUI.setupWithNavController(binding.bottomNavigation, navController);
                 // 默认选中主页
@@ -499,6 +500,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
     /**
      * 播放歌曲
      */
@@ -685,7 +688,7 @@ public class MainActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
     }
-    
+
     /**
      * 展开BottomSheet到完整播放器
      */

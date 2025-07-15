@@ -31,4 +31,9 @@ public class LibraryFragment extends BaseFragment<FragmentLibraryBinding> {
         super.initListener();
         // 初始化监听器
     }
+
+    @Override
+    public boolean autoHideBottomNavigation() {
+        return false;
+    }
 }

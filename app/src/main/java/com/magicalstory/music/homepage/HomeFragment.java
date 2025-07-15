@@ -9,7 +9,9 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,20 +32,18 @@ import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentHomeBinding;
 import com.magicalstory.music.service.MusicScanService;
 import com.magicalstory.music.utils.app.ToastUtils;
-import com.magicalstory.music.homepage.adapter.SongHorizontalAdapter;
-import com.magicalstory.music.homepage.adapter.AlbumHorizontalAdapter;
-import com.magicalstory.music.homepage.adapter.ArtistHorizontalAdapter;
+import com.magicalstory.music.adapter.SongHorizontalAdapter;
+import com.magicalstory.music.adapter.AlbumHorizontalAdapter;
+import com.magicalstory.music.adapter.ArtistHorizontalAdapter;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.utils.network.NetUtils;
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.litepal.LitePal;
 
@@ -51,12 +51,12 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.io.IOException;
 
-import okhttp3.Call;
 import okhttp3.Response;
 
 import com.magicalstory.music.model.FavoriteSong;
+import com.magicalstory.music.utils.glide.CoverFallbackUtils;
+import com.magicalstory.music.service.CoverFetchService;
 
 public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
@@ -73,9 +73,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private SongHorizontalAdapter myFavoritesAdapter;
     private SongHorizontalAdapter randomRecommendationsAdapter;
 
-    // 滚动位置保存
-    private int scrollY = 0;
-    private static final String KEY_SCROLL_Y = "scroll_y";
 
     // 网络请求相关
     private ExecutorService executorService;
@@ -361,6 +358,14 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         binding.rvRecentAlbums.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         recentAlbumsAdapter = new AlbumHorizontalAdapter(getContext(), new ArrayList<>());
+        recentAlbumsAdapter.setOnItemClickListener((album, position) -> {
+            // 跳转到专辑详情页面
+            Bundle bundle = new Bundle();
+            bundle.putLong("album_id", album.getAlbumId());
+            bundle.putString("artist_name", album.getArtist());
+            bundle.putString("album_name", album.getAlbumName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_home_to_album_detail, bundle);
+        });
         binding.rvRecentAlbums.setAdapter(recentAlbumsAdapter);
 
         // 最近听过的艺术家
@@ -399,6 +404,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             executorService = Executors.newCachedThreadPool();
         }
         
+        // 启动后台服务批量获取所有专辑和歌手的封面
+        CoverFetchService.startFetchAllCovers(getContext());
+        
         executorService.execute(() -> {
             try {
                 // 加载最近添加的歌曲（按添加时间倒序，取前10首）
@@ -407,8 +415,24 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 // 加载最近播放专辑（取前10个）
                 List<Album> recentAlbums = LitePal.limit(10).find(Album.class);
                 
+                // 为专辑设置回退封面
+                if (recentAlbums != null && !recentAlbums.isEmpty()) {
+                    int albumCoverCount = CoverFallbackUtils.setAlbumsFallbackCover(recentAlbums);
+                    if (albumCoverCount > 0) {
+                        android.util.Log.d("HomeFragment", "为 " + albumCoverCount + " 个专辑设置了回退封面");
+                    }
+                }
+                
                 // 加载最近听过的艺术家（取前10个）
                 List<Artist> recentArtists = LitePal.limit(10).find(Artist.class);
+                
+                // 为歌手设置回退封面
+                if (recentArtists != null && !recentArtists.isEmpty()) {
+                    int artistCoverCount = CoverFallbackUtils.setArtistsFallbackCover(recentArtists);
+                    if (artistCoverCount > 0) {
+                        android.util.Log.d("HomeFragment", "为 " + artistCoverCount + " 个歌手设置了回退封面");
+                    }
+                }
                 
                 // 加载我的收藏（从FavoriteSong表查询真正的收藏歌曲）
                 List<FavoriteSong> favoriteSongList = LitePal.order("addTime desc").limit(10).find(FavoriteSong.class);
@@ -557,15 +581,35 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                     String jsonResponse = response.body().string();
                     parseAndSaveArtistCover(artist, jsonResponse);
                 } else {
-                    // 获取失败，标记为已尝试过
-                    artist.setCoverFetched(true);
-                    artist.save();
+                    // 获取失败，尝试使用回退封面
+                    if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
+                        // 成功设置了回退封面，通知UI更新
+                        mainHandler.post(() -> {
+                            if (recentArtistsAdapter != null) {
+                                recentArtistsAdapter.notifyDataSetChanged();
+                            }
+                        });
+                    } else {
+                        // 回退封面也没有，标记为已尝试过
+                        artist.setCoverFetched(true);
+                        artist.save();
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                // 异常情况下也标记为已尝试过
-                artist.setCoverFetched(true);
-                artist.save();
+                // 异常情况下尝试使用回退封面
+                if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
+                    // 成功设置了回退封面，通知UI更新
+                    mainHandler.post(() -> {
+                        if (recentArtistsAdapter != null) {
+                            recentArtistsAdapter.notifyDataSetChanged();
+                        }
+                    });
+                } else {
+                    // 回退封面也没有，标记为已尝试过
+                    artist.setCoverFetched(true);
+                    artist.save();
+                }
             }
         });
     }
@@ -602,54 +646,43 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                     }
                 }
             }
-            // 如果没有获取到封面，也标记为已尝试过
-            artist.setCoverFetched(true);
-            artist.save();
+            // 如果没有获取到封面，尝试使用回退封面
+            if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
+                // 成功设置了回退封面，通知UI更新
+                mainHandler.post(() -> {
+                    if (recentArtistsAdapter != null) {
+                        recentArtistsAdapter.notifyDataSetChanged();
+                    }
+                });
+            } else {
+                // 回退封面也没有，标记为已尝试过
+                artist.setCoverFetched(true);
+                artist.save();
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            // 异常情况下也标记为已尝试过
-            artist.setCoverFetched(true);
-            artist.save();
+            // 异常情况下尝试使用回退封面
+            if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
+                // 成功设置了回退封面，通知UI更新
+                mainHandler.post(() -> {
+                    if (recentArtistsAdapter != null) {
+                        recentArtistsAdapter.notifyDataSetChanged();
+                    }
+                });
+            } else {
+                // 回退封面也没有，标记为已尝试过
+                artist.setCoverFetched(true);
+                artist.save();
+            }
         }
     }
 
-    @Override
-    public void onSaveInstanceState(@NonNull android.os.Bundle outState) {
-        super.onSaveInstanceState(outState);
-        // 保存滚动位置
-        if (binding != null && binding.nestedScrollView != null) {
-            scrollY = binding.nestedScrollView.getScrollY();
-            outState.putInt(KEY_SCROLL_Y, scrollY);
-        }
-    }
 
-    @Override
-    public void onViewStateRestored(@Nullable android.os.Bundle savedInstanceState) {
-        super.onViewStateRestored(savedInstanceState);
-        if (savedInstanceState != null) {
-            scrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
-        }
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        // 保存当前滚动位置
-        if (binding != null && binding.nestedScrollView != null) {
-            scrollY = binding.nestedScrollView.getScrollY();
-        }
-    }
 
     @Override
     public void onResume() {
         super.onResume();
         showBottomNavigation();
-        // 恢复滚动位置
-        if (binding != null && binding.nestedScrollView != null && scrollY > 0) {
-            binding.nestedScrollView.post(() -> {
-                binding.nestedScrollView.scrollTo(0, scrollY);
-            });
-        }
     }
 
     @Override

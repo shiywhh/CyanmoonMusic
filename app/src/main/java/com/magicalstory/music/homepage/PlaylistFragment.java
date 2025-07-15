@@ -31,4 +31,9 @@ public class PlaylistFragment extends BaseFragment<FragmentPlaylistBinding> {
         super.initListener();
         // 初始化监听器
     }
+
+    @Override
+    public boolean autoHideBottomNavigation() {
+        return false;
+    }
 }

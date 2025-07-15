@@ -1,4 +1,4 @@
-package com.magicalstory.music.homepage.adapter;
+package com.magicalstory.music.adapter;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -100,13 +100,36 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
                 .placeholder(R.drawable.place_holder_artist)
                 .error(R.drawable.place_holder_artist);
         
-        // 如果艺术家有封面URL，则加载网络图片，否则使用默认图标
-        if (artist.getCoverUrl() != null && !artist.getCoverUrl().isEmpty()) {
-            Glide.with(context)
-                    .load(artist.getCoverUrl())
-                    .apply(options)
-                    .into(imageView);
+        String coverUrl = artist.getCoverUrl();
+        if (coverUrl != null && !coverUrl.isEmpty()) {
+            // 检查是否是歌曲路径（回退封面）
+            if (coverUrl.startsWith("/") && coverUrl.contains(".")) {
+                // 这是歌曲路径，从歌曲文件中加载封面
+                Glide.with(context)
+                        .load(coverUrl)
+                        .apply(options)
+                        .into(imageView);
+            } else if (coverUrl.startsWith("http")) {
+                // 这是网络URL
+                Glide.with(context)
+                        .load(coverUrl)
+                        .apply(options)
+                        .into(imageView);
+            } else if (coverUrl.startsWith("content://media/external/audio/albumart/")) {
+                // 这是系统专辑封面URI
+                Glide.with(context)
+                        .load(coverUrl)
+                        .apply(options)
+                        .into(imageView);
+            } else {
+                // 其他情况，尝试直接加载
+                Glide.with(context)
+                        .load(coverUrl)
+                        .apply(options)
+                        .into(imageView);
+            }
         } else {
+            // 没有封面时显示默认图标
             Glide.with(context)
                     .load(R.drawable.place_holder_artist)
                     .apply(options)

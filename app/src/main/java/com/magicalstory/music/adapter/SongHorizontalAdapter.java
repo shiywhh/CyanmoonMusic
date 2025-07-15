@@ -1,4 +1,4 @@
-package com.magicalstory.music.homepage.adapter;
+package com.magicalstory.music.adapter;
 
 import android.content.Context;
 import android.graphics.Bitmap;

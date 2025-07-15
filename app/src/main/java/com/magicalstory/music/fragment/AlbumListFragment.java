@@ -1,4 +1,4 @@
-package com.magicalstory.music.homepage.functions;
+package com.magicalstory.music.fragment;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,11 +26,10 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentAlbumBinding;
 import com.magicalstory.music.dialog.dialogUtils;
-import com.magicalstory.music.homepage.adapter.AlbumGridAdapter;
+import com.magicalstory.music.adapter.AlbumGridAdapter;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.service.MusicService;
-import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -44,7 +43,7 @@ import java.util.List;
  * 专辑Fragment - 显示最近播放的专辑
  * 支持长按进入多选模式
  */
-public class RecentAlbumFragment extends BaseFragment<FragmentAlbumBinding> {
+public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
     // 请求代码常量
     private static final int DELETE_REQUEST_CODE = 1001;
@@ -235,8 +234,12 @@ public class RecentAlbumFragment extends BaseFragment<FragmentAlbumBinding> {
 
         // 设置专辑点击事件
         albumAdapter.setOnItemClickListener((album, position) -> {
-            // TODO: 打开专辑详情页面
-            // 这里可以添加打开专辑详情页面的逻辑
+            // 跳转到专辑详情页面
+            Bundle bundle = new Bundle();
+            bundle.putLong("album_id", album.getAlbumId());
+            bundle.putString("artist_name", album.getArtist());
+            bundle.putString("album_name", album.getAlbumName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_albums_to_album_detail, bundle);
         });
 
         // 设置长按事件
@@ -575,7 +578,25 @@ public class RecentAlbumFragment extends BaseFragment<FragmentAlbumBinding> {
         Thread loadThread = new Thread(() -> {
             try {
                 // 从数据库查询专辑数据
-                List<Album> albums = LitePal.order("lastPlayed desc").find(Album.class);
+                List<Album> albums;
+                
+                // 检查是否有传递的艺术家名称
+                Bundle arguments = getArguments();
+                if (arguments != null && arguments.containsKey("artistName")) {
+                    String artistName = arguments.getString("artistName");
+                    // 查询特定艺术家的专辑
+                    albums = LitePal.where("artist = ?", artistName)
+                            .order("lastPlayed desc")
+                            .find(Album.class);
+                    
+                    // 更新标题
+                    mainHandler.post(() -> {
+                        binding.toolbar.setTitle(artistName + " 的专辑");
+                    });
+                } else {
+                    // 查询所有专辑
+                    albums = LitePal.order("lastPlayed desc").find(Album.class);
+                }
 
                 // 切换到主线程更新UI
                 mainHandler.post(() -> {

@@ -40,14 +40,12 @@ android {
 }
 
 dependencies {
-
     implementation libs.immersionbar
     implementation libs.playpauseview
     implementation libs.palette
     implementation(libs.okhttp)
     implementation libs.gson
     implementation libs.glide
-    // implementation files('libs/open_sdk_3.5.16.4_r8c01346_lite.jar') // 注释掉不存在的JAR文件
     annotationProcessor libs.compiler
     implementation libs.core
     debugImplementation libs.glance
@@ -59,8 +57,8 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
-    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
-    implementation 'androidx.media:media:1.6.0'
+    implementation libs.localbroadcastmanager
+    implementation libs.media
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

@@ -21,6 +21,7 @@ public class Song extends LitePalSupport {
     private String mimeType;        // MIME类型
     private int track;              // 音轨号
     private int year;               // 年份
+    private String genre;           // 流派
 
     public Song() {}
 
@@ -152,5 +153,13 @@ public class Song extends LitePalSupport {
 
     public void setYear(int year) {
         this.year = year;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public void setGenre(String genre) {
+        this.genre = genre;
     }
 }

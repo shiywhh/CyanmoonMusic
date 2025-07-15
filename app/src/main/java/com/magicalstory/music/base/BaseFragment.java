@@ -231,4 +231,40 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         // 子类可以重写此方法
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // 注销广播接收器
+        if (bottomSheetStateReceiver != null) {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(bottomSheetStateReceiver);
+        }
+        if (refreshReceiver != null) {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(refreshReceiver);
+        }
+        binding = null;
+    }
+
+    /**
+     * 清理不再需要的Fragment实例
+     * 当Fragment过多时调用此方法
+     */
+    protected void clearUnusedFragments() {
+        if (getActivity() != null) {
+            androidx.fragment.app.FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+            // 获取所有Fragment
+            java.util.List<androidx.fragment.app.Fragment> fragments = fragmentManager.getFragments();
+            
+            // 如果Fragment数量超过阈值，清理一些不可见的Fragment
+            if (fragments.size() > 10) {
+                androidx.fragment.app.FragmentTransaction transaction = fragmentManager.beginTransaction();
+                for (androidx.fragment.app.Fragment fragment : fragments) {
+                    if (fragment != null && !fragment.isVisible() && !fragment.isAdded()) {
+                        transaction.remove(fragment);
+                    }
+                }
+                transaction.commit();
+            }
+        }
+    }
+
 }

@@ -1,4 +1,4 @@
-package com.magicalstory.music.homepage.functions;
+package com.magicalstory.music.fragment;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,10 +26,9 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentRecentSongsBinding;
 import com.magicalstory.music.dialog.dialogUtils;
-import com.magicalstory.music.homepage.adapter.SongVerticalAdapter;
+import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.service.MusicService;
-import com.magicalstory.music.utils.app.ToastUtils;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.litepal.LitePal;
@@ -41,12 +40,13 @@ import java.util.List;
  * 歌曲列表Fragment
  * 可以显示不同类型的歌曲列表（最近添加、我的收藏、随机推荐）
  */
-public class RecentSongsFragment extends BaseFragment<FragmentRecentSongsBinding> {
+public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> {
 
     // 数据类型常量
     private static final String DATA_TYPE_RECENT = "recent";
     private static final String DATA_TYPE_FAVORITE = "favorite";
     private static final String DATA_TYPE_RANDOM = "random";
+    private static final String DATA_TYPE_ALBUM = "album";
 
     // 请求代码常量
     private static final int DELETE_REQUEST_CODE = 1001;
@@ -261,6 +261,12 @@ public class RecentSongsFragment extends BaseFragment<FragmentRecentSongsBinding
                 break;
             case DATA_TYPE_RANDOM:
                 title = "随机推荐";
+                break;
+            case DATA_TYPE_ALBUM:
+                // 从参数获取专辑名称
+                Bundle arguments = getArguments();
+                String albumName = arguments != null ? arguments.getString("albumName") : "专辑";
+                title = albumName;
                 break;
             case DATA_TYPE_RECENT:
             default:
@@ -617,6 +623,20 @@ public class RecentSongsFragment extends BaseFragment<FragmentRecentSongsBinding
                     case DATA_TYPE_RANDOM:
                         // 随机推荐
                         songs = LitePal.order("random()").find(Song.class);
+                        break;
+                    case DATA_TYPE_ALBUM:
+                        // 专辑歌曲 - 根据专辑ID和艺术家查询
+                        Bundle arguments = getArguments();
+                        if (arguments != null) {
+                            long albumId = arguments.getLong("albumId");
+                            String artistName = arguments.getString("artistName");
+                            songs = LitePal.where("albumId = ? and artist = ?", 
+                                    String.valueOf(albumId), artistName)
+                                    .order("track asc")
+                                    .find(Song.class);
+                        } else {
+                            songs = new ArrayList<>();
+                        }
                         break;
                     case DATA_TYPE_RECENT:
                     default:

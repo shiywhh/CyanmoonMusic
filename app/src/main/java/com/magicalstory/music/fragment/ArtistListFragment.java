@@ -1,10 +1,9 @@
-package com.magicalstory.music.homepage.functions;
+package com.magicalstory.music.fragment;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
@@ -26,11 +25,10 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentArtistBinding;
 import com.magicalstory.music.dialog.dialogUtils;
-import com.magicalstory.music.homepage.adapter.ArtistGridAdapter;
+import com.magicalstory.music.adapter.ArtistGridAdapter;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.service.MusicService;
-import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -44,7 +42,7 @@ import java.util.List;
  * 艺术家Fragment - 显示最近听过的艺术家
  * 支持长按进入多选模式
  */
-public class RecentArtistFragment extends BaseFragment<FragmentArtistBinding> {
+public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
 
     // 请求代码常量
     private static final int DELETE_REQUEST_CODE = 1001;
