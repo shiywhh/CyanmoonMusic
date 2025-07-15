@@ -104,6 +104,16 @@ public class GlideUtils {
     }
     
     /**
+     * 获取专辑封面的URI
+     *
+     * @param albumId 专辑ID
+     * @return 专辑封面的URI
+     */
+    public static Uri getAlbumCoverUri(long albumId) {
+        return Uri.parse("content://media/external/audio/albumart/" + albumId);
+    }
+    
+    /**
      * 从URL获取Bitmap对象
      *
      * @param context 上下文

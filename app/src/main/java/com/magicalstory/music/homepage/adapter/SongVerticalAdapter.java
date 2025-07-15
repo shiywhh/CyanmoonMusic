@@ -2,9 +2,11 @@ package com.magicalstory.music.homepage.adapter;
 
 import android.content.Context;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.magicalstory.music.MainActivity;
@@ -13,6 +15,7 @@ import com.magicalstory.music.databinding.ItemSongVerticalBinding;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.utils.glide.Glide2;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,9 +27,24 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
     private Context context;
     private List<Song> songList;
     private OnItemClickListener onItemClickListener;
+    private OnItemLongClickListener onItemLongClickListener;
+    private OnSelectionChangedListener onSelectionChangedListener;
+    private long currentPlayingSongId = -1; // 当前播放歌曲的ID
+    
+    // 多选相关
+    private boolean isMultiSelectMode = false;
+    private List<Song> selectedSongs = new ArrayList<>();
 
     public interface OnItemClickListener {
         void onItemClick(Song song, int position);
+    }
+
+    public interface OnItemLongClickListener {
+        void onItemLongClick(Song song, int position);
+    }
+
+    public interface OnSelectionChangedListener {
+        void onSelectionChanged(int selectedCount);
     }
 
     public SongVerticalAdapter(Context context, List<Song> songList) {
@@ -36,6 +54,107 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
 
     public void setOnItemClickListener(OnItemClickListener listener) {
         this.onItemClickListener = listener;
+    }
+
+    public void setOnItemLongClickListener(OnItemLongClickListener listener) {
+        this.onItemLongClickListener = listener;
+    }
+
+    public void setOnSelectionChangedListener(OnSelectionChangedListener listener) {
+        this.onSelectionChangedListener = listener;
+    }
+
+    /**
+     * 设置当前播放歌曲的ID
+     */
+    public void setCurrentPlayingSongId(long songId) {
+        this.currentPlayingSongId = songId;
+        notifyDataSetChanged();
+    }
+
+    /**
+     * 获取当前播放歌曲的ID
+     */
+    public long getCurrentPlayingSongId() {
+        return currentPlayingSongId;
+    }
+
+    /**
+     * 设置多选模式
+     */
+    public void setMultiSelectMode(boolean multiSelectMode) {
+        this.isMultiSelectMode = multiSelectMode;
+        if (!multiSelectMode) {
+            selectedSongs.clear();
+        }
+        notifyDataSetChanged();
+    }
+
+    /**
+     * 获取多选模式状态
+     */
+    public boolean isMultiSelectMode() {
+        return isMultiSelectMode;
+    }
+
+    /**
+     * 切换歌曲选中状态
+     */
+    public void toggleSelection(Song song) {
+        if (selectedSongs.contains(song)) {
+            selectedSongs.remove(song);
+        } else {
+            selectedSongs.add(song);
+        }
+        notifyDataSetChanged();
+        
+        // 通知选中状态变化
+        if (onSelectionChangedListener != null) {
+            onSelectionChangedListener.onSelectionChanged(selectedSongs.size());
+        }
+    }
+
+    /**
+     * 全选
+     */
+    public void selectAll() {
+        selectedSongs.clear();
+        selectedSongs.addAll(songList);
+        notifyDataSetChanged();
+        
+        // 通知选中状态变化
+        if (onSelectionChangedListener != null) {
+            onSelectionChangedListener.onSelectionChanged(selectedSongs.size());
+        }
+    }
+
+    /**
+     * 取消全选
+     */
+    public void clearSelection() {
+        selectedSongs.clear();
+        notifyDataSetChanged();
+    }
+
+    /**
+     * 获取选中的歌曲列表
+     */
+    public List<Song> getSelectedSongs() {
+        return new ArrayList<>(selectedSongs);
+    }
+
+    /**
+     * 获取选中的歌曲数量
+     */
+    public int getSelectedCount() {
+        return selectedSongs.size();
+    }
+
+    /**
+     * 检查歌曲是否被选中
+     */
+    public boolean isSelected(Song song) {
+        return selectedSongs.contains(song);
     }
 
     @NonNull
@@ -60,22 +179,59 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
         }
         holder.binding.tvArtistDur.setText(artistAlbum);
 
+        // 设置背景和文字颜色
+        boolean isCurrentPlaying = song.getId() == currentPlayingSongId;
+        boolean isSelected = isMultiSelectMode && isSelected(song);
+        
+        // 设置多选背景
+        if (isMultiSelectMode) {
+            holder.binding.viewMultiselectBackground.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+        } else {
+            holder.binding.viewMultiselectBackground.setVisibility(View.GONE);
+        }
+        
+        if (isCurrentPlaying) {
+            // 当前播放状态：使用主题背景
+            holder.itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.md_theme_primaryContainer));
+            holder.binding.tvTitle.setTextColor(ContextCompat.getColor(context, R.color.md_theme_onPrimaryContainer));
+            holder.binding.tvArtistDur.setTextColor(ContextCompat.getColor(context, R.color.md_theme_onPrimaryContainer));
+        } else {
+            // 默认状态
+            holder.itemView.setBackgroundColor(ContextCompat.getColor(context, android.R.color.transparent));
+            holder.binding.tvTitle.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.binding.tvArtistDur.setTextColor(ContextCompat.getColor(context, R.color.text_secondary));
+        }
 
         // 加载专辑封面
         loadAlbumArt(holder.binding.ivCover, song);
 
         // 设置点击事件
         holder.itemView.setOnClickListener(v -> {
-            if (onItemClickListener != null) {
-                onItemClickListener.onItemClick(song, position);
+            if (isMultiSelectMode) {
+                // 多选模式：切换选中状态
+                toggleSelection(song);
+            } else {
+                // 普通模式：播放歌曲
+                if (onItemClickListener != null) {
+                    onItemClickListener.onItemClick(song, position);
+                }
+                
+                // 播放歌曲
+                if (context instanceof MainActivity) {
+                    MainActivity mainActivity = (MainActivity) context;
+                    mainActivity.setPlaylist(songList);
+                    mainActivity.playSong(song);
+                }
             }
-            
-            // 播放歌曲
-            if (context instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) context;
-                mainActivity.setPlaylist(songList);
-                mainActivity.playSong(song);
+        });
+
+        // 设置长按事件
+        holder.itemView.setOnLongClickListener(v -> {
+            if (!isMultiSelectMode && onItemLongClickListener != null) {
+                onItemLongClickListener.onItemLongClick(song, position);
+                return true;
             }
+            return false;
         });
     }
 

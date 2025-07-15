@@ -1,12 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="@dimen/margin_8"
-    android:layout_marginEnd="@dimen/margin_8"
-    android:layout_marginBottom="@dimen/margin_16"
+    android:layout_marginStart="@dimen/margin_2"
+    android:layout_marginTop="@dimen/margin_2"
+    android:layout_marginEnd="@dimen/margin_2"
+    android:layout_marginBottom="@dimen/margin_2"
     android:orientation="vertical">
+
+    <!-- 多选背景 -->
+    <View
+        android:id="@+id/view_multiselect_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_selected_round"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
 
     <!-- 专辑封面 -->
     <androidx.cardview.widget.CardView
@@ -14,7 +29,9 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_gravity="center_horizontal"
-
+        android:layout_marginStart="@dimen/margin_6"
+        android:layout_marginTop="@dimen/margin_6"
+        android:layout_marginEnd="@dimen/margin_6"
         app:cardCornerRadius="8dp"
         app:cardElevation="0dp"
         app:layout_constraintDimensionRatio="H,1:1"
@@ -58,7 +75,9 @@
         android:id="@+id/tv_album_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/margin_6"
         android:layout_marginTop="5dp"
+        android:layout_marginEnd="@dimen/margin_6"
         android:ellipsize="end"
         android:gravity="start"
         android:maxLines="1"
@@ -73,12 +92,16 @@
         android:id="@+id/tv_artist"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/margin_6"
+        android:layout_marginEnd="@dimen/margin_6"
+        android:layout_marginBottom="@dimen/margin_6"
         android:ellipsize="end"
         android:gravity="start"
         android:maxLines="1"
         android:text="Unknown Artist"
         android:textColor="@color/text_secondary"
         android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tv_album_name" />

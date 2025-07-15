@@ -30,9 +30,13 @@ import com.magicalstory.music.utils.screen.DensityUtil;
  */
 public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
 
+    // 刷新广播常量
+    public static final String ACTION_REFRESH_MUSIC_LIST = "com.magicalstory.music.REFRESH_MUSIC_LIST";
+
     protected VB binding;
     public Activity context;
     private BroadcastReceiver bottomSheetStateReceiver;
+    private BroadcastReceiver refreshReceiver;
 
     @Nullable
     @Override
@@ -56,6 +60,23 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         initListener();
         // 在初始化完成后注册fab相关的广播
         initFabHandling();
+        // 注册刷新广播
+        registerRefreshReceiver();
+        initNavigationBar();
+
+    }
+
+    private void initNavigationBar() {
+        System.out.println("autoHideBottomNavigation() = " + autoHideBottomNavigation());
+        if (autoHideBottomNavigation()) {
+            if (getActivity() instanceof MainActivity mainActivity) {
+                mainActivity.hideBottomNavigation();
+            }
+        }
+    }
+
+    public boolean autoHideBottomNavigation() {
+        return true;
     }
 
     @Override
@@ -65,6 +86,10 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         if (bottomSheetStateReceiver != null) {
             LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(bottomSheetStateReceiver);
             bottomSheetStateReceiver = null;
+        }
+        if (refreshReceiver != null) {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(refreshReceiver);
+            refreshReceiver = null;
         }
         binding = null;
     }
@@ -180,5 +205,30 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         animator.start();
     }
 
+    /**
+     * 注册刷新广播接收器
+     */
+    private void registerRefreshReceiver() {
+        refreshReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context1, Intent intent) {
+                if (ACTION_REFRESH_MUSIC_LIST.equals(intent.getAction())) {
+                    // 调用子类的刷新方法
+                    onRefreshMusicList();
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter(ACTION_REFRESH_MUSIC_LIST);
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(refreshReceiver, filter);
+    }
+
+    /**
+     * 刷新音乐列表
+     * 子类可以重写此方法来实现自己的刷新逻辑
+     */
+    protected void onRefreshMusicList() {
+        // 子类可以重写此方法
+    }
 
 }

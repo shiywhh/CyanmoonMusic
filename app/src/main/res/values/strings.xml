@@ -3,7 +3,7 @@
     
     <!-- 底部导航菜单 -->
     <string name="nav_home">主页</string>
-    <string name="nav_playlist">列表</string>
+    <string name="nav_playlist">歌单</string>
     <string name="nav_library">乐库</string>
     <string name="nav_profile">我的</string>
     <string name="search_music">搜索您的音乐</string>
@@ -50,6 +50,29 @@
     <string name="play">播放</string>
     <string name="recent_added">最近添加</string>
     
+    <!-- 多选相关字符串 -->
+    <string name="select_none">请选择要操作的项目</string>
+    <string name="select_songs">请选择要播放的歌曲</string>
+    <string name="select_artists">请选择要播放的艺术家</string>
+    <string name="select_albums">请选择要播放的专辑</string>
+    <string name="select_items_to_add">请选择要添加的项目</string>
+    <string name="select_items_to_remove">请选择要移除的项目</string>
+    <string name="select_items_to_delete">请选择要删除的项目</string>
+    <string name="no_songs_in_artists">选中的艺术家中没有歌曲</string>
+    <string name="no_songs_in_albums">选中的专辑中没有歌曲</string>
+    <string name="added_to_queue">已添加 %d 首歌曲到播放队列</string>
+    <string name="added_to_playlist">已添加 %d 首歌曲到播放列表</string>
+    <string name="removed_from_playlist">已从播放列表移除 %d 首歌曲</string>
+    <string name="selected_count_songs">选中了%d首歌曲</string>
+    <string name="selected_count_artists">选中了%d个艺术家</string>
+    <string name="selected_count_albums">选中了%d个专辑</string>
+    <string name="delete_confirmation_title">确认删除</string>
+    <string name="delete_confirmation_message">确定要从设备上删除这 %d 首歌曲吗？\n\n此操作无法撤销！</string>
+    <string name="delete_success">已删除 %d 首歌曲</string>
+    <string name="delete_failed">删除失败</string>
+    <string name="delete_cancelled">删除已取消</string>
+    <string name="delete_some_failed">删除某些文件失败：权限不足</string>
+    
     <!-- 播放器相关字符串 -->
     <string name="album_art">专辑封面</string>
     <string name="play_pause">播放/暂停</string>
@@ -57,4 +80,11 @@
     <string name="previous">上一首</string>
     <string name="shuffle">随机播放</string>
     <string name="repeat">重复播放</string>
+    
+    <!-- 音质信息相关 -->
+    <string name="song_not_found">歌曲不存在</string>
+    <string name="song_corrupted">歌曲已损坏</string>
+    <string name="unknown_format">未知格式</string>
+    <string name="unknown_bitrate">未知码率</string>
+    <string name="unknown_sample_rate">未知采样率</string>
 </resources>

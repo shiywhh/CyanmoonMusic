@@ -1,23 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="80dp"
     android:background="?android:attr/selectableItemBackground"
     android:clickable="true"
-    android:focusable="true"
-    android:gravity="center"
-    android:orientation="horizontal">
+    android:focusable="true">
+
+    <!-- 多选背景 -->
+    <View
+        android:id="@+id/view_multiselect_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="@dimen/margin_10"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="@dimen/margin_10"
+        android:layout_marginBottom="5dp"
+        android:background="@drawable/bg_selected_round"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
 
     <!-- 专辑封面 -->
     <androidx.cardview.widget.CardView
+        android:id="@+id/cardView"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_marginStart="@dimen/margin_20"
         android:layout_marginEnd="12dp"
         app:cardCornerRadius="8dp"
-        app:cardElevation="0dp">
+        app:cardElevation="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
             android:id="@+id/iv_cover"
@@ -29,53 +48,55 @@
 
     </androidx.cardview.widget.CardView>
 
-    <!-- 歌曲信息 -->
-    <LinearLayout
+    <!-- 歌曲标题 -->
+    <TextView
+        android:id="@+id/tv_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:layout_marginStart="@dimen/margin_12"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/text_primary"
+        android:textSize="16sp"
+        android:textStyle="normal"
+        app:layout_constraintBottom_toTopOf="@+id/tv_artist_dur"
+        app:layout_constraintEnd_toStartOf="@+id/iv_more"
+        app:layout_constraintStart_toEndOf="@+id/cardView"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed"
+        tools:text="歌曲标题" />
 
-        <!-- 歌曲标题 -->
-        <TextView
-            android:id="@+id/tv_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="normal"
-            tools:text="歌曲标题" />
-
-        <!-- 艺术家和专辑 -->
-        <TextView
-            android:id="@+id/tv_artist_dur"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp"
-            tools:text="艺术家 • 专辑名称" />
-
-    </LinearLayout>
-
+    <!-- 艺术家和专辑 -->
+    <TextView
+        android:id="@+id/tv_artist_dur"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/iv_more"
+        app:layout_constraintStart_toStartOf="@+id/tv_title"
+        app:layout_constraintTop_toBottomOf="@+id/tv_title"
+        tools:text="艺术家 • 专辑名称" />
 
     <!-- 更多选项按钮 -->
     <ImageButton
         android:id="@+id/iv_more"
         android:layout_width="30dp"
         android:layout_height="30dp"
-        android:layout_gravity="center_vertical"
-        android:layout_marginStart="8dp"
         android:layout_marginEnd="@dimen/margin_10"
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:clickable="true"
         android:focusable="true"
         android:src="@drawable/ic_more_ver"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:tint="@color/text_primary" />
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

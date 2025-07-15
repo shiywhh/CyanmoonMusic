@@ -9,6 +9,17 @@
     android:clickable="true"
     android:focusable="true">
 
+    <!-- 背景罩层 -->
+    <ImageView
+        android:id="@+id/background_overlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- 专辑封面区域 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/album_cover_frame"
@@ -91,18 +102,18 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/song_info_layout">
-
-        <!-- 随机播放按钮 -->
+        <!-- 循环播放按钮 -->
         <ImageView
-            android:id="@+id/btn_shuffle"
+            android:id="@+id/btn_repeat"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
-            android:src="@drawable/ic_shuffle"
+            android:src="@drawable/ic_repeat"
             app:tint="@color/text_secondary" />
+
 
         <!-- 上一首按钮 -->
         <ImageView
@@ -116,18 +127,30 @@
             android:src="@drawable/ic_skip_previous"
             app:tint="@android:color/black" />
 
-        <!-- 播放/暂停按钮 -->
-        <ImageView
-            android:id="@+id/btn_play_pause"
+        <androidx.cardview.widget.CardView
+            android:id="@+id/btnPlayBackground"
             android:layout_width="64dp"
             android:layout_height="64dp"
             android:layout_weight="0.05"
-            android:background="@drawable/circle_play_button"
-            android:clickable="true"
-            android:focusable="true"
-            android:padding="16dp"
-            android:src="@drawable/ic_play"
-            app:tint="@color/white" />
+            app:cardBackgroundColor="@color/md_theme_primary"
+            app:cardCornerRadius="32dp"
+            app:cardElevation="0dp">
+
+            <ImageView
+                android:id="@+id/btn_play_pause"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:longClickable="true"
+                android:padding="14dp"
+                android:src="@drawable/ic_play"
+                app:tint="@color/white">
+
+            </ImageView>
+        </androidx.cardview.widget.CardView>
+
 
         <!-- 下一首按钮 -->
         <ImageView
@@ -141,16 +164,16 @@
             android:src="@drawable/ic_skip_next"
             app:tint="@android:color/black" />
 
-        <!-- 循环播放按钮 -->
+        <!-- 随机播放按钮 -->
         <ImageView
-            android:id="@+id/btn_repeat"
+            android:id="@+id/btn_shuffle"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
-            android:src="@drawable/ic_repeat"
+            android:src="@drawable/ic_shuffle"
             app:tint="@color/text_secondary" />
 
     </LinearLayout>
@@ -228,7 +251,7 @@
             android:layout_height="wrap_content"
             android:text="FLAC"
             android:textColor="@color/text_primary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -237,7 +260,7 @@
             android:layout_marginEnd="8dp"
             android:text="•"
             android:textColor="@color/text_primary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/txt_bitrate"
@@ -245,7 +268,7 @@
             android:layout_height="wrap_content"
             android:text="848 kb/s"
             android:textColor="@color/text_primary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -254,7 +277,7 @@
             android:layout_marginEnd="8dp"
             android:text="•"
             android:textColor="@color/text_primary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/txt_sample_rate"
@@ -262,7 +285,7 @@
             android:layout_height="wrap_content"
             android:text="44.1 kHz"
             android:textColor="@color/text_primary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
     </LinearLayout>
 

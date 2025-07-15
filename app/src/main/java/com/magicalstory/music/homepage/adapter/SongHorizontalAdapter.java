@@ -97,15 +97,15 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             loadAlbumArtSquare(squareHolder.binding.cover, song);
             
             // 设置点击事件
-            squareHolder.itemView.setOnClickListener(v -> {
+            squareHolder.binding.cover.setOnClickListener(v -> {
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(song, position);
                 }
                 
                 // 播放歌曲
-                if (context instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) context;
+                if (context instanceof MainActivity mainActivity) {
                     mainActivity.setPlaylist(songList);
+                    System.out.println("songList.size() = " + songList.size());
                     mainActivity.playSong(song);
                 }
             });
@@ -127,8 +127,8 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
                 }
                 
                 // 播放歌曲
-                if (context instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) context;
+                if (context instanceof MainActivity mainActivity) {
+                    System.out.println("songList.size() = " + songList.size());
                     mainActivity.setPlaylist(songList);
                     mainActivity.playSong(song);
                 }

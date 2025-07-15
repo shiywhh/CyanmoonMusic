@@ -13,13 +13,17 @@
         android:background="@color/transparent"
         android:fitsSystemWindows="true">
 
+        <!-- 普通状态的toolbar -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            app:menu="@menu/menu_multiselect"
             app:navigationIcon="@drawable/ic_arrow_back"
             app:title="最近播放专辑"
             app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall" />
+
+
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -61,7 +65,7 @@
             android:layout_height="120dp"
             android:contentDescription="@string/has_no_music"
             android:src="@drawable/ic_album"
-            app:tint="@color/md_theme_primary" />
+            app:tint="@color/placeholder_color" />
 
         <TextView
             android:layout_width="wrap_content"

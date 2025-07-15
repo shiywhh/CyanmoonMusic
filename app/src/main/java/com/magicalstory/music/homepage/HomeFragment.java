@@ -56,6 +56,8 @@ import java.io.IOException;
 import okhttp3.Call;
 import okhttp3.Response;
 
+import com.magicalstory.music.model.FavoriteSong;
+
 public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
     private MusicScanService musicScanService;
@@ -127,6 +129,11 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     @Override
     protected void initData() {
         super.initData();
+        
+        // 初始化Handler和线程池
+        mainHandler = new Handler(Looper.getMainLooper());
+        executorService = Executors.newCachedThreadPool();
+        
         // 注册广播接收器
         IntentFilter filter = new IntentFilter(MusicScanService.ACTION_SCAN_COMPLETE);
         ContextCompat.registerReceiver(context, scanCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -366,12 +373,20 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         binding.rvMyFavorites.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         myFavoritesAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), true);
+        // 为调试添加点击监听器
+        myFavoritesAdapter.setOnItemClickListener((song, position) -> {
+            System.out.println("我的收藏点击: " + song.getTitle());
+        });
         binding.rvMyFavorites.setAdapter(myFavoritesAdapter);
 
         // 随机推荐 - 使用方形布局
         binding.rvRandomRecommendations.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         randomRecommendationsAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), true);
+        // 为调试添加点击监听器
+        randomRecommendationsAdapter.setOnItemClickListener((song, position) -> {
+            System.out.println("随机推荐点击: " + song.getTitle());
+        });
         binding.rvRandomRecommendations.setAdapter(randomRecommendationsAdapter);
     }
 
@@ -379,55 +394,96 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
      * 加载音乐数据
      */
     private void loadMusicData() {
-        // 加载最近添加的歌曲（按添加时间倒序，取前10首）
-        List<Song> latestSongs = LitePal.order("dateAdded desc").limit(10).find(Song.class);
-        if (latestSongs != null && !latestSongs.isEmpty()) {
-            songsLatestAddedAdapter.updateData(latestSongs);
-            binding.layoutSongsLastestAdded.setVisibility(View.VISIBLE);
-        } else {
-            binding.layoutSongsLastestAdded.setVisibility(View.GONE);
+        // 在后台线程中进行数据库查询，避免ANR
+        if (executorService == null) {
+            executorService = Executors.newCachedThreadPool();
         }
+        
+        executorService.execute(() -> {
+            try {
+                // 加载最近添加的歌曲（按添加时间倒序，取前10首）
+                List<Song> latestSongs = LitePal.order("dateAdded desc").limit(10).find(Song.class);
+                
+                // 加载最近播放专辑（取前10个）
+                List<Album> recentAlbums = LitePal.limit(10).find(Album.class);
+                
+                // 加载最近听过的艺术家（取前10个）
+                List<Artist> recentArtists = LitePal.limit(10).find(Artist.class);
+                
+                // 加载我的收藏（从FavoriteSong表查询真正的收藏歌曲）
+                List<FavoriteSong> favoriteSongList = LitePal.order("addTime desc").limit(10).find(FavoriteSong.class);
+                List<Song> favoriteSongs = new ArrayList<>();
+                if (favoriteSongList != null && !favoriteSongList.isEmpty()) {
+                    for (FavoriteSong favoriteSong : favoriteSongList) {
+                        // 根据songId查询对应的Song对象
+                        Song song = LitePal.find(Song.class, favoriteSong.getSongId());
+                        if (song != null) {
+                            favoriteSongs.add(song);
+                        }
+                    }
+                }
+                
+                // 加载随机推荐（随机获取10首歌曲）
+                List<Song> randomSongs = LitePal.order("random()").limit(10).find(Song.class);
+                
+                // 在主线程中更新UI
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        try {
+                            // 更新最近添加的歌曲
+                            if (latestSongs != null && !latestSongs.isEmpty()) {
+                                songsLatestAddedAdapter.updateData(latestSongs);
+                                binding.layoutSongsLastestAdded.setVisibility(View.VISIBLE);
+                            } else {
+                                binding.layoutSongsLastestAdded.setVisibility(View.GONE);
+                            }
 
-        // 加载最近播放专辑（取前10个）
-        List<Album> recentAlbums = LitePal.limit(10).find(Album.class);
-        if (recentAlbums != null && !recentAlbums.isEmpty()) {
-            recentAlbumsAdapter.updateData(recentAlbums);
-            binding.layoutRecentAlbums.setVisibility(View.VISIBLE);
-        } else {
-            binding.layoutRecentAlbums.setVisibility(View.GONE);
-        }
+                            // 更新最近播放专辑
+                            if (recentAlbums != null && !recentAlbums.isEmpty()) {
+                                recentAlbumsAdapter.updateData(recentAlbums);
+                                binding.layoutRecentAlbums.setVisibility(View.VISIBLE);
+                            } else {
+                                binding.layoutRecentAlbums.setVisibility(View.GONE);
+                            }
 
-        // 加载最近听过的艺术家（取前10个）
-        List<Artist> recentArtists = LitePal.limit(10).find(Artist.class);
-        if (recentArtists != null && !recentArtists.isEmpty()) {
-            recentArtistsAdapter.updateData(recentArtists);
-            binding.layoutRecentArtists.setVisibility(View.VISIBLE);
-            
-            // 获取艺术家封面
-            for (Artist artist : recentArtists) {
-                fetchArtistCover(artist);
+                            // 更新最近听过的艺术家
+                            if (recentArtists != null && !recentArtists.isEmpty()) {
+                                recentArtistsAdapter.updateData(recentArtists);
+                                binding.layoutRecentArtists.setVisibility(View.VISIBLE);
+
+                                // 获取艺术家封面
+                                for (Artist artist : recentArtists) {
+                                    fetchArtistCover(artist);
+                                }
+                            } else {
+                                binding.layoutRecentArtists.setVisibility(View.GONE);
+                            }
+
+                            // 更新我的收藏
+                            if (!favoriteSongs.isEmpty()) {
+                                System.out.println("加载收藏歌曲数量: " + favoriteSongs.size());
+                                myFavoritesAdapter.updateData(favoriteSongs);
+                                binding.layoutMyFavorites.setVisibility(View.VISIBLE);
+                            } else {
+                                binding.layoutMyFavorites.setVisibility(View.GONE);
+                            }
+
+                            // 更新随机推荐
+                            if (randomSongs != null && !randomSongs.isEmpty()) {
+                                randomRecommendationsAdapter.updateData(randomSongs);
+                                binding.layoutRandomRecommendations.setVisibility(View.VISIBLE);
+                            } else {
+                                binding.layoutRandomRecommendations.setVisibility(View.GONE);
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.e("HomeFragment", "Error updating UI: " + e.getMessage(), e);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                android.util.Log.e("HomeFragment", "Error loading music data: " + e.getMessage(), e);
             }
-        } else {
-            binding.layoutRecentArtists.setVisibility(View.GONE);
-        }
-
-        // 加载我的收藏（这里暂时用随机歌曲代替，实际应该从收藏表查询）
-        List<Song> favoriteSongs = LitePal.order("random()").limit(10).find(Song.class);
-        if (favoriteSongs != null && !favoriteSongs.isEmpty()) {
-            myFavoritesAdapter.updateData(favoriteSongs);
-            binding.layoutMyFavorites.setVisibility(View.VISIBLE);
-        } else {
-            binding.layoutMyFavorites.setVisibility(View.GONE);
-        }
-
-        // 加载随机推荐
-        List<Song> randomSongs = LitePal.order("random()").limit(10).find(Song.class);
-        if (randomSongs != null && !randomSongs.isEmpty()) {
-            randomRecommendationsAdapter.updateData(randomSongs);
-            binding.layoutRandomRecommendations.setVisibility(View.VISIBLE);
-        } else {
-            binding.layoutRandomRecommendations.setVisibility(View.GONE);
-        }
+        });
     }
 
     /**
@@ -493,9 +549,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         executorService.execute(() -> {
             try {
                 String artistName = artist.getArtistName();
-                String url = "https://music.163.com/api/search/get/web?s=" + 
-                           java.net.URLEncoder.encode(artistName, "UTF-8") + "&type=100";
-                
+                String url = "https://music.163.com/api/search/get/web?s=" +
+                        java.net.URLEncoder.encode(artistName, "UTF-8") + "&type=100";
+
                 Response response = NetUtils.getInstance().getDataSynFromNet(url);
                 if (response != null && response.isSuccessful()) {
                     String jsonResponse = response.body().string();
@@ -533,7 +589,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                                 artist.setCoverUrl(picUrl);
                                 artist.setCoverFetched(true);
                                 artist.save();
-                                
+
                                 // 回到主线程更新UI
                                 mainHandler.post(() -> {
                                     if (recentArtistsAdapter != null) {
@@ -616,12 +672,18 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             executorService.shutdown();
             executorService = null;
         }
+        
+        // 清理Handler
+        if (mainHandler != null) {
+            mainHandler.removeCallbacksAndMessages(null);
+            mainHandler = null;
+            executorService = null;
+        }
     }
 
 
     @Override
-    public void onStop() {
-        super.onStop();
-        hideBottomNavigation();
+    public boolean autoHideBottomNavigation() {
+        return false;
     }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_select_all"
+        android:title="全选" />
+
+    <item
+        android:id="@+id/menu_remove_from_playlist"
+        android:title="从播放列表移除" />
+
+    <item
+        android:id="@+id/menu_delete_from_device"
+        android:title="从设备上删除" />
+
+</menu> 

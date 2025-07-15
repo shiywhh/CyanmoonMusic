@@ -11,9 +11,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.RequestOptions;
+import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemArtistHorizontalBinding;
 import com.magicalstory.music.model.Artist;
+import com.magicalstory.music.model.Song;
+
+import org.litepal.LitePal;
 
 import java.util.List;
 
@@ -66,7 +70,28 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
             if (onItemClickListener != null) {
                 onItemClickListener.onItemClick(artist, position);
             }
+            
+            // 播放艺术家歌曲
+            if (context instanceof MainActivity mainActivity) {
+                playArtistSongs(mainActivity, artist);
+            }
         });
+    }
+    
+    /**
+     * 播放艺术家歌曲
+     */
+    private void playArtistSongs(MainActivity mainActivity, Artist artist) {
+        // 根据艺术家名称查询歌曲
+        List<Song> artistSongs = LitePal.where("artist = ?", artist.getArtistName())
+                .order("album asc, track asc")
+                .find(Song.class);
+        
+        if (artistSongs != null && !artistSongs.isEmpty()) {
+            System.out.println("播放艺术家: " + artist.getArtistName() + ", 歌曲数量: " + artistSongs.size());
+            mainActivity.setPlaylist(artistSongs);
+            mainActivity.playSong(artistSongs.get(0)); // 播放第一首歌曲
+        }
     }
     
     private void loadArtistAvatar(ImageView imageView, Artist artist) {

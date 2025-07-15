@@ -12,9 +12,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.RequestOptions;
+import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemAlbumHorizontalBinding;
 import com.magicalstory.music.model.Album;
+import com.magicalstory.music.model.Song;
+
+import org.litepal.LitePal;
 
 import java.util.List;
 
@@ -66,7 +70,29 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             if (onItemClickListener != null) {
                 onItemClickListener.onItemClick(album, position);
             }
+            
+            // 播放专辑歌曲
+            if (context instanceof MainActivity mainActivity) {
+                playAlbumSongs(mainActivity, album);
+            }
         });
+    }
+    
+    /**
+     * 播放专辑歌曲
+     */
+    private void playAlbumSongs(MainActivity mainActivity, Album album) {
+        // 根据专辑ID和艺术家名称查询歌曲
+        List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?", 
+                String.valueOf(album.getAlbumId()), album.getArtist())
+                .order("track asc")
+                .find(Song.class);
+        
+        if (albumSongs != null && !albumSongs.isEmpty()) {
+            System.out.println("播放专辑: " + album.getAlbumName() + ", 歌曲数量: " + albumSongs.size());
+            mainActivity.setPlaylist(albumSongs);
+            mainActivity.playSong(albumSongs.get(0)); // 播放第一首歌曲
+        }
     }
     
     private void loadAlbumArt(ImageView imageView, Album album) {

@@ -110,24 +110,28 @@ public class PlayHistory extends LitePalSupport {
      * 记录播放历史
      */
     public static void recordPlay(long songId, long playDuration, boolean isCompleted, double playProgress) {
-        PlayHistory existingHistory = LitePal.where("songId = ?", String.valueOf(songId))
-                .findFirst(PlayHistory.class);
-        
-        if (existingHistory != null) {
-            // 更新现有记录
-            existingHistory.setPlayCount(existingHistory.getPlayCount() + 1);
-            existingHistory.setLastPlayTime(System.currentTimeMillis());
-            existingHistory.setPlayDuration(playDuration);
-            existingHistory.setCompleted(isCompleted);
-            existingHistory.setPlayProgress(playProgress);
-            existingHistory.save();
-        } else {
-            // 创建新记录
-            PlayHistory newHistory = new PlayHistory(songId);
-            newHistory.setPlayDuration(playDuration);
-            newHistory.setCompleted(isCompleted);
-            newHistory.setPlayProgress(playProgress);
-            newHistory.save();
+        try {
+            PlayHistory existingHistory = LitePal.where("songId = ?", String.valueOf(songId))
+                    .findFirst(PlayHistory.class);
+            
+            if (existingHistory != null) {
+                // 更新现有记录
+                existingHistory.setPlayCount(existingHistory.getPlayCount() + 1);
+                existingHistory.setLastPlayTime(System.currentTimeMillis());
+                existingHistory.setPlayDuration(playDuration);
+                existingHistory.setCompleted(isCompleted);
+                existingHistory.setPlayProgress(playProgress);
+                existingHistory.saveThrows();
+            } else {
+                // 创建新记录
+                PlayHistory newHistory = new PlayHistory(songId);
+                newHistory.setPlayDuration(playDuration);
+                newHistory.setCompleted(isCompleted);
+                newHistory.setPlayProgress(playProgress);
+                newHistory.saveThrows();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("PlayHistory", "Error recording play history: " + e.getMessage(), e);
         }
     }
 
@@ -135,17 +139,21 @@ public class PlayHistory extends LitePalSupport {
      * 记录跳过
      */
     public static void recordSkip(long songId) {
-        PlayHistory existingHistory = LitePal.where("songId = ?", String.valueOf(songId))
-                .findFirst(PlayHistory.class);
-        
-        if (existingHistory != null) {
-            existingHistory.setSkipCount(existingHistory.getSkipCount() + 1);
-            existingHistory.setLastPlayTime(System.currentTimeMillis());
-            existingHistory.save();
-        } else {
-            PlayHistory newHistory = new PlayHistory(songId);
-            newHistory.setSkipCount(1);
-            newHistory.save();
+        try {
+            PlayHistory existingHistory = LitePal.where("songId = ?", String.valueOf(songId))
+                    .findFirst(PlayHistory.class);
+            
+            if (existingHistory != null) {
+                existingHistory.setSkipCount(existingHistory.getSkipCount() + 1);
+                existingHistory.setLastPlayTime(System.currentTimeMillis());
+                existingHistory.saveThrows();
+            } else {
+                PlayHistory newHistory = new PlayHistory(songId);
+                newHistory.setSkipCount(1);
+                newHistory.saveThrows();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("PlayHistory", "Error recording skip: " + e.getMessage(), e);
         }
     }
 

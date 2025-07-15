@@ -27,6 +27,21 @@
         tools:layout="@layout/fragment_home" />
 
 
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bottom_nav_height"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurface"
+        app:itemActiveIndicatorStyle="@style/bottomItemActive"
+        app:itemIconSize="22dp"
+        app:itemPaddingTop="@dimen/margin_10"
+        app:labelVisibilityMode="labeled"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:menu="@menu/bottom_navigation_menu" />
+
     <!-- Bottom Sheet Player -->
     <FrameLayout
         android:id="@+id/player_bottom_sheet"
@@ -55,20 +70,7 @@
 
     </FrameLayout>
 
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottomNavigation"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/bottom_nav_height"
-        android:layout_gravity="bottom"
-        android:background="?attr/colorSurface"
-        app:itemActiveIndicatorStyle="@style/bottomItemActive"
-        app:itemIconSize="22dp"
-        app:itemPaddingTop="@dimen/margin_10"
-        app:labelVisibilityMode="labeled"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:menu="@menu/bottom_navigation_menu" />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
 
