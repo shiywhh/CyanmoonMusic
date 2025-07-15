@@ -1,5 +1,7 @@
 package com.magicalstory.music.fragment;
 
+import static java.lang.Thread.sleep;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -63,13 +65,28 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     }
 
     @Override
+    protected boolean usePersistentView() {
+        return true;
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.fragment_album;
+    }
+
+    @Override
+    protected FragmentAlbumBinding bindPersistentView(View view) {
+        return FragmentAlbumBinding.bind(view);
+    }
+
+    @Override
     protected FloatingActionButton getFab() {
         return binding.fab;
     }
 
     @Override
-    protected void initView() {
-        super.initView();
+    protected void initViewForPersistentView() {
+        super.initViewForPersistentView();
 
         // 初始化Handler
         mainHandler = new Handler(Looper.getMainLooper());
@@ -91,8 +108,8 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     }
 
     @Override
-    protected void initListener() {
-        super.initListener();
+    protected void initListenerForPersistentView() {
+        super.initListenerForPersistentView();
 
         // 设置返回按钮点击事件
         binding.toolbar.setNavigationOnClickListener(v -> {
@@ -102,6 +119,11 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 // 使用Navigation组件进行返回，会自动应用返回动画
                 Navigation.findNavController(requireView()).popBackStack();
             }
+        });
+
+        // 设置FAB点击事件 - 播放所有专辑的歌曲
+        binding.fab.setOnClickListener(v -> {
+            playAllAlbumSongs();
         });
     }
 
@@ -579,7 +601,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
             try {
                 // 从数据库查询专辑数据
                 List<Album> albums;
-                
+
                 // 检查是否有传递的艺术家名称
                 Bundle arguments = getArguments();
                 if (arguments != null && arguments.containsKey("artistName")) {
@@ -588,7 +610,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                     albums = LitePal.where("artist = ?", artistName)
                             .order("lastPlayed desc")
                             .find(Album.class);
-                    
+
                     // 更新标题
                     mainHandler.post(() -> {
                         binding.toolbar.setTitle(artistName + " 的专辑");
@@ -597,6 +619,8 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                     // 查询所有专辑
                     albums = LitePal.order("lastPlayed desc").find(Album.class);
                 }
+
+                sleep(200);
 
                 // 切换到主线程更新UI
                 mainHandler.post(() -> {
@@ -614,8 +638,16 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                         // 显示列表，隐藏空状态
                         binding.rvAlbums.setVisibility(View.VISIBLE);
                         binding.layoutEmpty.setVisibility(View.GONE);
+                        binding.fab.setVisibility(View.VISIBLE);
                         // 有数据时显示fab
                         binding.fab.show();
+                        
+                        // 延迟禁用动画，确保首屏动画完成
+                        mainHandler.postDelayed(() -> {
+                            if (albumAdapter != null) {
+                                albumAdapter.disableLoadAnimation();
+                            }
+                        }, 1500); // 1.5秒后禁用动画
                     } else {
                         // 显示空状态，隐藏列表
                         binding.rvAlbums.setVisibility(View.GONE);
@@ -656,7 +688,57 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
      */
     @Override
     protected void onRefreshMusicList() {
-        // 重新加载专辑列表
+        // 重新加载专辑列表，并重置动画状态
+        if (albumAdapter != null) {
+            albumAdapter.updateData(albumList);
+        }
         loadAlbums();
     }
-} 
+
+    /**
+     * 播放所有专辑的歌曲
+     */
+    private void playAllAlbumSongs() {
+        if (albumList == null || albumList.isEmpty()) {
+            showSnackbar("没有可播放的专辑");
+            return;
+        }
+
+        // 在后台线程查询所有专辑的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+                
+                // 遍历所有专辑，获取每个专辑的歌曲
+                for (Album album : albumList) {
+                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?", 
+                            String.valueOf(album.getAlbumId()), album.getArtist())
+                            .order("track asc")
+                            .find(Song.class);
+                    if (albumSongs != null) {
+                        allSongs.addAll(albumSongs);
+                    }
+                }
+                
+                // 在主线程更新UI并播放
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        if (getActivity() instanceof MainActivity mainActivity) {
+                            mainActivity.setPlaylist(allSongs);
+                            mainActivity.playSong(allSongs.get(0));
+                            showSnackbar("开始播放所有专辑歌曲，共 " + allSongs.size() + " 首");
+                        }
+                    } else {
+                        showSnackbar("没有找到可播放的歌曲");
+                    }
+                });
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    showSnackbar("播放失败：" + e.getMessage());
+                });
+                         }
+         }).start();
+     }
+}  

@@ -82,8 +82,23 @@ public class TagEditorFragment extends BaseFragment<FragmentTagEditorBinding> {
     }
 
     @Override
-    protected void initView() {
-        super.initView();
+    protected boolean usePersistentView() {
+        return true;
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.fragment_tag_editor;
+    }
+
+    @Override
+    protected FragmentTagEditorBinding bindPersistentView(View view) {
+        return FragmentTagEditorBinding.bind(view);
+    }
+
+    @Override
+    protected void initViewForPersistentView() {
+        super.initViewForPersistentView();
         
         // 初始化Handler和线程池
         mainHandler = new Handler(Looper.getMainLooper());
@@ -107,8 +122,14 @@ public class TagEditorFragment extends BaseFragment<FragmentTagEditorBinding> {
     }
 
     @Override
-    protected void initListener() {
-        super.initListener();
+    protected void initView() {
+        super.initView();
+        // 每次视图创建时需要执行的初始化代码
+    }
+
+    @Override
+    protected void initListenerForPersistentView() {
+        super.initListenerForPersistentView();
         
         // 返回按钮
         binding.toolbar.setNavigationOnClickListener(v -> {
@@ -124,6 +145,12 @@ public class TagEditorFragment extends BaseFragment<FragmentTagEditorBinding> {
         binding.fabSave.setOnClickListener(v -> {
             saveTags();
         });
+    }
+
+    @Override
+    protected void initListener() {
+        super.initListener();
+        // 每次视图创建时需要执行的监听器初始化代码
     }
 
     /**

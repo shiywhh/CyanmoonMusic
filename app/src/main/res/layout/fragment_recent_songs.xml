@@ -12,18 +12,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/transparent"
+        android:backgroundTint="@color/md_theme_navigationBarBackground"
         android:fitsSystemWindows="true">
 
         <!-- 普通状态的toolbar -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            app:menu="@menu/menu_multiselect"
             android:layout_height="?attr/actionBarSize"
+            app:menu="@menu/menu_multiselect"
             app:navigationIcon="@drawable/ic_arrow_back"
             app:title="@string/recent_added"
             app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall" />
-
 
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -70,7 +70,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="暂无最近添加的歌曲"
+            android:text="暂无歌曲"
             android:textColor="@color/text_primary"
             android:textSize="16sp" />
 
@@ -84,6 +84,7 @@
         android:layout_margin="@dimen/fab_margin"
         android:contentDescription="@string/play"
         android:src="@drawable/ic_play"
+        android:visibility="invisible"
         app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
         app:tint="@color/text_primary" />
 

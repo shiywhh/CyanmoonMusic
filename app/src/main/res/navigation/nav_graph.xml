@@ -13,32 +13,39 @@
         <action
             android:id="@+id/action_home_to_recent_songs"
             app:destination="@id/nav_recent_songs"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
             app:launchSingleTop="true"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_home_to_albums"
             app:destination="@id/nav_albums"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_home_to_artists"
             app:destination="@id/nav_artists"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_home_to_album_detail"
             app:destination="@id/nav_album_detail"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_home_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
     </fragment>
 
     <fragment
@@ -78,17 +85,56 @@
         <action
             android:id="@+id/action_albums_to_album_detail"
             app:destination="@id/nav_album_detail"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
     </fragment>
 
     <fragment
         android:id="@+id/nav_artists"
         android:name="com.magicalstory.music.fragment.ArtistListFragment"
         android:label="艺术家"
-        tools:layout="@layout/fragment_artist" />
+        tools:layout="@layout/fragment_artist">
+        <action
+            android:id="@+id/action_artists_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_artist_detail"
+        android:name="com.magicalstory.music.fragment.ArtistDetailFragment"
+        android:label="歌手详情"
+        tools:layout="@layout/fragment_artist_detail">
+        <argument
+            android:name="artist_name"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_artist_detail_to_recent_songs"
+            app:destination="@id/nav_recent_songs"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_artist_detail_to_albums"
+            app:destination="@id/nav_albums"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_artist_detail_to_album_detail"
+            app:destination="@id/nav_album_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_album_detail"
@@ -107,38 +153,45 @@
         <action
             android:id="@+id/action_album_detail_to_recent_songs"
             app:destination="@id/nav_recent_songs"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_album_detail_to_albums"
             app:destination="@id/nav_albums"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_album_detail_to_artists"
             app:destination="@id/nav_artists"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_album_detail_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_album_detail_to_album_detail"
             app:destination="@id/nav_album_detail"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
         <action
             android:id="@+id/action_album_detail_to_tag_editor"
             app:destination="@id/nav_tag_editor"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
     </fragment>
 
     <fragment

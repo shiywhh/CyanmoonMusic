@@ -30,12 +30,12 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
-
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.button.MaterialButton;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
-import com.magicalstory.music.databinding.FragmentAlbumDetailBinding;
+import com.magicalstory.music.databinding.FragmentArtistDetailBinding;
 import com.magicalstory.music.adapter.AlbumHorizontalAdapter;
 import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Album;
@@ -55,24 +55,22 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 专辑详情Fragment
+ * 歌手详情Fragment
  */
-public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding> {
+public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBinding> {
 
-    private static final String ARG_ALBUM_ID = "album_id";
     private static final String ARG_ARTIST_NAME = "artist_name";
-    private static final String ARG_ALBUM_NAME = "album_name";
 
-    private Album currentAlbum;
-    private List<Song> albumSongs;
-    private List<Album> otherAlbums;
-
+    private Artist currentArtist;
+    private List<Song> popularSongs;
+    private List<Album> artistAlbums;
+    
     private SongVerticalAdapter songAdapter;
     private AlbumHorizontalAdapter albumAdapter;
-
+    
     private ExecutorService executorService;
     private Handler mainHandler;
-
+    
     // 颜色相关
     private int primaryColor = Color.parseColor("#6200EE");
     private int onPrimaryColor = Color.WHITE;
@@ -80,19 +78,17 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     // 广播接收器
     private BroadcastReceiver musicServiceReceiver;
 
-    public static AlbumDetailFragment newInstance(long albumId, String artistName, String albumName) {
-        AlbumDetailFragment fragment = new AlbumDetailFragment();
+    public static ArtistDetailFragment newInstance(String artistName) {
+        ArtistDetailFragment fragment = new ArtistDetailFragment();
         Bundle args = new Bundle();
-        args.putLong(ARG_ALBUM_ID, albumId);
         args.putString(ARG_ARTIST_NAME, artistName);
-        args.putString(ARG_ALBUM_NAME, albumName);
         fragment.setArguments(args);
         return fragment;
     }
 
     @Override
-    protected FragmentAlbumDetailBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
-        return FragmentAlbumDetailBinding.inflate(inflater, container, false);
+    protected FragmentArtistDetailBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
+        return FragmentArtistDetailBinding.inflate(inflater, container, false);
     }
 
     @Override
@@ -102,38 +98,42 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
 
     @Override
     protected int getLayoutRes() {
-        return R.layout.fragment_album_detail;
+        return R.layout.fragment_artist_detail;
     }
 
     @Override
-    protected FragmentAlbumDetailBinding bindPersistentView(View view) {
-        return FragmentAlbumDetailBinding.bind(view);
+    protected FragmentArtistDetailBinding bindPersistentView(View view) {
+        return FragmentArtistDetailBinding.bind(view);
     }
 
     @Override
     protected void initViewForPersistentView() {
         super.initViewForPersistentView();
-
+        
         // 初始化Handler和线程池
         mainHandler = new Handler(Looper.getMainLooper());
         executorService = Executors.newCachedThreadPool();
-
+        
         // 设置menu选项
         setHasOptionsMenu(true);
-
+        
         // 初始化RecyclerView
         initRecyclerViews();
-
+        
         // 获取传递的参数
         Bundle args = getArguments();
         if (args != null) {
-            long albumId = args.getLong(ARG_ALBUM_ID);
             String artistName = args.getString(ARG_ARTIST_NAME);
-            String albumName = args.getString(ARG_ALBUM_NAME);
-
-            // 加载专辑详情
-            loadAlbumDetail(albumId, artistName, albumName);
+            
+            // 加载歌手详情
+            loadArtistDetail(artistName);
         }
+    }
+
+    @Override
+    protected void initView() {
+        super.initView();
+        // 每次视图创建时需要执行的初始化代码
     }
 
     @Override
@@ -143,11 +143,7 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         binding.toolbar.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
 
-            if (itemId == R.id.action_edit_tags) {
-                // 打开标签编辑器
-                openTagEditor();
-                return true;
-            } else if (itemId == R.id.action_shuffle_play) {
+            if (itemId == R.id.action_shuffle_play) {
                 // 随机播放
                 binding.btnShufflePlay.performClick();
                 return true;
@@ -172,8 +168,8 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         int albumTitleY = DensityUtil.getScreenHeightAndWeight(context)[0];
         binding.nestedScrollView.setOnScrollChangeListener((View.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
             if (Math.abs(scrollY) > albumTitleY) {
-                if (currentAlbum != null) {
-                    binding.toolbar.setTitle(currentAlbum.getAlbumName());
+                if (currentArtist != null) {
+                    binding.toolbar.setTitle(currentArtist.getArtistName());
                 }
             } else {
                 // 否则隐藏toolbar标题
@@ -182,82 +178,73 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         });
 
 
+        
         // 全部播放按钮
         binding.btnPlayAll.setOnClickListener(v -> {
-            if (albumSongs != null && !albumSongs.isEmpty()) {
+            if (popularSongs != null && !popularSongs.isEmpty()) {
                 if (getActivity() instanceof MainActivity mainActivity) {
-                    mainActivity.setPlaylist(albumSongs);
-                    mainActivity.playSong(albumSongs.get(0));
+                    mainActivity.setPlaylist(popularSongs);
+                    mainActivity.playSong(popularSongs.get(0));
                 }
             }
         });
-
+        
         // 随机播放按钮
         binding.btnShufflePlay.setOnClickListener(v -> {
-            if (albumSongs != null && !albumSongs.isEmpty()) {
+            if (popularSongs != null && !popularSongs.isEmpty()) {
                 if (getActivity() instanceof MainActivity mainActivity) {
-                    List<Song> shuffledSongs = new ArrayList<>(albumSongs);
+                    List<Song> shuffledSongs = new ArrayList<>(popularSongs);
                     Collections.shuffle(shuffledSongs);
                     mainActivity.setPlaylist(shuffledSongs);
                     mainActivity.playSong(shuffledSongs.get(0));
                 }
             }
         });
-
+        
         // 查看全部歌曲
         binding.btnViewAllSongs.setOnClickListener(v -> {
             Bundle bundle = new Bundle();
-            bundle.putString("dataType", "album");
-            bundle.putLong("albumId", currentAlbum.getAlbumId());
-            bundle.putString("artistName", currentAlbum.getArtist());
-            bundle.putString("albumName", currentAlbum.getAlbumName());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_recent_songs, bundle);
+            bundle.putString("dataType", "artist");
+            bundle.putString("artistName", currentArtist.getArtistName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_artist_detail_to_recent_songs, bundle);
         });
-
+        
         // 查看全部专辑
         binding.btnViewAllAlbums.setOnClickListener(v -> {
             Bundle bundle = new Bundle();
-            bundle.putString("artistName", currentAlbum.getArtist());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_albums, bundle);
+            bundle.putString("artistName", currentArtist.getArtistName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_artist_detail_to_albums, bundle);
         });
+    }
 
-        // 艺术家头像点击
-        binding.ivArtistAvatar.setOnClickListener(v -> {
-            Bundle bundle = new Bundle();
-            bundle.putString("artist_name", currentAlbum.getArtist());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_artist_detail, bundle);
-        });
-
-        // 艺术家名字点击
-        binding.tvArtistName.setOnClickListener(v -> {
-            Bundle bundle = new Bundle();
-            bundle.putString("artist_name", currentAlbum.getArtist());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_artist_detail, bundle);
-        });
+    @Override
+    protected void initListener() {
+        super.initListener();
+        // 每次视图创建时需要执行的监听器初始化代码
     }
 
     /**
      * 初始化RecyclerView
      */
     private void initRecyclerViews() {
-        // 歌曲列表
-        binding.rvSongs.setLayoutManager(new LinearLayoutManager(getContext()));
+        // 热门歌曲列表
+        binding.rvPopularSongs.setLayoutManager(new LinearLayoutManager(getContext()));
         songAdapter = new SongVerticalAdapter(getContext(), new ArrayList<>());
-        binding.rvSongs.setAdapter(songAdapter);
-
-        // 其他专辑列表
-        binding.rvOtherAlbums.setLayoutManager(
+        binding.rvPopularSongs.setAdapter(songAdapter);
+        
+        // 专辑列表
+        binding.rvAlbums.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         albumAdapter = new AlbumHorizontalAdapter(getContext(), new ArrayList<>());
         albumAdapter.setOnItemClickListener((album, position) -> {
             // 跳转到专辑详情
             Bundle bundle = new Bundle();
-            bundle.putLong(ARG_ALBUM_ID, album.getAlbumId());
-            bundle.putString(ARG_ARTIST_NAME, album.getArtist());
-            bundle.putString(ARG_ALBUM_NAME, album.getAlbumName());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_album_detail, bundle);
+            bundle.putLong("album_id", album.getAlbumId());
+            bundle.putString("artist_name", album.getArtist());
+            bundle.putString("album_name", album.getAlbumName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_artist_detail_to_album_detail, bundle);
         });
-        binding.rvOtherAlbums.setAdapter(albumAdapter);
+        binding.rvAlbums.setAdapter(albumAdapter);
         
         // 注册MusicService广播接收器
         registerMusicServiceReceiver();
@@ -267,53 +254,49 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     }
 
     /**
-     * 加载专辑详情
+     * 加载歌手详情
      */
-    private void loadAlbumDetail(long albumId, String artistName, String albumName) {
+    private void loadArtistDetail(String artistName) {
         binding.progressBar.setVisibility(View.VISIBLE);
-
+        
         executorService.execute(() -> {
             try {
-                // 查询专辑信息
-                currentAlbum = LitePal.where("albumId = ? and artist = ?",
-                        String.valueOf(albumId), artistName).findFirst(Album.class);
-
-                if (currentAlbum == null) {
-                    // 如果数据库中没有专辑信息，创建一个基本的专辑对象
-                    currentAlbum = new Album();
-                    currentAlbum.setAlbumId(albumId);
-                    currentAlbum.setArtist(artistName);
-                    currentAlbum.setAlbumName(albumName);
+                // 查询歌手信息
+                currentArtist = LitePal.where("artistName = ?", artistName).findFirst(Artist.class);
+                
+                if (currentArtist == null) {
+                    // 如果数据库中没有歌手信息，创建一个基本的歌手对象
+                    currentArtist = new Artist();
+                    currentArtist.setArtistName(artistName);
                 }
-
-                // 查询专辑歌曲（按音轨号排序）
-                albumSongs = LitePal.where("albumId = ? and artist = ?",
-                                String.valueOf(albumId), artistName)
-                        .order("track asc")
+                
+                // 查询歌手的热门歌曲（按播放次数排序，取前10首）
+                popularSongs = LitePal.where("artist = ?", artistName)
+                        .order("dateAdded desc")
+                        .limit(10)
                         .find(Song.class);
-
-                // 更新专辑歌曲数量
-                if (albumSongs != null) {
-                    currentAlbum.setSongCount(albumSongs.size());
+                
+                // 更新歌手歌曲数量
+                if (popularSongs != null) {
+                    currentArtist.setSongCount(popularSongs.size());
                 }
-
-                // 查询同一艺术家的其他专辑
-                otherAlbums = LitePal.where("artist = ? and albumId != ?",
-                                artistName, String.valueOf(albumId))
+                
+                // 查询歌手的专辑
+                artistAlbums = LitePal.where("artist = ?", artistName)
                         .limit(10)
                         .find(Album.class);
-
+                
                 // 在主线程更新UI
                 mainHandler.post(() -> {
                     updateUI();
                     binding.progressBar.setVisibility(View.GONE);
                 });
-
+                
             } catch (Exception e) {
                 e.printStackTrace();
                 mainHandler.post(() -> {
                     binding.progressBar.setVisibility(View.GONE);
-                    ToastUtils.showToast(getContext(), getString(R.string.load_album_detail_failed));
+                    ToastUtils.showToast(getContext(), "加载歌手详情失败");
                 });
             }
         });
@@ -323,124 +306,105 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
      * 更新UI
      */
     private void updateUI() {
-        if (currentAlbum == null) return;
-
-        // 设置专辑标题
-        binding.tvAlbumName.setText(currentAlbum.getAlbumName());
-
-        // 设置艺术家名称
-        binding.tvArtistName.setText(currentAlbum.getArtist());
-
-        // 加载专辑封面并提取颜色
-        loadAlbumCover();
-
-        // 加载艺术家头像
+        if (currentArtist == null) return;
+        
+        // 设置歌手名称
+        binding.tvArtistName.setText(currentArtist.getArtistName());
+        
+        // 设置歌曲数量
+        int totalSongCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Song.class);
+        binding.tvSongCount.setText(totalSongCount + " 首歌曲");
+        
+        // 加载歌手头像并提取颜色
         loadArtistAvatar();
-
-        // 更新歌曲列表
-        updateSongsList();
-
-        // 更新其他专辑列表
-        updateOtherAlbumsList();
+        
+        // 更新热门歌曲列表
+        updatePopularSongsList();
+        
+        // 更新专辑列表
+        updateAlbumsList();
     }
 
     /**
-     * 加载专辑封面
-     */
-    private void loadAlbumCover() {
-        String albumArtUri = "content://media/external/audio/albumart/" + currentAlbum.getAlbumId();
-
-        Glide.with(this)
-                .asBitmap()
-                .load(albumArtUri)
-                .placeholder(R.drawable.place_holder_album)
-                .error(R.drawable.place_holder_album)
-                .into(new CustomTarget<Bitmap>() {
-                    @Override
-                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                        if (binding == null) {
-                            return;
-                        }
-                        binding.ivAlbumCover.setImageBitmap(resource);
-
-                        // 使用Palette进行取色
-                        Palette.from(resource).generate(palette -> {
-                            if (palette != null) {
-                                applyPaletteColors(palette);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void onLoadCleared(@Nullable Drawable placeholder) {
-                        if (binding == null) {
-                            return;
-                        }
-                        binding.ivAlbumCover.setImageDrawable(placeholder);
-                        // 使用默认颜色
-                        applyDefaultColors();
-                    }
-                });
-    }
-
-    /**
-     * 加载艺术家头像
+     * 加载歌手头像
      */
     private void loadArtistAvatar() {
-        // 尝试从数据库获取艺术家头像
-        Artist artist = LitePal.where("artistName = ?", currentAlbum.getArtist()).findFirst(Artist.class);
+        if (currentArtist.getCoverUrl() != null && !currentArtist.getCoverUrl().isEmpty()) {
+            Glide.with(this)
+                    .asBitmap()
+                    .load(currentArtist.getCoverUrl())
+                    .placeholder(R.drawable.place_holder_artist)
+                    .error(R.drawable.place_holder_artist)
+                    .into(new CustomTarget<Bitmap>() {
+                        @Override
+                        public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                            if (binding == null) {
+                                return;
+                            }
+                            binding.ivArtistAvatar.setImageBitmap(resource);
+                            
+                            // 使用Palette进行取色
+                            Palette.from(resource).generate(palette -> {
+                                if (palette != null) {
+                                    applyPaletteColors(palette);
+                                }
+                            });
+                        }
 
-        if (artist != null && artist.getCoverUrl() != null && !artist.getCoverUrl().isEmpty()) {
-            Glide2.loadImage(getContext(), binding.ivArtistAvatar, artist.getCoverUrl(), R.drawable.place_holder_artist);
+                        @Override
+                        public void onLoadCleared(@Nullable Drawable placeholder) {
+                            if (binding == null) {
+                                return;
+                            }
+                            binding.ivArtistAvatar.setImageDrawable(placeholder);
+                            // 使用默认颜色
+                            applyDefaultColors();
+                        }
+                    });
         } else {
             // 使用默认头像
             binding.ivArtistAvatar.setImageResource(R.drawable.place_holder_artist);
+            applyDefaultColors();
         }
     }
 
     /**
-     * 更新歌曲列表
+     * 更新热门歌曲列表
      */
-    private void updateSongsList() {
-        if (albumSongs != null && !albumSongs.isEmpty()) {
-            // 显示最多10首歌曲
-            List<Song> displaySongs = albumSongs.size() > 10 ?
-                    albumSongs.subList(0, 10) : albumSongs;
-
-            songAdapter.updateData(displaySongs);
-            binding.layoutSongs.setVisibility(View.VISIBLE);
-
-            // 如果歌曲数量超过10首，显示查看全部按钮
-            if (albumSongs.size() > 10) {
+    private void updatePopularSongsList() {
+        if (popularSongs != null && !popularSongs.isEmpty()) {
+            songAdapter.updateData(popularSongs);
+            binding.layoutPopularSongs.setVisibility(View.VISIBLE);
+            
+            // 获取歌手的所有歌曲数量
+            int totalSongCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Song.class);
+            if (totalSongCount > 10) {
                 binding.btnViewAllSongs.setVisibility(View.VISIBLE);
             } else {
                 binding.btnViewAllSongs.setVisibility(View.GONE);
             }
         } else {
-            binding.layoutSongs.setVisibility(View.GONE);
+            binding.layoutPopularSongs.setVisibility(View.GONE);
         }
     }
 
     /**
-     * 更新其他专辑列表
+     * 更新专辑列表
      */
-    private void updateOtherAlbumsList() {
-        if (otherAlbums != null && !otherAlbums.isEmpty()) {
-            albumAdapter.updateData(otherAlbums);
-            binding.layoutOtherAlbums.setVisibility(View.VISIBLE);
-
-            // 设置标题
-            binding.tvOtherAlbumsTitle.setText(getString(R.string.other_albums_from_artist_format, currentAlbum.getArtist()));
-
-            // 查询艺术家的所有专辑数量
-            int totalAlbumCount = LitePal.where("artist = ?", currentAlbum.getArtist()).count(Album.class);
-            if (totalAlbumCount > otherAlbums.size() + 1) { // +1 因为当前专辑不在其他专辑列表中
+    private void updateAlbumsList() {
+        if (artistAlbums != null && !artistAlbums.isEmpty()) {
+            albumAdapter.updateData(artistAlbums);
+            binding.layoutAlbums.setVisibility(View.VISIBLE);
+            
+            // 查询歌手的所有专辑数量
+            int totalAlbumCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Album.class);
+            if (totalAlbumCount > artistAlbums.size()) {
                 binding.btnViewAllAlbums.setVisibility(View.VISIBLE);
             } else {
                 binding.btnViewAllAlbums.setVisibility(View.GONE);
             }
         } else {
-            binding.layoutOtherAlbums.setVisibility(View.GONE);
+            binding.layoutAlbums.setVisibility(View.GONE);
         }
     }
 
@@ -452,14 +416,14 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         int vibrantColor = palette.getVibrantColor(primaryColor);
         int darkVibrantColor = palette.getDarkVibrantColor(primaryColor);
         int mutedColor = palette.getMutedColor(primaryColor);
-
+        
         // 选择最适合的颜色
-        primaryColor = vibrantColor != primaryColor ? vibrantColor :
-                (darkVibrantColor != primaryColor ? darkVibrantColor : mutedColor);
-
+        primaryColor = vibrantColor != primaryColor ? vibrantColor : 
+                      (darkVibrantColor != primaryColor ? darkVibrantColor : mutedColor);
+        
         // 应用颜色到按钮
         updateButtonColors();
-
+        
         // 创建渐变罩层
         createGradientOverlay();
     }
@@ -481,14 +445,14 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         playAllButton.setBackgroundTintList(ColorStateList.valueOf(primaryColor));
         playAllButton.setTextColor(onPrimaryColor);
         playAllButton.setIconTint(ColorStateList.valueOf(onPrimaryColor));
-
+        
         // 随机播放按钮 - 边框样式
         MaterialButton shufflePlayButton = (MaterialButton) binding.btnShufflePlay;
         shufflePlayButton.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
         shufflePlayButton.setTextColor(primaryColor);
         shufflePlayButton.setIconTint(ColorStateList.valueOf(primaryColor));
         shufflePlayButton.setStrokeColor(ColorStateList.valueOf(primaryColor));
-
+        
         // 查看全部按钮颜色
         binding.btnViewAllSongs.setTextColor(primaryColor);
         binding.btnViewAllAlbums.setTextColor(primaryColor);
@@ -502,7 +466,7 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
                 GradientDrawable.Orientation.BOTTOM_TOP,
                 new int[]{primaryColor, Color.TRANSPARENT}
         );
-
+        
         binding.gradientOverlay.setBackground(gradientDrawable);
         binding.gradientOverlay.setVisibility(View.VISIBLE);
     }
@@ -550,19 +514,19 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     @Override
     public void onDestroy() {
         super.onDestroy();
-
+        
         // 取消注册广播接收器
         if (musicServiceReceiver != null) {
             LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
             musicServiceReceiver = null;
         }
-
+        
         // 清理ExecutorService
         if (executorService != null) {
             executorService.shutdown();
             executorService = null;
         }
-
+        
         // 清理Handler
         if (mainHandler != null) {
             mainHandler.removeCallbacksAndMessages(null);
@@ -571,31 +535,18 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     }
 
     /**
-     * 打开标签编辑器
-     */
-    private void openTagEditor() {
-        if (currentAlbum != null) {
-            Bundle bundle = new Bundle();
-            bundle.putLong(ARG_ALBUM_ID, currentAlbum.getAlbumId());
-            bundle.putString(ARG_ARTIST_NAME, currentAlbum.getArtist());
-            bundle.putString(ARG_ALBUM_NAME, currentAlbum.getAlbumName());
-            Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_tag_editor, bundle);
-        }
-    }
-
-    /**
      * 添加到播放队列的下一首位置
      */
     private void addToPlayNext() {
-        if (albumSongs != null && !albumSongs.isEmpty()) {
+        if (popularSongs != null && !popularSongs.isEmpty()) {
             if (getActivity() instanceof MainActivity mainActivity) {
                 // 添加到播放队列的下一首位置
-                // 这里需要实现将专辑歌曲添加到播放队列的下一首位置
+                // 这里需要实现将歌手歌曲添加到播放队列的下一首位置
                 // 由于当前项目中没有看到具体的播放队列管理，先用Toast提示
-                ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+                ToastUtils.showToast(getContext(), "已添加到播放队列的下一首");
             }
         } else {
-            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+            ToastUtils.showToast(getContext(), "没有歌曲可添加");
         }
     }
 
@@ -603,12 +554,13 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
      * 添加到播放列表
      */
     private void addToPlaylist() {
-        if (albumSongs != null && !albumSongs.isEmpty()) {
+        if (popularSongs != null && !popularSongs.isEmpty()) {
             // 这里可以实现添加到播放列表的功能
             // 可以弹出一个对话框让用户选择现有播放列表或创建新的播放列表
             // 由于当前项目中没有看到具体的播放列表管理，先用Toast提示
+            ToastUtils.showToast(getContext(), "已添加到播放列表");
         } else {
-            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+            ToastUtils.showToast(getContext(), "没有歌曲可添加");
         }
     }
 

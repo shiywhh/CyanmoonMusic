@@ -5,23 +5,22 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/md_theme_background"
-    tools:context=".fragment.AlbumDetailFragment">
+    tools:context=".fragment.ArtistDetailFragment">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
+        android:backgroundTint="@color/md_theme_navigationBarBackground"
         android:layout_height="wrap_content"
         android:background="@color/transparent"
-        android:backgroundTint="@color/md_theme_navigationBarBackground"
         android:fitsSystemWindows="true">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:menu="@menu/menu_album_detail"
+            app:menu="@menu/menu_artist_detail"
             app:navigationIcon="@drawable/ic_arrow_back"
-
             app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -40,7 +39,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- 专辑封面区域 -->
+            <!-- 歌手头像区域 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -53,7 +52,7 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-                    <!-- 专辑封面 -->
+                    <!-- 歌手头像 -->
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
@@ -67,13 +66,13 @@
                         app:layout_constraintTop_toTopOf="parent">
 
                         <ImageView
-                            android:id="@+id/iv_album_cover"
+                            android:id="@+id/iv_artist_avatar"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:background="@color/black"
-                            android:contentDescription="@string/album_cover"
+                            android:contentDescription="@string/artist_avatar"
                             android:scaleType="centerCrop"
-                            android:src="@drawable/place_holder_album" />
+                            android:src="@drawable/place_holder_artist" />
 
                         <!-- 渐变罩层 -->
                         <View
@@ -87,9 +86,9 @@
                     </androidx.cardview.widget.CardView>
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
-                <!-- 专辑标题 -->
+                <!-- 歌手名称 -->
                 <TextView
-                    android:id="@+id/tv_album_name"
+                    android:id="@+id/tv_artist_name"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/margin_16"
@@ -97,43 +96,32 @@
                     android:ellipsize="end"
                     android:gravity="start"
                     android:maxLines="2"
-                    android:text="@string/album_name"
+                    android:text="@string/unknown_artist"
                     android:textColor="@color/text_primary"
                     android:textSize="24sp"
                     android:textStyle="bold" />
 
-                <!-- 艺术家信息 -->
+                <!-- 歌手信息 -->
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="start|center"
                     android:layout_marginBottom="16dp"
                     android:orientation="horizontal">
 
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:layout_marginEnd="8dp"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="0dp">
-
-                        <ImageView
-                            android:id="@+id/iv_artist_avatar"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@color/black"
-                            android:contentDescription="@string/artist_avatar"
-                            android:scaleType="centerCrop"
-                            android:src="@drawable/place_holder_artist" />
-
-                    </androidx.cardview.widget.CardView>
+                    <TextView
+                        android:id="@+id/tv_artist_info"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="歌手"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="16sp" />
 
                     <TextView
-                        android:id="@+id/tv_artist_name"
+                        android:id="@+id/tv_song_count"
                         android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:text="@string/unknown_artist"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:text="0 首歌曲"
                         android:textColor="@color/text_secondary"
                         android:textSize="16sp" />
 
@@ -184,15 +172,15 @@
 
             </LinearLayout>
 
-            <!-- 歌曲列表区域 -->
+            <!-- 热门歌曲区域 -->
             <LinearLayout
-                android:id="@+id/layout_songs"
+                android:id="@+id/layout_popular_songs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 android:orientation="vertical">
 
-                <!-- 歌曲标题 -->
+                <!-- 热门歌曲标题 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -208,7 +196,7 @@
                         android:layout_weight="1"
                         android:ellipsize="start"
                         android:maxLines="1"
-                        android:text="@string/songs"
+                        android:text="热门歌曲"
                         android:textColor="@color/text_primary"
                         android:textSize="24sp"
                         android:textStyle="bold" />
@@ -225,29 +213,28 @@
 
                 </LinearLayout>
 
-                <!-- 歌曲列表 -->
+                <!-- 热门歌曲列表 -->
                 <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rv_songs"
+                    android:id="@+id/rv_popular_songs"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:clipChildren="false"
                     android:nestedScrollingEnabled="false"
                     android:overScrollMode="never"
-                    android:paddingHorizontal="@dimen/margin_4"
                     android:scrollbars="none"
                     tools:listitem="@layout/item_song_vertical" />
 
             </LinearLayout>
 
-            <!-- 同一艺术家的其他专辑 -->
+            <!-- 专辑区域 -->
             <LinearLayout
-                android:id="@+id/layout_other_albums"
+                android:id="@+id/layout_albums"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 android:orientation="vertical">
 
-                <!-- 其他专辑标题 -->
+                <!-- 专辑标题 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -258,13 +245,13 @@
                     android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/tv_other_albums_title"
+                        android:id="@+id/tv_albums_title"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:text="@string/other_albums_from_artist"
+                        android:text="专辑"
                         android:textColor="@color/text_primary"
                         android:textSize="24sp"
                         android:textStyle="bold" />
@@ -281,9 +268,9 @@
 
                 </LinearLayout>
 
-                <!-- 其他专辑列表 -->
+                <!-- 专辑列表 -->
                 <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rv_other_albums"
+                    android:id="@+id/rv_albums"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:clipToPadding="false"

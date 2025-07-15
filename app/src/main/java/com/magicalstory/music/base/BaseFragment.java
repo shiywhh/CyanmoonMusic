@@ -37,12 +37,25 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
     public Activity context;
     private BroadcastReceiver bottomSheetStateReceiver;
     private BroadcastReceiver refreshReceiver;
+    
+    // 持久化视图相关变量
+    protected boolean hasInitializedRootView = false;
+    private View rootView = null;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        binding = getViewBinding(inflater, container);
-        return binding.getRoot();
+        // 子类可以重写usePersistentView方法来决定是否使用持久化视图
+        if (usePersistentView()) {
+            View view = getPersistentView(inflater, container, savedInstanceState, getLayoutRes());
+            if (binding == null) {
+                binding = bindPersistentView(view);
+            }
+            return view;
+        } else {
+            binding = getViewBinding(inflater, container);
+            return binding.getRoot();
+        }
     }
 
     @Override
@@ -51,10 +64,20 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         context = getActivity();
     }
 
-
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        
+        // 处理持久化视图的初始化逻辑
+        if (!hasInitializedRootView) {
+            hasInitializedRootView = true;
+            // 首次创建时的初始化
+            initViewForPersistentView();
+            initDataForPersistentView();
+            initListenerForPersistentView();
+        }
+
+        // 每次onViewCreated都会执行的初始化
         initView();
         initData();
         initListener();
@@ -63,7 +86,6 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         // 注册刷新广播
         registerRefreshReceiver();
         initNavigationBar();
-
     }
 
     private void initNavigationBar() {
@@ -91,7 +113,8 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
             LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(refreshReceiver);
             refreshReceiver = null;
         }
-        binding = null;
+        // 对于持久化视图，不清理binding，保持视图状态
+        // binding = null;
     }
 
     /**
@@ -101,6 +124,57 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
      * @return ViewBinding实例
      */
     protected abstract VB getViewBinding(LayoutInflater inflater, ViewGroup container);
+
+    /**
+     * 是否使用持久化视图
+     * 子类可以重写此方法来决定是否使用持久化视图
+     * @return true表示使用持久化视图，false表示使用普通视图
+     */
+    protected boolean usePersistentView() {
+        return false;
+    }
+
+    /**
+     * 获取布局资源ID
+     * 当使用持久化视图时，子类需要重写此方法返回对应的布局资源ID
+     * @return 布局资源ID
+     */
+    protected int getLayoutRes() {
+        return 0;
+    }
+
+    /**
+     * 绑定持久化视图
+     * 当使用持久化视图时，子类需要重写此方法来绑定已存在的view
+     * @param view 已存在的view
+     * @return ViewBinding实例
+     */
+    protected VB bindPersistentView(View view) {
+        return null;
+    }
+
+    /**
+     * 获取持久化视图
+     * @param inflater LayoutInflater
+     * @param container ViewGroup
+     * @param savedInstanceState Bundle
+     * @param layout 布局资源ID
+     * @return 持久化的View实例
+     */
+    protected View getPersistentView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState, int layout) {
+        if (rootView == null) {
+            // 首次创建视图
+            rootView = inflater.inflate(layout, container, false);
+        } else {
+            // 视图已存在，需要从父容器中移除
+            // 避免重复添加导致的异常
+            ViewGroup parent = (ViewGroup) rootView.getParent();
+            if (parent != null) {
+                parent.removeView(rootView);
+            }
+        }
+        return rootView;
+    }
 
     /**
      * 获取当前页面的FloatingActionButton
@@ -130,6 +204,30 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
      */
     protected void initListener() {
         // 子类可以重写此方法初始化监听器
+    }
+
+    /**
+     * 为持久化视图初始化视图（只在首次创建时执行）
+     * 子类可以重写此方法来实现只需要执行一次的视图初始化逻辑
+     */
+    protected void initViewForPersistentView() {
+        // 子类可以重写此方法
+    }
+
+    /**
+     * 为持久化视图初始化数据（只在首次创建时执行）
+     * 子类可以重写此方法来实现只需要执行一次的数据初始化逻辑
+     */
+    protected void initDataForPersistentView() {
+        // 子类可以重写此方法
+    }
+
+    /**
+     * 为持久化视图初始化监听器（只在首次创建时执行）
+     * 子类可以重写此方法来实现只需要执行一次的监听器初始化逻辑
+     */
+    protected void initListenerForPersistentView() {
+        // 子类可以重写此方法
     }
 
     /**
@@ -241,7 +339,16 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         if (refreshReceiver != null) {
             LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(refreshReceiver);
         }
+        // 清理持久化视图相关资源
+        if (rootView != null) {
+            ViewGroup parent = (ViewGroup) rootView.getParent();
+            if (parent != null) {
+                parent.removeView(rootView);
+            }
+            rootView = null;
+        }
         binding = null;
+        hasInitializedRootView = false;
     }
 
     /**

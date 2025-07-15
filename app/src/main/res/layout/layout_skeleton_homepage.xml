@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:orientation="vertical"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/layout_songs_lastest_added"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/margin_10"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/item_header_songs_lastest_added"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/height_group_title"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:longClickable="true"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.groupTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_weight="1"
+                android:text="@string/songs_lastest_added" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_songs_lastest_added"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="@dimen/margin_16"
+
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- 最近播放专辑 -->
+    <LinearLayout
+        android:id="@+id/layout_recent_albums"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/margin_10"
+
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/item_header_recent_albums"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/height_group_title"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:longClickable="true"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.groupTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_weight="1"
+                android:text="@string/recent_albums" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_recent_albums"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="@dimen/margin_16"
+
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- 最近听过的艺术家 -->
+    <LinearLayout
+        android:id="@+id/layout_recent_artists"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/margin_10"
+
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/item_header_recent_artists"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/height_group_title"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:longClickable="true"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.groupTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_weight="1"
+                android:text="@string/recent_artists" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_recent_artists"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="@dimen/margin_16"
+
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- 我的收藏 -->
+    <LinearLayout
+        android:id="@+id/layout_my_favorites"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/margin_10"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/item_header_my_favorites"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/height_group_title"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:longClickable="true"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.groupTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_weight="1"
+                android:text="@string/my_collection" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_my_favorites"
+            android:layout_width="match_parent"
+
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="@dimen/margin_16"
+
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- 随机推荐 -->
+    <LinearLayout
+        android:id="@+id/layout_random_recommendations"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/margin_10"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/item_header_random_recommendations"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/height_group_title"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:longClickable="true"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.groupTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_weight="1"
+                android:text="@string/random_recommendations" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:src="@drawable/ic_arrow_right" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_random_recommendations"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="@dimen/margin_16"
+
+            android:scrollbars="none" />
+    </LinearLayout>
+</LinearLayout>

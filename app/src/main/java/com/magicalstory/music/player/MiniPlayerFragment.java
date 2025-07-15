@@ -42,7 +42,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
     private static final String TAG = "MiniPlayerFragment";
     private static final int PLAY_DELAY_MS = 300; // 延迟播放时间（毫秒）
-    
+
     // RecyclerView 相关
     private MiniPlayerAdapter miniPlayerAdapter;
     private LinearLayoutManager layoutManager;
@@ -50,12 +50,12 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     private List<Song> playlist = new ArrayList<>();
     private int currentPosition = 0;
     private boolean isUserScrolling = false;
-    
+
     // 进度条相关
     private ProgressBar progressBar;
     private ObjectAnimator progressAnimator;
     private int currentProgress = 0;
-    
+
     // 延迟播放相关
     private Handler playDelayHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingPlayRunnable;
@@ -94,13 +94,13 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     @Override
     protected void initView() {
         super.initView();
-        
+
         // 初始化进度条
         progressBar = binding.miniProgressBar;
-        
+
         // 初始化 RecyclerView
         setupRecyclerView();
-        
+
         // 设置点击事件
         binding.miniPlayPause.setOnClickListener(v -> {
             if (getActivity() instanceof MainActivity) {
@@ -116,12 +116,12 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        
+
         // 清理延迟播放任务
         if (pendingPlayRunnable != null) {
             playDelayHandler.removeCallbacks(pendingPlayRunnable);
         }
-        
+
         // 清理进度条动画
         if (progressAnimator != null && progressAnimator.isRunning()) {
             progressAnimator.cancel();
@@ -152,35 +152,31 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         LocalBroadcastManager.getInstance(context).unregisterReceiver(musicReceiver);
     }
 
-    private void updateUI() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            updateSongInfo();
-            int playState = mainActivity.getPlayState();
-            updatePlayButton(playState);
-            updateProgressBarVisibility(playState);
-        }
-    }
 
     private void updateSongInfo() {
         if (!(getActivity() instanceof MainActivity)) return;
-        
+
         MainActivity mainActivity = (MainActivity) getActivity();
         Song currentSong = mainActivity.getCurrentSong();
-        
+
         if (currentSong != null) {
             // 更新播放列表
             List<Song> currentPlaylist = mainActivity.getPlaylist();
             if (currentPlaylist != null && !currentPlaylist.isEmpty()) {
                 updatePlaylist(currentPlaylist);
-                
+
                 // 找到当前歌曲在播放列表中的位置
                 int position = currentPlaylist.indexOf(currentSong);
+                System.out.println("position = " + position);
+                System.out.println("currentPosition = " + currentPosition);
                 if (position != -1 && position != currentPosition) {
                     currentPosition = position;
+
                     miniPlayerAdapter.setCurrentPosition(position);
-                    scrollToPosition(position);
-                    
+                    binding.miniPlayerContainer.post(() -> {
+                        scrollToPosition(position);
+                    });
+
                     // 歌曲切换时立即重置进度条
                     resetProgress();
                 }
@@ -211,22 +207,22 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
     private void updateDefaultState() {
         binding.miniPlayPause.setImageResource(R.drawable.ic_play);
-        
+
         // 清空播放列表
         playlist.clear();
         if (miniPlayerAdapter != null) {
             miniPlayerAdapter.updatePlaylist(playlist);
         }
-        
+
         // 隐藏进度条并重置进度
         if (progressBar != null) {
             progressBar.setVisibility(View.GONE);
             resetProgress();
         }
-        
+
         currentPosition = 0;
     }
-    
+
     /**
      * 更新进度条
      */
@@ -236,7 +232,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             animateProgressTo(progress);
         }
     }
-    
+
     /**
      * 重置进度条（立即置零）
      */
@@ -246,13 +242,13 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             if (progressAnimator != null && progressAnimator.isRunning()) {
                 progressAnimator.cancel();
             }
-            
+
             // 立即将进度条置零
             currentProgress = 0;
             progressBar.setProgress(0);
         }
     }
-    
+
     /**
      * 平滑动画到指定进度
      */
@@ -260,12 +256,12 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         if (progressBar == null || targetProgress == currentProgress) {
             return;
         }
-        
+
         // 取消当前动画
         if (progressAnimator != null && progressAnimator.isRunning()) {
             progressAnimator.cancel();
         }
-        
+
         // 创建新的动画
         progressAnimator = ObjectAnimator.ofInt(progressBar, "progress", currentProgress, targetProgress);
         progressAnimator.setDuration(200); // 200ms的平滑动画
@@ -273,17 +269,17 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             currentProgress = (int) animator.getAnimatedValue();
         });
         progressAnimator.start();
-        
+
         // 更新当前进度值
         currentProgress = targetProgress;
     }
-    
+
     /**
      * 更新进度条可见性
      */
     private void updateProgressBarVisibility(int playState) {
         if (progressBar == null) return;
-        
+
         switch (playState) {
             case MusicService.STATE_PLAYING:
             case MusicService.STATE_PAUSED:
@@ -319,7 +315,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             MainActivity mainActivity = (MainActivity) getActivity();
             mainActivity.setPlaylist(songs);
         }
-        
+
         // 更新本地播放列表
         updatePlaylist(songs);
     }
@@ -350,7 +346,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     public boolean autoHideBottomNavigation() {
         return false;
     }
-    
+
     /**
      * 设置 RecyclerView
      */
@@ -358,7 +354,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         // 设置布局管理器
         layoutManager = new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false);
         binding.miniPlayerRecyclerView.setLayoutManager(layoutManager);
-        
+
         // 设置适配器
         miniPlayerAdapter = new MiniPlayerAdapter(context, playlist);
         miniPlayerAdapter.setOnSongChangeListener(new MiniPlayerAdapter.OnSongChangeListener() {
@@ -373,17 +369,17 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             }
         });
         binding.miniPlayerRecyclerView.setAdapter(miniPlayerAdapter);
-        
+
         // 设置PagerSnapHelper以实现分页效果
         pagerSnapHelper = new PagerSnapHelper();
         pagerSnapHelper.attachToRecyclerView(binding.miniPlayerRecyclerView);
-        
+
         // 设置滚动监听器
         binding.miniPlayerRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
                 super.onScrollStateChanged(recyclerView, newState);
-                
+
                 if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                     // 滚动停止时，检查当前位置
                     View snapView = pagerSnapHelper.findSnapView(layoutManager);
@@ -394,12 +390,12 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
                             isUserScrolling = true;
                             currentPosition = position;
                             miniPlayerAdapter.setCurrentPosition(position);
-                            
+
                             // 取消之前的延迟播放任务
                             if (pendingPlayRunnable != null) {
                                 playDelayHandler.removeCallbacks(pendingPlayRunnable);
                             }
-                            
+
                             // 延迟播放新歌曲
                             if (position < playlist.size()) {
                                 Song newSong = playlist.get(position);
@@ -420,7 +416,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             }
         });
     }
-    
+
     /**
      * 用户通过滑动切换歌曲时的回调
      */
@@ -430,7 +426,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             mainActivity.playSong(song);
         }
     }
-    
+
     /**
      * 用户点击歌曲item时的回调
      */
@@ -441,7 +437,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             mainActivity.expandBottomSheet();
         }
     }
-    
+
     /**
      * 更新播放列表
      */
@@ -450,17 +446,17 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         if (newPlaylist != null) {
             this.playlist.addAll(newPlaylist);
         }
-        
+
         if (miniPlayerAdapter != null) {
             miniPlayerAdapter.updatePlaylist(this.playlist);
         }
     }
-    
+
     /**
      * 滚动到指定位置（直接跳转）
      */
     private void scrollToPosition(int position) {
-        if (binding.miniPlayerRecyclerView != null && !isUserScrolling) {
+        if (!isUserScrolling) {
             binding.miniPlayerRecyclerView.scrollToPosition(position);
         }
     }

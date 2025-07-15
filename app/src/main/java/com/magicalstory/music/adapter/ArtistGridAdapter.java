@@ -1,13 +1,19 @@
 package com.magicalstory.music.adapter;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.Navigation;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
@@ -29,10 +35,17 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
     private OnItemClickListener onItemClickListener;
     private OnItemLongClickListener onItemLongClickListener;
     private OnSelectionChangedListener onSelectionChangedListener;
+    private Fragment fragment;
     
     // 多选相关
     private boolean isMultiSelectMode = false;
     private List<Artist> selectedArtists = new ArrayList<>();
+    
+    // 动画相关
+    private boolean isFirstLoad = false;
+    private static final int ANIMATION_DURATION = 100; // 动画持续时间(毫秒)
+    private static final int ANIMATION_DELAY = 30; // 每个item之间的延迟时间(毫秒)
+    private static final int MAX_ANIMATED_ITEMS = 8; // 最多为多少个item执行动画(首屏)
     
     public interface OnItemClickListener {
         void onItemClick(Artist artist, int position);
@@ -49,6 +62,12 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
     public ArtistGridAdapter(Context context, List<Artist> artistList) {
         this.context = context;
         this.artistList = artistList;
+    }
+    
+    public ArtistGridAdapter(Context context, List<Artist> artistList, Fragment fragment) {
+        this.context = context;
+        this.artistList = artistList;
+        this.fragment = fragment;
     }
     
     public void setOnItemClickListener(OnItemClickListener listener) {
@@ -187,6 +206,9 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
                 // 普通模式：执行点击事件
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(artist, position);
+                } else {
+                    // 默认跳转到歌手详情页面
+                    navigateToArtistDetail(artist);
                 }
             }
         });
@@ -199,6 +221,43 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
             }
             return false;
         });
+        
+        // 执行加载动画（仅首次加载的首屏项目）
+        if (isFirstLoad && position < MAX_ANIMATED_ITEMS) {
+            animateItem(holder.itemView, position);
+        } else {
+            // 重置视图状态，避免复用时显示异常
+            holder.itemView.setAlpha(1f);
+            holder.itemView.setTranslationY(0f);
+        }
+    }
+    
+    /**
+     * 为item执行渐变动画
+     */
+    private void animateItem(View view, int position) {
+        // 设置初始状态：透明度为0，稍微向下偏移
+        view.setAlpha(0f);
+        view.setTranslationY(50f);
+        
+        // 创建透明度动画
+        ObjectAnimator alphaAnimator = ObjectAnimator.ofFloat(view, "alpha", 0f, 1f);
+        alphaAnimator.setDuration(ANIMATION_DURATION);
+        
+        // 创建位移动画
+        ObjectAnimator translationAnimator = ObjectAnimator.ofFloat(view, "translationY", 50f, 0f);
+        translationAnimator.setDuration(ANIMATION_DURATION);
+        
+        // 创建动画集合
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(alphaAnimator, translationAnimator);
+        animatorSet.setInterpolator(new DecelerateInterpolator());
+        
+        // 设置延迟时间，让每个item按顺序出现
+        animatorSet.setStartDelay(position * ANIMATION_DELAY);
+        
+        // 开始动画
+        animatorSet.start();
     }
     
     private void loadArtistAvatar(com.google.android.material.imageview.ShapeableImageView imageView, Artist artist) {
@@ -228,7 +287,27 @@ public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.Vi
     
     public void updateData(List<Artist> newArtistList) {
         this.artistList = newArtistList;
+        // 重置首次加载标志，允许重新执行动画
+        
         notifyDataSetChanged();
+    }
+    
+    /**
+     * 禁用后续的加载动画
+     */
+    public void disableLoadAnimation() {
+        this.isFirstLoad = false;
+    }
+    
+    /**
+     * 跳转到歌手详情页面
+     */
+    private void navigateToArtistDetail(Artist artist) {
+        if (fragment != null && fragment.getView() != null) {
+            Bundle bundle = new Bundle();
+            bundle.putString("artist_name", artist.getArtistName());
+            Navigation.findNavController(fragment.requireView()).navigate(R.id.action_artists_to_artist_detail, bundle);
+        }
     }
     
     static class ViewHolder extends RecyclerView.ViewHolder {

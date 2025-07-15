@@ -22,6 +22,7 @@ public class Song extends LitePalSupport {
     private int track;              // 音轨号
     private int year;               // 年份
     private String genre;           // 流派
+    private long lastplayed;        // 最后播放时间
 
     public Song() {}
 
@@ -161,5 +162,13 @@ public class Song extends LitePalSupport {
 
     public void setGenre(String genre) {
         this.genre = genre;
+    }
+
+    public long getLastplayed() {
+        return lastplayed;
+    }
+
+    public void setLastplayed(long lastplayed) {
+        this.lastplayed = lastplayed;
     }
 }

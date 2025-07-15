@@ -111,26 +111,40 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     }
 
     @Override
-    protected void initView() {
-        super.initView();
+    protected boolean usePersistentView() {
+        return true;
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.fragment_home;
+    }
+
+    @Override
+    protected FragmentHomeBinding bindPersistentView(View view) {
+        return FragmentHomeBinding.bind(view);
+    }
+
+    @Override
+    protected void initViewForPersistentView() {
+        super.initViewForPersistentView();
         // 初始化权限请求启动器
         initPermissionLauncher();
         // 初始化视图
         setupSearchView();
         // 初始化RecyclerView
         initRecyclerViews();
-        // 检查权限并更新UI
-        checkMusicPermissionAndUpdateUI();
+        // 先检查权限，但不立即查询数据库
+        checkPermissionAndShowUI();
     }
 
     @Override
-    protected void initData() {
-        super.initData();
-        
+    protected void initDataForPersistentView() {
+        super.initDataForPersistentView();
         // 初始化Handler和线程池
         mainHandler = new Handler(Looper.getMainLooper());
         executorService = Executors.newCachedThreadPool();
-        
+
         // 注册广播接收器
         IntentFilter filter = new IntentFilter(MusicScanService.ACTION_SCAN_COMPLETE);
         ContextCompat.registerReceiver(context, scanCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -138,12 +152,14 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         // 绑定服务
         Intent serviceIntent = new Intent(getContext(), MusicScanService.class);
         context.bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+
+        // 现在线程池和Handler已经初始化，可以检查权限并更新UI
+        checkMusicPermissionAndUpdateUI();
     }
 
     @Override
-    protected void initListener() {
-        super.initListener();
-        // SearchBar和SearchView已通过layout_anchor自动关联，无需手动设置点击监听
+    protected void initListenerForPersistentView() {
+        super.initListenerForPersistentView();
 
         // 扫描按钮点击事件
         binding.buttonScan.setOnClickListener(v -> requestMusicPermissionAndScan());
@@ -176,6 +192,30 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         binding.itemHeaderRandomRecommendations.setOnClickListener(v -> {
             // 跳转到随机推荐页面
             navigateToRandomRecommendations();
+        });
+
+        // 播放历史点击事件
+        binding.layoutPlayHistory.setOnClickListener(v -> {
+            // 跳转到播放历史页面
+            navigateToPlayHistory();
+        });
+
+        // 我的收藏点击事件
+        binding.layoutMyFavoritesTop.setOnClickListener(v -> {
+            // 跳转到我的收藏页面
+            navigateToMyFavorites();
+        });
+
+        // 最常播放点击事件
+        binding.layoutMostPlayed.setOnClickListener(v -> {
+            // 跳转到最常播放页面
+            navigateToMostPlayed();
+        });
+
+        // 随机播放点击事件
+        binding.layoutRandomPlay.setOnClickListener(v -> {
+            // 开始随机播放
+            startRandomPlay();
         });
     }
 
@@ -257,27 +297,76 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     }
 
     /**
+     * 检查权限并显示初始UI状态（不查询数据库）
+     */
+    private void checkPermissionAndShowUI() {
+        boolean hasPermission = hasMusicPermission();
+
+        if (!hasPermission) {
+            // 没有权限，直接显示空布局
+            binding.layoutEmpty.setVisibility(View.VISIBLE);
+            hideAllMusicLists();
+        } else {
+            // 有权限，先显示loading状态，等待数据库查询
+            binding.progressBar.setVisibility(View.VISIBLE);
+            binding.contentLayout.setVisibility(View.INVISIBLE);
+            binding.layoutEmpty.setVisibility(View.GONE);
+        }
+    }
+
+    /**
      * 检查音乐权限并更新UI
      */
     private void checkMusicPermissionAndUpdateUI() {
         boolean hasPermission = hasMusicPermission();
-        boolean hasMusicData = false;
 
-        if (hasPermission) {
-            // 检查数据库中是否有音乐数据
-            hasMusicData = LitePal.count("song") > 0;
-        }
-
-        // 根据权限和数据情况显示不同的UI
-        if (!hasPermission || !hasMusicData) {
-            // 显示空布局，隐藏其他列表
+        if (!hasPermission) {
+            // 没有权限，直接显示空布局
             binding.layoutEmpty.setVisibility(View.VISIBLE);
             hideAllMusicLists();
-        } else {
-            // 隐藏空布局，显示音乐列表
-            binding.layoutEmpty.setVisibility(View.GONE);
-            loadMusicData();
+            return;
         }
+
+        // 有权限，异步检查数据库中是否有音乐数据
+        checkMusicDataAsync();
+    }
+
+    /**
+     * 异步检查音乐数据并更新UI
+     */
+    private void checkMusicDataAsync() {
+        // 在后台线程中检查数据库
+        executorService.execute(() -> {
+            try {
+                // 检查数据库中是否有音乐数据
+                boolean hasMusicData = LitePal.count("song") > 0;
+
+                // 回到主线程更新UI
+                mainHandler.post(() -> {
+                    if (hasMusicData) {
+                        // 有音乐数据，隐藏空布局，加载音乐数据
+                        binding.layoutEmpty.setVisibility(View.GONE);
+                        loadMusicData();
+                    } else {
+                        // 没有音乐数据，显示空布局，隐藏其他列表
+                        binding.layoutEmpty.setVisibility(View.VISIBLE);
+                        hideAllMusicLists();
+                        // 隐藏loading状态
+                        binding.progressBar.setVisibility(View.GONE);
+                        binding.contentLayout.setVisibility(View.VISIBLE);
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("HomeFragment", "Error checking music data: " + e.getMessage(), e);
+                // 发生错误时，回到主线程显示空布局
+                mainHandler.post(() -> {
+                    binding.layoutEmpty.setVisibility(View.VISIBLE);
+                    hideAllMusicLists();
+                    binding.progressBar.setVisibility(View.GONE);
+                    binding.contentLayout.setVisibility(View.VISIBLE);
+                });
+            }
+        });
     }
 
     /**
@@ -371,7 +460,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         // 最近听过的艺术家
         binding.rvRecentArtists.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-        recentArtistsAdapter = new ArtistHorizontalAdapter(getContext(), new ArrayList<>());
+        recentArtistsAdapter = new ArtistHorizontalAdapter(getContext(), new ArrayList<>(), this);
         binding.rvRecentArtists.setAdapter(recentArtistsAdapter);
 
         // 我的收藏 - 使用方形布局
@@ -403,18 +492,18 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         if (executorService == null) {
             executorService = Executors.newCachedThreadPool();
         }
-        
+
         // 启动后台服务批量获取所有专辑和歌手的封面
         CoverFetchService.startFetchAllCovers(getContext());
-        
+
         executorService.execute(() -> {
             try {
                 // 加载最近添加的歌曲（按添加时间倒序，取前10首）
                 List<Song> latestSongs = LitePal.order("dateAdded desc").limit(10).find(Song.class);
-                
-                // 加载最近播放专辑（取前10个）
-                List<Album> recentAlbums = LitePal.limit(10).find(Album.class);
-                
+
+                // 加载最近播放专辑（按lastplayed倒序排列，取前10个）
+                List<Album> recentAlbums = LitePal.order("lastplayed desc").limit(10).find(Album.class);
+
                 // 为专辑设置回退封面
                 if (recentAlbums != null && !recentAlbums.isEmpty()) {
                     int albumCoverCount = CoverFallbackUtils.setAlbumsFallbackCover(recentAlbums);
@@ -422,10 +511,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         android.util.Log.d("HomeFragment", "为 " + albumCoverCount + " 个专辑设置了回退封面");
                     }
                 }
-                
-                // 加载最近听过的艺术家（取前10个）
-                List<Artist> recentArtists = LitePal.limit(10).find(Artist.class);
-                
+
+                // 加载最近听过的艺术家（按lastplayed倒序排列，取前10个）
+                List<Artist> recentArtists = LitePal.order("lastplayed desc").limit(10).find(Artist.class);
+
                 // 为歌手设置回退封面
                 if (recentArtists != null && !recentArtists.isEmpty()) {
                     int artistCoverCount = CoverFallbackUtils.setArtistsFallbackCover(recentArtists);
@@ -433,7 +522,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         android.util.Log.d("HomeFragment", "为 " + artistCoverCount + " 个歌手设置了回退封面");
                     }
                 }
-                
+
                 // 加载我的收藏（从FavoriteSong表查询真正的收藏歌曲）
                 List<FavoriteSong> favoriteSongList = LitePal.order("addTime desc").limit(10).find(FavoriteSong.class);
                 List<Song> favoriteSongs = new ArrayList<>();
@@ -446,10 +535,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         }
                     }
                 }
-                
+
                 // 加载随机推荐（随机获取10首歌曲）
                 List<Song> randomSongs = LitePal.order("random()").limit(10).find(Song.class);
-                
+
                 // 在主线程中更新UI
                 if (mainHandler != null) {
                     mainHandler.post(() -> {
@@ -499,6 +588,13 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                             } else {
                                 binding.layoutRandomRecommendations.setVisibility(View.GONE);
                             }
+
+
+                            binding.openSearchView.postDelayed(() -> {
+                                binding.progressBar.setVisibility(View.GONE);
+                                binding.contentLayout.setVisibility(View.VISIBLE);
+                            }, 500);
+
                         } catch (Exception e) {
                             android.util.Log.e("HomeFragment", "Error updating UI: " + e.getMessage(), e);
                         }
@@ -552,6 +648,68 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         android.os.Bundle bundle = new android.os.Bundle();
         bundle.putString("dataType", "random");
         Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
+    }
+
+    /**
+     * 跳转到播放历史页面
+     */
+    private void navigateToPlayHistory() {
+        // 使用Navigation组件进行跳转，传递数据类型参数
+        android.os.Bundle bundle = new android.os.Bundle();
+        bundle.putString("dataType", "history");
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
+    }
+
+    /**
+     * 跳转到最常播放页面
+     */
+    private void navigateToMostPlayed() {
+        // 使用Navigation组件进行跳转，传递数据类型参数
+        android.os.Bundle bundle = new android.os.Bundle();
+        bundle.putString("dataType", "most_played");
+        Navigation.findNavController(requireView()).navigate(R.id.action_home_to_recent_songs, bundle);
+    }
+
+    /**
+     * 开始随机播放
+     */
+    private void startRandomPlay() {
+        // 在后台线程中进行数据库查询
+        if (executorService == null) {
+            executorService = Executors.newCachedThreadPool();
+        }
+
+        executorService.execute(() -> {
+            try {
+                // 从数据库随机获取歌曲
+                List<Song> randomSongs = LitePal.order("random()").find(Song.class);
+
+                // 在主线程中处理播放
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        if (randomSongs != null && !randomSongs.isEmpty()) {
+                            // 将随机歌曲列表设置为播放列表并播放第一首
+                            if (getActivity() instanceof MainActivity mainActivity) {
+                                mainActivity.setPlaylist(randomSongs);
+                                mainActivity.playSong(randomSongs.get(0));
+                            }
+                        } else {
+                            com.magicalstory.music.utils.app.ToastUtils.showToast(getContext(),
+                                    "没有可播放的歌曲");
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                android.util.Log.e("HomeFragment", "Error starting random play: " + e.getMessage(), e);
+                // 在主线程中显示错误信息
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        com.magicalstory.music.utils.app.ToastUtils.showToast(getContext(),
+                                "随机播放失败");
+                    });
+                }
+            }
+        });
     }
 
     /**
@@ -678,7 +836,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     }
 
 
-
     @Override
     public void onResume() {
         super.onResume();
@@ -705,13 +862,19 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             executorService.shutdown();
             executorService = null;
         }
-        
+
         // 清理Handler
         if (mainHandler != null) {
             mainHandler.removeCallbacksAndMessages(null);
             mainHandler = null;
-            executorService = null;
         }
+
+        // 清理适配器
+        songsLatestAddedAdapter = null;
+        recentAlbumsAdapter = null;
+        recentArtistsAdapter = null;
+        myFavoritesAdapter = null;
+        randomRecommendationsAdapter = null;
     }
 
 

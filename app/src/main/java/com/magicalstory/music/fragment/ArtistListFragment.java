@@ -1,5 +1,7 @@
 package com.magicalstory.music.fragment;
 
+import static java.lang.Thread.sleep;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -62,13 +64,28 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     }
 
     @Override
+    protected boolean usePersistentView() {
+        return true;
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.fragment_artist;
+    }
+
+    @Override
+    protected FragmentArtistBinding bindPersistentView(View view) {
+        return FragmentArtistBinding.bind(view);
+    }
+
+    @Override
     protected FloatingActionButton getFab() {
         return binding.fab;
     }
 
     @Override
-    protected void initView() {
-        super.initView();
+    protected void initViewForPersistentView() {
+        super.initViewForPersistentView();
 
         // 初始化Handler
         mainHandler = new Handler(Looper.getMainLooper());
@@ -90,8 +107,14 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     }
 
     @Override
-    protected void initListener() {
-        super.initListener();
+    protected void initView() {
+        super.initView();
+        // 每次视图创建时需要执行的初始化代码
+    }
+
+    @Override
+    protected void initListenerForPersistentView() {
+        super.initListenerForPersistentView();
 
         // 设置返回按钮点击事件
         binding.toolbar.setNavigationOnClickListener(v -> {
@@ -107,6 +130,17 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         binding.toolbar.setOnMenuItemClickListener(item -> {
             return onOptionsItemSelected(item);
         });
+
+        // 设置FAB点击事件 - 播放所有艺术家的歌曲
+        binding.fab.setOnClickListener(v -> {
+            playAllArtistSongs();
+        });
+    }
+
+    @Override
+    protected void initListener() {
+        super.initListener();
+        // 每次视图创建时需要执行的监听器初始化代码
     }
 
     @Override
@@ -246,7 +280,7 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
      */
     private void initRecyclerView() {
         artistList = new ArrayList<>();
-        artistAdapter = new ArtistGridAdapter(getContext(), artistList);
+        artistAdapter = new ArtistGridAdapter(getContext(), artistList, this);
 
         // 设置网格布局
         int spanCount = 2;
@@ -259,8 +293,10 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
 
         // 设置艺术家点击事件
         artistAdapter.setOnItemClickListener((artist, position) -> {
-            // TODO: 打开艺术家详情页面
-            // 这里可以添加打开艺术家详情页面的逻辑
+            // 跳转到歌手详情页面
+            android.os.Bundle bundle = new android.os.Bundle();
+            bundle.putString("artist_name", artist.getArtistName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_artists_to_artist_detail, bundle);
         });
 
         // 设置长按事件
@@ -609,6 +645,10 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                 // 从数据库查询艺术家数据
                 List<Artist> artists = LitePal.order("lastPlayed desc").find(Artist.class);
 
+                sleep(200);
+
+
+
                 // 切换到主线程更新UI
                 mainHandler.post(() -> {
                     // 隐藏进度圈
@@ -626,6 +666,7 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                         binding.rvArtists.setVisibility(View.VISIBLE);
                         binding.layoutEmpty.setVisibility(View.GONE);
                         // 有数据时显示fab
+                        binding.fab.setVisibility(View.VISIBLE);
                         binding.fab.show();
                     } else {
                         // 显示空状态，隐藏列表
@@ -669,5 +710,51 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     protected void onRefreshMusicList() {
         // 重新加载艺术家列表
         loadArtists();
+    }
+
+    /**
+     * 播放所有艺术家的歌曲
+     */
+    private void playAllArtistSongs() {
+        if (artistList == null || artistList.isEmpty()) {
+            showSnackbar("没有可播放的艺术家");
+            return;
+        }
+
+        // 在后台线程查询所有艺术家的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+                
+                // 遍历所有艺术家，获取每个艺术家的歌曲
+                for (Artist artist : artistList) {
+                    List<Song> artistSongs = LitePal.where("artist = ?", artist.getArtistName())
+                            .order("dateAdded desc")
+                            .find(Song.class);
+                    if (artistSongs != null) {
+                        allSongs.addAll(artistSongs);
+                    }
+                }
+                
+                // 在主线程更新UI并播放
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        if (getActivity() instanceof MainActivity mainActivity) {
+                            mainActivity.setPlaylist(allSongs);
+                            mainActivity.playSong(allSongs.get(0));
+                            showSnackbar("开始播放所有艺术家歌曲，共 " + allSongs.size() + " 首");
+                        }
+                    } else {
+                        showSnackbar("没有找到可播放的歌曲");
+                    }
+                });
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    showSnackbar("播放失败：" + e.getMessage());
+                });
+            }
+        }).start();
     }
 } 

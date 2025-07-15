@@ -21,6 +21,7 @@ mmkvStatic = "2.2.2"
 okhttp = "4.9.3"
 palette = "1.0.0"
 playpauseview = "1.0.7"
+recyclerviewAnimators = "4.0.2"
 
 
 [libraries]
@@ -47,6 +48,7 @@ palette = { module = "androidx.palette:palette", version.ref = "palette" }
 playpauseview = { module = "com.github.Lauzy:PlayPauseView", version.ref = "playpauseview" }
 navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment", version.ref = "navigation" }
 navigation-ui = { group = "androidx.navigation", name = "navigation-ui", version.ref = "navigation" }
+recyclerview-animators = { module = "jp.wasabeef:recyclerview-animators", version.ref = "recyclerviewAnimators" }
 
 
 [plugins]

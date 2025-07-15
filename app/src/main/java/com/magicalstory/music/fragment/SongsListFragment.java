@@ -1,5 +1,7 @@
 package com.magicalstory.music.fragment;
 
+import static java.lang.Thread.sleep;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -47,6 +49,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     private static final String DATA_TYPE_FAVORITE = "favorite";
     private static final String DATA_TYPE_RANDOM = "random";
     private static final String DATA_TYPE_ALBUM = "album";
+    private static final String DATA_TYPE_ARTIST = "artist";
+    private static final String DATA_TYPE_HISTORY = "history";
+    private static final String DATA_TYPE_MOST_PLAYED = "most_played";
 
     // 请求代码常量
     private static final int DELETE_REQUEST_CODE = 1001;
@@ -67,13 +72,28 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     }
 
     @Override
+    protected boolean usePersistentView() {
+        return true;
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.fragment_recent_songs;
+    }
+
+    @Override
+    protected FragmentRecentSongsBinding bindPersistentView(View view) {
+        return FragmentRecentSongsBinding.bind(view);
+    }
+
+    @Override
     protected FloatingActionButton getFab() {
         return binding.fab;
     }
 
     @Override
-    protected void initView() {
-        super.initView();
+    protected void initViewForPersistentView() {
+        super.initViewForPersistentView();
 
         // 获取参数
         Bundle arguments = getArguments();
@@ -105,9 +125,10 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         loadSongsByType();
     }
 
+
     @Override
-    protected void initListener() {
-        super.initListener();
+    protected void initListenerForPersistentView() {
+        super.initListenerForPersistentView();
 
         // 设置返回按钮点击事件
         binding.toolbar.setNavigationOnClickListener(v -> {
@@ -121,7 +142,13 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
         // 设置toolbar菜单处理
         binding.toolbar.setOnMenuItemClickListener(item -> onOptionsItemSelected(item));
+
+        // 设置FAB点击事件 - 播放所有歌曲
+        binding.fab.setOnClickListener(v -> {
+            playAllSongs();
+        });
     }
+
 
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
@@ -262,11 +289,23 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             case DATA_TYPE_RANDOM:
                 title = "随机推荐";
                 break;
+            case DATA_TYPE_HISTORY:
+                title = "播放历史";
+                break;
+            case DATA_TYPE_MOST_PLAYED:
+                title = "最常播放";
+                break;
             case DATA_TYPE_ALBUM:
                 // 从参数获取专辑名称
                 Bundle arguments = getArguments();
                 String albumName = arguments != null ? arguments.getString("albumName") : "专辑";
                 title = albumName;
+                break;
+            case DATA_TYPE_ARTIST:
+                // 从参数获取艺术家名称
+                Bundle artistArguments = getArguments();
+                String artistName = artistArguments != null ? artistArguments.getString("artistName") : "艺术家";
+                title = artistName + " 的歌曲";
                 break;
             case DATA_TYPE_RECENT:
             default:
@@ -293,8 +332,8 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         // 设置歌曲点击事件
         songAdapter.setOnItemClickListener((song, position) -> {
             // TODO: 播放歌曲
-            songAdapter.setCurrentPlayingSongId(song.getId());
-            songAdapter.notifyItemChanged(position);
+            //songAdapter.setCurrentPlayingSongId(song.getId());
+            //songAdapter.notifyItemChanged(position);
         });
 
         // 设置长按事件
@@ -617,12 +656,53 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 // 根据数据类型查询不同的数据
                 switch (dataType) {
                     case DATA_TYPE_FAVORITE:
-                        // 我的收藏 - 暂时使用随机歌曲代替，实际应该从收藏表查询
-                        songs = LitePal.order("random()").find(Song.class);
+                        // 我的收藏 - 从FavoriteSong表查询真正的收藏歌曲
+                        List<com.magicalstory.music.model.FavoriteSong> favoriteSongList = 
+                                LitePal.order("addTime desc").find(com.magicalstory.music.model.FavoriteSong.class);
+                        songs = new ArrayList<>();
+                        if (favoriteSongList != null && !favoriteSongList.isEmpty()) {
+                            for (com.magicalstory.music.model.FavoriteSong favoriteSong : favoriteSongList) {
+                                // 根据songId查询对应的Song对象
+                                Song song = LitePal.find(Song.class, favoriteSong.getSongId());
+                                if (song != null) {
+                                    songs.add(song);
+                                }
+                            }
+                        }
                         break;
                     case DATA_TYPE_RANDOM:
                         // 随机推荐
                         songs = LitePal.order("random()").find(Song.class);
+                        break;
+                    case DATA_TYPE_HISTORY:
+                        // 播放历史 - 从PlayHistory表查询播放历史，按播放时间倒序
+                        List<com.magicalstory.music.model.PlayHistory> playHistoryList = 
+                                LitePal.order("lastPlayTime desc").find(com.magicalstory.music.model.PlayHistory.class);
+                        songs = new ArrayList<>();
+                        if (playHistoryList != null && !playHistoryList.isEmpty()) {
+                            for (com.magicalstory.music.model.PlayHistory playHistory : playHistoryList) {
+                                // 根据songId查询对应的Song对象
+                                Song song = LitePal.find(Song.class, playHistory.getSongId());
+                                if (song != null) {
+                                    songs.add(song);
+                                }
+                            }
+                        }
+                        break;
+                    case DATA_TYPE_MOST_PLAYED:
+                        // 最常播放 - 从PlayHistory表查询播放次数最多的歌曲
+                        List<com.magicalstory.music.model.PlayHistory> mostPlayedList = 
+                                LitePal.order("playCount desc").find(com.magicalstory.music.model.PlayHistory.class);
+                        songs = new ArrayList<>();
+                        if (mostPlayedList != null && !mostPlayedList.isEmpty()) {
+                            for (com.magicalstory.music.model.PlayHistory playHistory : mostPlayedList) {
+                                // 根据songId查询对应的Song对象
+                                Song song = LitePal.find(Song.class, playHistory.getSongId());
+                                if (song != null) {
+                                    songs.add(song);
+                                }
+                            }
+                        }
                         break;
                     case DATA_TYPE_ALBUM:
                         // 专辑歌曲 - 根据专辑ID和艺术家查询
@@ -630,9 +710,21 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         if (arguments != null) {
                             long albumId = arguments.getLong("albumId");
                             String artistName = arguments.getString("artistName");
-                            songs = LitePal.where("albumId = ? and artist = ?", 
-                                    String.valueOf(albumId), artistName)
+                            songs = LitePal.where("albumId = ? and artist = ?",
+                                            String.valueOf(albumId), artistName)
                                     .order("track asc")
+                                    .find(Song.class);
+                        } else {
+                            songs = new ArrayList<>();
+                        }
+                        break;
+                    case DATA_TYPE_ARTIST:
+                        // 艺术家歌曲 - 根据艺术家名称查询，按添加时间排序
+                        Bundle artistArguments = getArguments();
+                        if (artistArguments != null) {
+                            String artistName = artistArguments.getString("artistName");
+                            songs = LitePal.where("artist = ?", artistName)
+                                    .order("dateAdded desc")
                                     .find(Song.class);
                         } else {
                             songs = new ArrayList<>();
@@ -644,6 +736,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         songs = LitePal.order("dateAdded desc").find(Song.class);
                         break;
                 }
+
+                sleep(200);
+
 
                 // 切换到主线程更新UI
                 mainHandler.post(() -> {
@@ -661,6 +756,8 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         // 显示列表，隐藏空状态
                         binding.rvRecentSongs.setVisibility(View.VISIBLE);
                         binding.layoutEmpty.setVisibility(View.GONE);
+                        // 有数据时显示fab
+                        binding.fab.setVisibility(View.VISIBLE);
                         // 有数据时显示fab
                         binding.fab.show();
                     } else {
@@ -714,5 +811,22 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     protected void onRefreshMusicList() {
         // 重新加载歌曲列表
         loadSongsByType();
+    }
+
+    /**
+     * 播放所有歌曲
+     */
+    private void playAllSongs() {
+        if (songList == null || songList.isEmpty()) {
+            showSnackbar("没有可播放的歌曲");
+            return;
+        }
+
+        // 将当前歌曲列表设置为播放列表并播放第一首
+        if (getActivity() instanceof MainActivity mainActivity) {
+            mainActivity.setPlaylist(songList);
+            mainActivity.playSong(songList.get(0));
+            showSnackbar("开始播放所有歌曲，共 " + songList.size() + " 首");
+        }
     }
 }

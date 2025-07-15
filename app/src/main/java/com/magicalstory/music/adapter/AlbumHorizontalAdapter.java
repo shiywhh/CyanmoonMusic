@@ -27,24 +27,24 @@ import java.util.List;
  * 专辑横向滑动列表适配器
  */
 public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontalAdapter.ViewHolder> {
-    
+
     private Context context;
     private List<Album> albumList;
     private OnItemClickListener onItemClickListener;
-    
+
     public interface OnItemClickListener {
         void onItemClick(Album album, int position);
     }
-    
+
     public AlbumHorizontalAdapter(Context context, List<Album> albumList) {
         this.context = context;
         this.albumList = albumList;
     }
-    
+
     public void setOnItemClickListener(OnItemClickListener listener) {
         this.onItemClickListener = listener;
     }
-    
+
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -52,20 +52,20 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
                 LayoutInflater.from(context), parent, false);
         return new ViewHolder(binding);
     }
-    
+
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Album album = albumList.get(position);
-        
+
         // 设置专辑名称
         holder.binding.tvAlbumName.setText(album.getAlbumName());
-        
+
         // 设置艺术家
         holder.binding.tvArtist.setText(album.getArtist());
-        
+
         // 加载专辑封面
         loadAlbumArt(holder.binding.ivCover, album);
-        
+
         // 设置专辑封面点击事件 - 跳转到专辑详情页面
         holder.itemView.setOnClickListener(v -> {
             if (onItemClickListener != null) {
@@ -81,30 +81,30 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             }
         });
     }
-    
+
     /**
      * 播放专辑歌曲
      */
     private void playAlbumSongs(MainActivity mainActivity, Album album) {
         // 根据专辑ID和艺术家名称查询歌曲
-        List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?", 
-                String.valueOf(album.getAlbumId()), album.getArtist())
+        List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
+                        String.valueOf(album.getAlbumId()), album.getArtist())
                 .order("track asc")
                 .find(Song.class);
-        
+
         if (albumSongs != null && !albumSongs.isEmpty()) {
             System.out.println("播放专辑: " + album.getAlbumName() + ", 歌曲数量: " + albumSongs.size());
             mainActivity.setPlaylist(albumSongs);
             mainActivity.playSong(albumSongs.get(0)); // 播放第一首歌曲
         }
     }
-    
+
     private void loadAlbumArt(ImageView imageView, Album album) {
         RequestOptions options = new RequestOptions()
                 .transform(new RoundedCorners(16))
                 .placeholder(R.drawable.place_holder_album)
                 .error(R.drawable.place_holder_album);
-        
+
         String albumArt = album.getAlbumArt();
         if (!TextUtils.isEmpty(albumArt)) {
             // 检查是否是歌曲路径（回退封面）
@@ -139,7 +139,7 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             if (album.getAlbumId() > 0) {
                 albumArtUri = "content://media/external/audio/albumart/" + album.getAlbumId();
             }
-            
+
             if (!TextUtils.isEmpty(albumArtUri)) {
                 Glide.with(context)
                         .load(albumArtUri)
@@ -154,20 +154,20 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             }
         }
     }
-    
+
     @Override
     public int getItemCount() {
         return albumList != null ? albumList.size() : 0;
     }
-    
+
     public void updateData(List<Album> newAlbumList) {
         this.albumList = newAlbumList;
         notifyDataSetChanged();
     }
-    
+
     static class ViewHolder extends RecyclerView.ViewHolder {
         ItemAlbumHorizontalBinding binding;
-        
+
         public ViewHolder(@NonNull ItemAlbumHorizontalBinding binding) {
             super(binding.getRoot());
             this.binding = binding;

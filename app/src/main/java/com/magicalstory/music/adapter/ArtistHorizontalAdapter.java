@@ -1,11 +1,14 @@
 package com.magicalstory.music.adapter;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.Navigation;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -25,24 +28,31 @@ import java.util.List;
  * 艺术家横向滑动列表适配器
  */
 public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizontalAdapter.ViewHolder> {
-    
+
     private Context context;
     private List<Artist> artistList;
     private OnItemClickListener onItemClickListener;
-    
+    private Fragment fragment;
+
     public interface OnItemClickListener {
         void onItemClick(Artist artist, int position);
     }
-    
+
     public ArtistHorizontalAdapter(Context context, List<Artist> artistList) {
         this.context = context;
         this.artistList = artistList;
     }
-    
+
+    public ArtistHorizontalAdapter(Context context, List<Artist> artistList, Fragment fragment) {
+        this.context = context;
+        this.artistList = artistList;
+        this.fragment = fragment;
+    }
+
     public void setOnItemClickListener(OnItemClickListener listener) {
         this.onItemClickListener = listener;
     }
-    
+
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -50,56 +60,60 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
                 LayoutInflater.from(context), parent, false);
         return new ViewHolder(binding);
     }
-    
+
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Artist artist = artistList.get(position);
-        
+
         // 设置艺术家名称
         holder.binding.tvArtistName.setText(artist.getArtistName());
-        
+
         // 设置歌曲数量信息
         String songCountText = artist.getSongCount() + " 首歌曲";
         holder.binding.tvSongCount.setText(songCountText);
-        
+
         // 加载艺术家头像（使用默认图标）
         loadArtistAvatar(holder.binding.ivAvatar, artist);
-        
+
         // 设置点击事件
         holder.itemView.setOnClickListener(v -> {
             if (onItemClickListener != null) {
                 onItemClickListener.onItemClick(artist, position);
-            }
-            
-            // 播放艺术家歌曲
-            if (context instanceof MainActivity mainActivity) {
-                playArtistSongs(mainActivity, artist);
+            } else {
+                // 默认跳转到歌手详情页面
+                navigateToArtistDetail(artist);
             }
         });
     }
-    
+
     /**
-     * 播放艺术家歌曲
+     * 跳转到歌手详情页面
      */
-    private void playArtistSongs(MainActivity mainActivity, Artist artist) {
-        // 根据艺术家名称查询歌曲
-        List<Song> artistSongs = LitePal.where("artist = ?", artist.getArtistName())
-                .order("album asc, track asc")
-                .find(Song.class);
-        
-        if (artistSongs != null && !artistSongs.isEmpty()) {
-            System.out.println("播放艺术家: " + artist.getArtistName() + ", 歌曲数量: " + artistSongs.size());
-            mainActivity.setPlaylist(artistSongs);
-            mainActivity.playSong(artistSongs.get(0)); // 播放第一首歌曲
+    private void navigateToArtistDetail(Artist artist) {
+        if (fragment != null && fragment.getView() != null) {
+            Bundle bundle = new Bundle();
+            bundle.putString("artist_name", artist.getArtistName());
+            
+            // 根据当前Fragment类型选择合适的导航动作
+            if (fragment instanceof com.magicalstory.music.homepage.HomeFragment) {
+                Navigation.findNavController(fragment.requireView()).navigate(R.id.action_home_to_artist_detail, bundle);
+            } else if (fragment instanceof com.magicalstory.music.fragment.ArtistListFragment) {
+                Navigation.findNavController(fragment.requireView()).navigate(R.id.action_artists_to_artist_detail, bundle);
+            } else if (fragment instanceof com.magicalstory.music.fragment.AlbumDetailFragment) {
+                Navigation.findNavController(fragment.requireView()).navigate(R.id.action_album_detail_to_artist_detail, bundle);
+            } else {
+                // 默认情况，尝试全局导航
+                Navigation.findNavController(fragment.requireView()).navigate(R.id.nav_artist_detail, bundle);
+            }
         }
     }
-    
+
     private void loadArtistAvatar(ImageView imageView, Artist artist) {
         RequestOptions options = new RequestOptions()
                 .transform(new RoundedCorners(16))
                 .placeholder(R.drawable.place_holder_artist)
                 .error(R.drawable.place_holder_artist);
-        
+
         String coverUrl = artist.getCoverUrl();
         if (coverUrl != null && !coverUrl.isEmpty()) {
             // 检查是否是歌曲路径（回退封面）
@@ -136,20 +150,22 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
                     .into(imageView);
         }
     }
-    
+
+
+
     @Override
     public int getItemCount() {
         return artistList != null ? artistList.size() : 0;
     }
-    
+
     public void updateData(List<Artist> newArtistList) {
         this.artistList = newArtistList;
         notifyDataSetChanged();
     }
-    
+
     static class ViewHolder extends RecyclerView.ViewHolder {
         ItemArtistHorizontalBinding binding;
-        
+
         public ViewHolder(@NonNull ItemArtistHorizontalBinding binding) {
             super(binding.getRoot());
             this.binding = binding;

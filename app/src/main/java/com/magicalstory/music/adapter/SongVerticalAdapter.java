@@ -1,9 +1,12 @@
 package com.magicalstory.music.adapter;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -30,10 +33,16 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
     private OnItemLongClickListener onItemLongClickListener;
     private OnSelectionChangedListener onSelectionChangedListener;
     private long currentPlayingSongId = -1; // 当前播放歌曲的ID
-    
+
     // 多选相关
     private boolean isMultiSelectMode = false;
     private List<Song> selectedSongs = new ArrayList<>();
+
+    // 动画相关
+    private boolean isFirstLoad = false;
+    private static final int ANIMATION_DURATION = 100; // 动画持续时间(毫秒)
+    private static final int ANIMATION_DELAY = 30; // 每个item之间的延迟时间(毫秒)
+    private static final int MAX_ANIMATED_ITEMS = 12; // 最多为多少个item执行动画(首屏)
 
     public interface OnItemClickListener {
         void onItemClick(Song song, int position);
@@ -107,7 +116,7 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
             selectedSongs.add(song);
         }
         notifyDataSetChanged();
-        
+
         // 通知选中状态变化
         if (onSelectionChangedListener != null) {
             onSelectionChangedListener.onSelectionChanged(selectedSongs.size());
@@ -121,7 +130,7 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
         selectedSongs.clear();
         selectedSongs.addAll(songList);
         notifyDataSetChanged();
-        
+
         // 通知选中状态变化
         if (onSelectionChangedListener != null) {
             onSelectionChangedListener.onSelectionChanged(selectedSongs.size());
@@ -182,14 +191,14 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
         // 设置背景和文字颜色
         boolean isCurrentPlaying = song.getId() == currentPlayingSongId;
         boolean isSelected = isMultiSelectMode && isSelected(song);
-        
+
         // 设置多选背景
         if (isMultiSelectMode) {
             holder.binding.viewMultiselectBackground.setVisibility(isSelected ? View.VISIBLE : View.GONE);
         } else {
             holder.binding.viewMultiselectBackground.setVisibility(View.GONE);
         }
-        
+
         if (isCurrentPlaying) {
             // 当前播放状态：使用主题背景
             holder.itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.md_theme_primaryContainer));
@@ -215,7 +224,7 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(song, position);
                 }
-                
+
                 // 播放歌曲
                 if (context instanceof MainActivity) {
                     MainActivity mainActivity = (MainActivity) context;
@@ -233,6 +242,43 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
             }
             return false;
         });
+
+        // 执行加载动画（仅首次加载的首屏项目）
+        if (isFirstLoad && position < MAX_ANIMATED_ITEMS) {
+            animateItem(holder.itemView, position);
+        } else {
+            // 重置视图状态，避免复用时显示异常
+            holder.itemView.setAlpha(1f);
+            holder.itemView.setTranslationY(0f);
+        }
+    }
+
+    /**
+     * 为item执行渐变动画
+     */
+    private void animateItem(View view, int position) {
+        // 设置初始状态：透明度为0，稍微向下偏移
+        view.setAlpha(0f);
+        view.setTranslationY(50f);
+
+        // 创建透明度动画
+        ObjectAnimator alphaAnimator = ObjectAnimator.ofFloat(view, "alpha", 0f, 1f);
+        alphaAnimator.setDuration(ANIMATION_DURATION);
+
+        // 创建位移动画
+        ObjectAnimator translationAnimator = ObjectAnimator.ofFloat(view, "translationY", 50f, 0f);
+        translationAnimator.setDuration(ANIMATION_DURATION);
+
+        // 创建动画集合
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(alphaAnimator, translationAnimator);
+        animatorSet.setInterpolator(new DecelerateInterpolator());
+
+        // 设置延迟时间，让每个item按顺序出现
+        animatorSet.setStartDelay((long) position * ANIMATION_DELAY);
+
+        // 开始动画
+        animatorSet.start();
     }
 
     @Override
@@ -271,7 +317,16 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
      */
     public void updateData(List<Song> newSongList) {
         this.songList = newSongList;
+        // 重置首次加载标志，允许重新执行动画
+        
         notifyDataSetChanged();
+    }
+
+    /**
+     * 禁用后续的加载动画
+     */
+    public void disableLoadAnimation() {
+        this.isFirstLoad = false;
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
