@@ -105,12 +105,16 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     private int currentProgress = 0;
 
     // 延迟播放相关
-    private Handler playDelayHandler = new Handler(Looper.getMainLooper());
+    private final Handler playDelayHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingPlayRunnable;
 
     // 进度更新相关
-    private Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
+    private final Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable progressUpdateRunnable;
+
+    // 播放按钮更新相关
+    private final Handler playButtonUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable playButtonUpdateRunnable;
 
     @Override
     protected FragmentMiniPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -130,6 +134,9 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         // 设置点击事件
         binding.miniPlayPause.setOnClickListener(v -> {
             if (controllerHelper != null) {
+
+                changeButtonImage(!controllerHelper.isPlaying());
+
                 controllerHelper.togglePlayPause();
             }
         });
@@ -150,6 +157,11 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         // 清理进度更新任务
         if (progressUpdateRunnable != null) {
             progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        }
+
+        // 停止播放按钮更新
+        if (playButtonUpdateRunnable != null) {
+            playButtonUpdateHandler.removeCallbacks(playButtonUpdateRunnable);
         }
 
         // 清理进度条动画
@@ -192,67 +204,6 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
 
     /**
-     * 播放状态改变处理
-     */
-    public void onPlaybackStateChanged(int playbackState) {
-        Log.d(TAG, "Playback state changed: " + playbackState);
-        updatePlayButton(playbackState);
-        updateProgressBarVisibility(playbackState);
-
-        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
-            startProgressUpdates();
-        } else {
-            stopProgressUpdates();
-        }
-    }
-
-    /**
-     * 播放状态改变处理
-     */
-    public void onIsPlayingChanged(boolean isPlaying) {
-        Log.d(TAG, "Is playing changed: " + isPlaying);
-        updatePlayButton(isPlaying);
-
-        if (isPlaying) {
-            startProgressUpdates();
-        } else {
-            stopProgressUpdates();
-        }
-    }
-
-    /**
-     * 媒体项切换处理
-     */
-    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-        Log.d(TAG, "Media item transition: " + (mediaItem != null ? mediaItem.mediaId : "null"));
-        updateCurrentSong();
-        resetProgress();
-    }
-
-    /**
-     * 播放错误处理
-     */
-    public void onPlayerError(PlaybackException error) {
-        Log.e(TAG, "Player error: " + error.getMessage(), error);
-        updateDefaultState();
-    }
-
-    /**
-     * 重复模式改变处理
-     */
-    public void onRepeatModeChanged(int repeatMode) {
-        Log.d(TAG, "Repeat mode changed: " + repeatMode);
-    }
-
-    /**
-     * 随机模式改变处理
-     */
-    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
-        Log.d(TAG, "Shuffle mode changed: " + shuffleModeEnabled);
-    }
-
-
-    /**
      * 更新播放状态
      */
     private void updatePlaybackState() {
@@ -291,9 +242,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
                 currentPosition = position;
 
                 miniPlayerAdapter.setCurrentPosition(position);
-                binding.miniPlayerContainer.post(() -> {
-                    scrollToPosition(position);
-                });
+                scrollToPosition(position);
 
                 // 歌曲切换时立即重置进度条
                 resetProgress();
@@ -304,38 +253,42 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     }
 
     /**
-     * 更新播放按钮
-     */
-    private void updatePlayButton(int playbackState) {
-        switch (playbackState) {
-            case Player.STATE_READY:
-                if (controllerHelper != null && controllerHelper.isPlaying()) {
-                    binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
-                } else {
-                    binding.miniPlayPause.setImageResource(R.drawable.ic_play);
-                }
-                break;
-            case Player.STATE_BUFFERING:
-                binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
-                break;
-            case Player.STATE_IDLE:
-            case Player.STATE_ENDED:
-            default:
-                binding.miniPlayPause.setImageResource(R.drawable.ic_play);
-                break;
-        }
-    }
-
-    /**
      * 更新播放按钮（基于播放状态）
      */
     private void updatePlayButton(boolean isPlaying) {
-        if (isPlaying) {
-            binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
-        } else {
+        // 取消之前的延迟更新
+        if (playButtonUpdateRunnable != null) {
+            playButtonUpdateHandler.removeCallbacks(playButtonUpdateRunnable);
+        }
+
+        // 创建新的延迟更新任务
+        playButtonUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // 延迟300ms后再次检查播放状态
+                if (controllerHelper != null) {
+                    boolean currentPlayingState = controllerHelper.isPlaying();
+                    Log.d(TAG, "延迟300ms后检查播放状态: " + currentPlayingState);
+
+
+                    changeButtonImage(currentPlayingState);
+                }
+            }
+        };
+
+        // 延迟300ms执行
+        playButtonUpdateHandler.postDelayed(playButtonUpdateRunnable, 300);
+    }
+
+
+    private void changeButtonImage(boolean isPlay) {
+        if (!isPlay) {
             binding.miniPlayPause.setImageResource(R.drawable.ic_play);
+        } else {
+            binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
         }
     }
+
 
     /**
      * 更新默认状态
@@ -480,25 +433,6 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
 
     /**
-     * 设置播放列表
-     */
-    public void setPlaylist(List<Song> songs) {
-        if (controllerHelper != null) {
-            controllerHelper.setPlaylist(songs);
-        }
-
-        // 更新本地播放列表
-        updatePlaylist(songs);
-    }
-
-    /**
-     * 获取当前播放状态
-     */
-    public boolean isPlaying() {
-        return controllerHelper != null && controllerHelper.isPlaying();
-    }
-
-    /**
      * 获取当前播放的歌曲
      */
     public Song getCurrentSong() {
@@ -534,7 +468,8 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
         // 设置PagerSnapHelper以实现分页效果
         pagerSnapHelper = new PagerSnapHelper();
-        pagerSnapHelper.attachToRecyclerView(binding.miniPlayerRecyclerView);
+
+        binding.miniPlayerRecyclerView.postDelayed(() -> pagerSnapHelper.attachToRecyclerView(binding.miniPlayerRecyclerView), 1000);
 
         // 设置滚动监听器
         binding.miniPlayerRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -560,7 +495,10 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
                             // 延迟播放新歌曲
                             if (position < playlist.size()) {
+                                if (!controllerHelper.isPlaying()) {
+                                    changeButtonImage(true);
 
+                                }
                                 pendingPlayRunnable = () -> {
                                     if (controllerHelper != null) {
                                         controllerHelper.playAtIndex(currentPosition);

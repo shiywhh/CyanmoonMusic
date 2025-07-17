@@ -75,6 +75,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                android:fadingEdgeLength="10dp"
+                android:requiresFadingEdge="horizontal"
                 android:background="@color/md_theme_navigationBarBackground"
                 android:clipToPadding="false"
                 android:overScrollMode="never"

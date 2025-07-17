@@ -155,9 +155,17 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private final int whiteColor = Color.WHITE;
     private final int grayColor = Color.parseColor("#E0E0E0");
 
+    private final static int PLAY_STATE_PAUSE = 0;
+    private final static int PLAY_STATE_PLAYING = 1;
+    private int playButtonStatus = PLAY_STATE_PAUSE;
+
     // 进度更新相关
     private final Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable progressUpdateRunnable;
+
+    // 播放按钮更新相关
+    private final Handler playButtonUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable playButtonUpdateRunnable;
 
     @Override
     protected FragmentFullPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -215,6 +223,11 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
         }
 
+        // 停止播放按钮更新
+        if (playButtonUpdateRunnable != null) {
+            playButtonUpdateHandler.removeCallbacks(playButtonUpdateRunnable);
+        }
+
         // 移除播放状态监听器
         if (controllerHelper != null) {
             controllerHelper.removePlaybackStateListener(playbackStateListener);
@@ -260,116 +273,6 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         } else {
             updateDefaultState();
         }
-    }
-
-    public void onPlaybackStateChanged(int playbackState) {
-        Log.d(TAG, "播放状态变化: " + playbackState);
-        switch (playbackState) {
-            case Player.STATE_IDLE:
-                Log.d(TAG, "播放器状态: 空闲");
-                break;
-            case Player.STATE_BUFFERING:
-                Log.d(TAG, "播放器状态: 缓冲中");
-                break;
-            case Player.STATE_READY:
-                Log.d(TAG, "播放器状态: 准备就绪");
-                break;
-            case Player.STATE_ENDED:
-                Log.d(TAG, "播放器状态: 播放结束");
-                break;
-            default:
-                Log.d(TAG, "播放器状态: 未知状态 " + playbackState);
-                break;
-        }
-
-        updatePlayButton(playbackState);
-
-        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
-            Log.d(TAG, "状态为准备就绪或缓冲中，开始进度更新");
-            startProgressUpdates();
-        } else {
-            Log.d(TAG, "状态不为准备就绪或缓冲中，停止进度更新");
-            stopProgressUpdates();
-        }
-    }
-
-    public void onIsPlayingChanged(boolean isPlaying) {
-        Log.d(TAG, "播放状态变化: " + (isPlaying ? "正在播放" : "暂停"));
-        updatePlayButton(isPlaying);
-
-        if (isPlaying) {
-            Log.d(TAG, "开始播放，启动进度更新");
-            startProgressUpdates();
-        } else {
-            Log.d(TAG, "暂停播放，停止进度更新");
-            stopProgressUpdates();
-        }
-    }
-
-    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-        String mediaId = mediaItem != null ? mediaItem.mediaId : "null";
-        Log.d(TAG, "媒体项切换: " + mediaId + ", 原因: " + reason);
-
-        switch (reason) {
-            case Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT:
-                Log.d(TAG, "切换原因: 重复播放");
-                break;
-            case Player.MEDIA_ITEM_TRANSITION_REASON_AUTO:
-                Log.d(TAG, "切换原因: 自动播放下一首");
-                break;
-            case Player.MEDIA_ITEM_TRANSITION_REASON_SEEK:
-                Log.d(TAG, "切换原因: 跳转到指定位置");
-                break;
-            case Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED:
-                Log.d(TAG, "切换原因: 播放列表变化");
-                break;
-            default:
-                Log.d(TAG, "切换原因: 未知原因 " + reason);
-                break;
-        }
-
-        updateCurrentSong();
-    }
-
-    public void onPlayerError(PlaybackException error) {
-        Log.e(TAG, "播放器错误: " + error.getMessage(), error);
-        Log.e(TAG, "错误代码: " + error.errorCode);
-        Log.e(TAG, "错误时间戳: " + error.timestampMs);
-
-        if (error.getCause() != null) {
-            Log.e(TAG, "错误原因: " + error.getCause().getMessage());
-        }
-
-        updateDefaultState();
-
-        // 显示错误提示
-        String errorMessage = "播放失败: " + error.getMessage();
-        ToastUtils.showToast(context, errorMessage);
-    }
-
-    public void onRepeatModeChanged(int repeatMode) {
-        Log.d(TAG, "重复模式变化: " + repeatMode);
-        switch (repeatMode) {
-            case Player.REPEAT_MODE_OFF:
-                Log.d(TAG, "重复模式: 关闭");
-                break;
-            case Player.REPEAT_MODE_ONE:
-                Log.d(TAG, "重复模式: 单曲循环");
-                break;
-            case Player.REPEAT_MODE_ALL:
-                Log.d(TAG, "重复模式: 列表循环");
-                break;
-            default:
-                Log.d(TAG, "重复模式: 未知模式 " + repeatMode);
-                break;
-        }
-        currentPlayMode = repeatMode;
-        updatePlayModeButton(repeatMode);
-    }
-
-    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
-        Log.d(TAG, "随机播放模式变化: " + (shuffleModeEnabled ? "开启" : "关闭"));
-        updateShuffleButton(shuffleModeEnabled);
     }
 
     /**
@@ -447,36 +350,35 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     }
 
     /**
-     * 更新播放按钮
-     */
-    private void updatePlayButton(int playbackState) {
-        switch (playbackState) {
-            case Player.STATE_READY:
-                if (controllerHelper != null && controllerHelper.isPlaying()) {
-                    binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
-                } else {
-                    binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-                }
-                break;
-            case Player.STATE_BUFFERING:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
-                break;
-            case Player.STATE_IDLE:
-            case Player.STATE_ENDED:
-            default:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-                break;
-        }
-    }
-
-    /**
      * 更新播放按钮（基于播放状态）
      */
     private void updatePlayButton(boolean isPlaying) {
-        if (isPlaying) {
-            binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
-        } else {
+        // 取消之前的延迟更新
+        if (playButtonUpdateRunnable != null) {
+            playButtonUpdateHandler.removeCallbacks(playButtonUpdateRunnable);
+        }
+
+        // 创建新的延迟更新任务
+        playButtonUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // 延迟300ms后再次检查播放状态
+                if (controllerHelper != null) {
+                    boolean currentPlayingState = controllerHelper.isPlaying();
+                    changeButtonImage(currentPlayingState);
+                }
+            }
+        };
+
+        // 延迟300ms执行
+        playButtonUpdateHandler.postDelayed(playButtonUpdateRunnable, 300);
+    }
+
+    private void changeButtonImage(boolean isPlay) {
+        if (!isPlay) {
             binding.btnPlayPause.setImageResource(R.drawable.ic_play);
+        } else {
+            binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
         }
     }
 
@@ -536,7 +438,6 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.txtCurrentTime.setText("00:00");
         binding.txtTotalTime.setText("00:00");
         binding.seekBarProgress.setProgress(0);
-        binding.btnPlayPause.setImageResource(R.drawable.ic_play);
 
         // 重置背景
         resetBackground();
@@ -680,6 +581,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
                 if (controllerHelper.isPlaying()) {
                     Log.d(TAG, "正在播放，执行暂停操作");
+                    changeButtonImage(false);
                     controllerHelper.pause();
                 } else {
                     Log.d(TAG, "未在播放，执行播放操作");
@@ -701,7 +603,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                             controllerHelper.playAtIndex(0);
                         }
                     }
-
+                    changeButtonImage(true);
                     controllerHelper.play();
                     Log.d(TAG, "播放命令已发送");
                 }
@@ -716,6 +618,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             Log.d(TAG, "上一首按钮被点击");
             if (controllerHelper != null) {
                 Log.d(TAG, "执行上一首操作");
+                changeButtonImage(true);
                 controllerHelper.skipToPrevious();
             } else {
                 Log.e(TAG, "MediaController为null，无法执行上一首操作");
@@ -727,6 +630,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             Log.d(TAG, "下一首按钮被点击");
             if (controllerHelper != null) {
                 Log.d(TAG, "执行下一首操作");
+                changeButtonImage(true);
                 controllerHelper.skipToNext();
             } else {
                 Log.e(TAG, "MediaController为null，无法执行下一首操作");

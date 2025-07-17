@@ -84,86 +84,6 @@ public class MainActivity extends AppCompatActivity {
     // SplashScreen相关
     private boolean isAppReady = false;
 
-    // 播放状态监听器
-    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
-        @Override
-        public void onPlaybackStateChanged(int playbackState) {
-            Log.d(TAG, "MainActivity收到播放状态改变: " + playbackState);
-
-            // 通知Fragment播放状态变化
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onPlaybackStateChanged(playbackState);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onPlaybackStateChanged(playbackState);
-            }
-        }
-
-        @Override
-        public void onIsPlayingChanged(boolean isPlaying) {
-            Log.d(TAG, "MainActivity收到播放状态改变: " + isPlaying);
-
-            // 通知Fragment播放状态变化
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onIsPlayingChanged(isPlaying);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onIsPlayingChanged(isPlaying);
-            }
-        }
-
-        @Override
-        public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-            Log.d(TAG, "MainActivity收到媒体项切换: " + (mediaItem != null ? mediaItem.mediaId : "null"));
-
-            // 通知Fragment媒体项变化
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onMediaItemTransition(mediaItem, reason);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onMediaItemTransition(mediaItem, reason);
-            }
-        }
-
-        @Override
-        public void onPlayerError(PlaybackException error) {
-            Log.e(TAG, "MainActivity收到播放错误: " + error.getMessage(), error);
-
-            // 通知Fragment播放错误
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onPlayerError(error);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onPlayerError(error);
-            }
-        }
-
-        @Override
-        public void onRepeatModeChanged(int repeatMode) {
-            Log.d(TAG, "MainActivity收到重复模式改变: " + repeatMode);
-
-            // 通知Fragment重复模式变化
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onRepeatModeChanged(repeatMode);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onRepeatModeChanged(repeatMode);
-            }
-        }
-
-        @Override
-        public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
-            Log.d(TAG, "MainActivity收到随机模式改变: " + shuffleModeEnabled);
-
-            // 通知Fragment随机模式变化
-            if (miniPlayerFragment != null) {
-                miniPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
-            }
-            if (fullPlayerFragment != null) {
-                fullPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
-            }
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -210,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
             if (hasLastedPlayList) {
                 long dur = MMKV.defaultMMKV().decodeLong("playPosition", 0);
                 if (dur == 0) {
-                    dur = 1;
+                    dur = 1000;
                 }
                 MediaControllerHelper.getInstance().initializePlaylistWithPosition(songArrayList_lastest,
                         PlaylistManager.getInstance().getPlayListIndex(), dur);
@@ -562,9 +482,6 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "MediaControllerHelper初始化成功");
 
                 // 添加播放状态监听器到MediaControllerHelper
-                controllerHelper.addPlaybackStateListener(playbackStateListener);
-                Log.d(TAG, "播放状态监听器添加成功");
-
                 Log.d(TAG, "MediaController连接成功");
 
                 // 通知Fragment MediaController已准备好
@@ -847,7 +764,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 清理辅助类（会自动移除Player.Listener）
         if (controllerHelper != null) {
-            controllerHelper.removePlaybackStateListener(playbackStateListener);
+            //controllerHelper.removePlaybackStateListener(playbackStateListener);
             controllerHelper.cleanup();
             controllerHelper = null;
         }
