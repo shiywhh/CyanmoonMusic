@@ -18,6 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.fragment.app.Fragment;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.viewbinding.ViewBinding;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -28,6 +29,7 @@ import com.magicalstory.music.utils.screen.DensityUtil;
  * 基础Fragment类，所有Fragment都应该继承这个类
  * 提供公共方法和功能，支持ViewBinding
  */
+@UnstableApi
 public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
 
     // 刷新广播常量
@@ -37,7 +39,7 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
     public Activity context;
     private BroadcastReceiver bottomSheetStateReceiver;
     private BroadcastReceiver refreshReceiver;
-    
+
     // 持久化视图相关变量
     protected boolean hasInitializedRootView = false;
     private View rootView = null;
@@ -67,7 +69,7 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        
+
         // 处理持久化视图的初始化逻辑
         if (!hasInitializedRootView) {
             hasInitializedRootView = true;
@@ -241,6 +243,7 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
                 updateFabPaddingBottom(true);
             }
 
+            System.out.println("注册底部面板状态变化的广播接收器");
             // 注册广播接收器
             registerBottomSheetStateReceiver();
         }
@@ -253,7 +256,9 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         bottomSheetStateReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context1, Intent intent) {
+                System.out.println("intent.getAction() = " + intent.getAction());
                 if (MainActivity.ACTION_BOTTOM_SHEET_STATE_CHANGED.equals(intent.getAction())) {
+                    System.out.println("收到底部改变：" + ((MainActivity) context).showMiniPlayer());
                     // 根据底部面板状态更新fab的paddingBottom
                     updateFabPaddingBottom(((MainActivity) context).showMiniPlayer());
                 }
@@ -263,6 +268,7 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         IntentFilter filter = new IntentFilter(MainActivity.ACTION_BOTTOM_SHEET_STATE_CHANGED);
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(bottomSheetStateReceiver, filter);
     }
+
 
     /**
      * 根据底部面板状态更新fab的marginBottom
@@ -360,7 +366,7 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
             androidx.fragment.app.FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
             // 获取所有Fragment
             java.util.List<androidx.fragment.app.Fragment> fragments = fragmentManager.getFragments();
-            
+
             // 如果Fragment数量超过阈值，清理一些不可见的Fragment
             if (fragments.size() > 10) {
                 androidx.fragment.app.FragmentTransaction transaction = fragmentManager.beginTransaction();

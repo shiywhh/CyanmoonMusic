@@ -34,7 +34,7 @@
         android:theme="@style/AppTheme"
         tools:targetApi="31">
         <activity
-            android:theme="@style/StartingWindowTheme"
+            android:theme="@style/AppTheme.Splash"
             android:name=".MainActivity"
             android:windowSoftInputMode="adjustNothing"
             android:exported="true"

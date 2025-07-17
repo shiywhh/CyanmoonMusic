@@ -1,4 +1,4 @@
-package com.magicalstory.music.utils;
+package com.magicalstory.music.player;
 
 import android.content.Context;
 import android.content.Intent;
@@ -75,6 +75,8 @@ public class PlaybackStateManager {
         // 处理播放历史记录
         if (playbackState == Player.STATE_READY) {
             startPlayTimeTracking();
+            // 歌曲开始播放时立即更新播放时间
+            updateLastPlayedTimeOnPlayStart();
         } else if (playbackState == Player.STATE_ENDED) {
             recordPlayHistory(true);
         }
@@ -113,6 +115,11 @@ public class PlaybackStateManager {
         
         // 更新当前歌曲
         updateCurrentSong(mediaItem);
+        
+        // 如果切换到新歌曲，立即更新新歌曲的播放时间
+        if (currentSong != null && mediaItem != null) {
+            updateLastPlayedTimeOnPlayStart();
+        }
         
         Intent intent = new Intent(ACTION_MEDIA_ITEM_CHANGED);
         intent.putExtra(EXTRA_MEDIA_ID, mediaItem != null ? mediaItem.mediaId : "");
@@ -265,6 +272,32 @@ public class PlaybackStateManager {
         } catch (Exception e) {
             Log.e(TAG, "Error updating last played time", e);
         }
+    }
+    
+    /**
+     * 歌曲开始播放时立即更新播放时间和记录播放历史
+     */
+    private void updateLastPlayedTimeOnPlayStart() {
+        if (currentSong == null) return;
+        
+        final long songId = currentSong.getId();
+        final long albumId = currentSong.getAlbumId();
+        final long artistId = currentSong.getArtistId();
+        
+        // 在后台线程中更新播放时间和记录播放历史
+        backgroundExecutor.execute(() -> {
+            try {
+                // 更新播放时间
+                updateLastPlayedTime(songId, albumId, artistId);
+                
+                // 记录播放历史（开始播放时记录，播放时间为0，完成度为0）
+                PlayHistory.recordPlay(songId, 0, false, 0.0);
+                
+                Log.d(TAG, "Play history and last played time updated for song: " + currentSong.getTitle());
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating last played time and play history on play start", e);
+            }
+        });
     }
 
 } 

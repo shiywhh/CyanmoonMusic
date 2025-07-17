@@ -24,14 +24,19 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
 
+import com.google.gson.reflect.TypeToken;
+import com.hjq.gson.factory.GsonFactory;
 import com.magicalstory.music.R;
 import com.google.android.material.search.SearchView;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentHomeBinding;
 import com.magicalstory.music.dialog.dialogUtils;
+import com.magicalstory.music.player.MediaControllerHelper;
+import com.magicalstory.music.player.PlaylistManager;
 import com.magicalstory.music.service.MusicScanService;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.adapter.SongHorizontalAdapter;
@@ -49,6 +54,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import org.litepal.LitePal;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
@@ -59,7 +65,9 @@ import okhttp3.Response;
 import com.magicalstory.music.model.FavoriteSong;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.service.CoverFetchService;
+import com.tencent.mmkv.MMKV;
 
+@UnstableApi
 public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
     private MusicScanService musicScanService;
@@ -144,6 +152,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         checkPermissionAndShowUI();
     }
 
+
+
     @Override
     protected void initDataForPersistentView() {
         super.initDataForPersistentView();
@@ -169,12 +179,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         // 扫描按钮点击事件
         binding.buttonScan.setOnClickListener(v -> {
             requestMusicPermissionAndScan();
-            // 测试广播接收器（仅用于调试）
-            // testBroadcastReceiver();
         });
 
-        // 添加一个测试按钮（仅用于调试）
-        // binding.buttonScan.setOnClickListener(v -> testBroadcastReceiver());
 
         // 最近添加的歌曲标题点击事件
         binding.itemHeaderSongsLastestAdded.setOnClickListener(v -> {
@@ -321,7 +327,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         } else {
             // 有权限，先显示loading状态，等待数据库查询
             binding.progressBar.setVisibility(View.VISIBLE);
-            binding.contentLayout.setVisibility(View.INVISIBLE);
+            changeContentLayoutVisable(false);
             binding.layoutEmpty.setVisibility(View.GONE);
         }
     }
@@ -336,6 +342,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             // 没有权限，直接显示空布局
             binding.layoutEmpty.setVisibility(View.VISIBLE);
             hideAllMusicLists();
+            notifyHideSplashScreen();
             return;
         }
 
@@ -364,8 +371,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         binding.layoutEmpty.setVisibility(View.VISIBLE);
                         hideAllMusicLists();
                         // 隐藏loading状态
-                        binding.progressBar.setVisibility(View.GONE);
-                        binding.contentLayout.setVisibility(View.VISIBLE);
+                        hideLoading();
                     }
                 });
             } catch (Exception e) {
@@ -374,8 +380,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 mainHandler.post(() -> {
                     binding.layoutEmpty.setVisibility(View.VISIBLE);
                     hideAllMusicLists();
-                    binding.progressBar.setVisibility(View.GONE);
-                    binding.contentLayout.setVisibility(View.VISIBLE);
+                    hideLoading();
                 });
             }
         });
@@ -437,7 +442,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private void reloadMusicDataAndShowLayout() {
         // 显示loading状态
         binding.progressBar.setVisibility(View.VISIBLE);
-        binding.contentLayout.setVisibility(View.INVISIBLE);
+        changeContentLayoutVisable(false);
         binding.layoutEmpty.setVisibility(View.GONE);
 
         // 在后台线程中重新加载数据
@@ -462,8 +467,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                             binding.layoutEmpty.setVisibility(View.VISIBLE);
                             hideAllMusicLists();
                             // 隐藏loading状态
-                            binding.progressBar.setVisibility(View.GONE);
-                            binding.contentLayout.setVisibility(View.VISIBLE);
+                            hideLoading();
                         }
                     });
                 }
@@ -474,12 +478,26 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                     mainHandler.post(() -> {
                         binding.layoutEmpty.setVisibility(View.VISIBLE);
                         hideAllMusicLists();
-                        binding.progressBar.setVisibility(View.GONE);
-                        binding.contentLayout.setVisibility(View.VISIBLE);
+                        hideLoading();
+
                     });
                 }
             }
         });
+    }
+
+    //隐藏加载
+    private void hideLoading() {
+        notifyHideSplashScreen();
+        changeContentLayoutVisable(true);
+    }
+
+    //通知隐藏闪屏
+    private void notifyHideSplashScreen() {
+        binding.progressBar.setVisibility(View.GONE);
+        if (getActivity() instanceof MainActivity mainActivity) {
+            mainActivity.hideSplashScreen();
+        }
     }
 
     /**
@@ -645,9 +663,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
 
                             binding.openSearchView.postDelayed(() -> {
-                                binding.progressBar.setVisibility(View.GONE);
-                                binding.contentLayout.setVisibility(View.VISIBLE);
-                            }, 500);
+                                hideLoading();
+                                changeContentLayoutVisable(true);
+                            }, 0);
 
                         } catch (Exception e) {
                             android.util.Log.e("HomeFragment", "Error updating UI: " + e.getMessage(), e);
@@ -658,6 +676,33 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 android.util.Log.e("HomeFragment", "Error loading music data: " + e.getMessage(), e);
             }
         });
+    }
+
+    private void changeContentLayoutVisable(boolean visiable) {
+        if (!visiable) {
+            binding.layoutRandomRecommendations.setVisibility(View.INVISIBLE);
+            binding.layoutMyFavorites.setVisibility(View.INVISIBLE);
+            binding.layoutRecentArtists.setVisibility(View.INVISIBLE);
+            binding.layoutRecentAlbums.setVisibility(View.INVISIBLE);
+            binding.layoutSongsLastestAdded.setVisibility(View.INVISIBLE);
+        } else {
+            if (recentAlbumsAdapter != null && recentAlbumsAdapter.getItemCount() != 0) {
+                binding.layoutRecentAlbums.setVisibility(View.VISIBLE);
+            }
+            if (recentArtistsAdapter != null && recentArtistsAdapter.getItemCount() != 0) {
+                binding.layoutRecentArtists.setVisibility(View.VISIBLE);
+            }
+            if (myFavoritesAdapter != null && myFavoritesAdapter.getItemCount() != 0) {
+                binding.layoutMyFavorites.setVisibility(View.VISIBLE);
+            }
+            if (randomRecommendationsAdapter != null && randomRecommendationsAdapter.getItemCount() != 0) {
+                binding.layoutRandomRecommendations.setVisibility(View.VISIBLE);
+            }
+            if (songsLatestAddedAdapter != null && songsLatestAddedAdapter.getItemCount() != 0) {
+                binding.layoutSongsLastestAdded.setVisibility(View.VISIBLE);
+            }
+
+        }
     }
 
     /**
@@ -744,8 +789,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         if (randomSongs != null && !randomSongs.isEmpty()) {
                             // 将随机歌曲列表设置为播放列表并播放第一首
                             if (getActivity() instanceof MainActivity mainActivity) {
-                                mainActivity.setPlaylist(randomSongs);
-                                mainActivity.playSong(randomSongs.get(0));
+                                mainActivity.playFromPlaylist(randomSongs, 0);
                             }
                         } else {
                             com.magicalstory.music.utils.app.ToastUtils.showToast(getContext(),
@@ -812,7 +856,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         randomRecommendationsAdapter = null;
     }
 
-
     @Override
     public boolean autoHideBottomNavigation() {
         return false;
@@ -831,13 +874,4 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         }
     }
 
-    /**
-     * 测试广播接收器（仅用于调试）
-     */
-    private void testBroadcastReceiver() {
-        android.util.Log.d("HomeFragment", "测试广播接收器");
-        Intent testIntent = new Intent(MusicScanService.ACTION_SCAN_COMPLETE);
-        testIntent.putExtra(MusicScanService.EXTRA_SCAN_COUNT, 5);
-        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(testIntent);
-    }
 }

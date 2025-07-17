@@ -2,10 +2,7 @@ package com.magicalstory.music.fragment;
 
 import static java.lang.Thread.sleep;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,6 +16,7 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.navigation.Navigation;
 
@@ -30,8 +28,8 @@ import com.magicalstory.music.databinding.FragmentRecentSongsBinding;
 import com.magicalstory.music.dialog.dialogUtils;
 import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
 import com.google.android.material.snackbar.Snackbar;
+import com.magicalstory.music.player.MediaControllerHelper;
 
 import org.litepal.LitePal;
 
@@ -42,6 +40,7 @@ import java.util.List;
  * 歌曲列表Fragment
  * 可以显示不同类型的歌曲列表（最近添加、我的收藏、随机推荐）
  */
+@UnstableApi
 public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> {
 
     // 数据类型常量
@@ -60,11 +59,26 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     private List<Song> songList;
     private Handler mainHandler;
     private String dataType;
-    private BroadcastReceiver musicServiceReceiver;
 
     // 多选相关
     private boolean isMultiSelectMode = false;
     private String originalTitle;
+
+    private MediaControllerHelper controllerHelper;
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void songChange(Song newSong) {
+            System.out.println("newSong.getTitle() = " + newSong.getTitle());
+            // 更新当前播放歌曲的状态
+            updateCurrentPlayingSong();
+        }
+
+        @Override
+        public void stopPlay() {
+            songAdapter.setCurrentPlayingSongId(0);
+            songAdapter.notifyDataSetChanged();
+        }
+    };
 
     @Override
     protected FragmentRecentSongsBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -112,9 +126,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         // 初始化RecyclerView
         initRecyclerView();
 
-        // 注册MusicService广播接收器
-        registerMusicServiceReceiver();
-
         // 设置menu选项
         setHasOptionsMenu(true);
 
@@ -123,8 +134,14 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
         // 加载数据
         loadSongsByType();
+
+        initControllerHelper();
     }
 
+    private void initControllerHelper() {
+        controllerHelper = MediaControllerHelper.getInstance();
+        controllerHelper.addPlaybackStateListener(playbackStateListener);
+    }
 
     @Override
     protected void initListenerForPersistentView() {
@@ -148,7 +165,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             playAllSongs();
         });
     }
-
 
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
@@ -205,9 +221,8 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // 取消注册广播接收器
-        if (musicServiceReceiver != null) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
     }
 
@@ -249,33 +264,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         });
     }
 
-    /**
-     * 注册MusicService广播接收器
-     */
-    private void registerMusicServiceReceiver() {
-        musicServiceReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (MusicService.ACTION_SONG_CHANGED.equals(action)) {
-                    // 歌曲发生变化时更新适配器
-                    long songId = intent.getLongExtra("song_id", -1);
-                    if (songAdapter != null) {
-                        songAdapter.setCurrentPlayingSongId(songId);
-                    }
-                } else if (MusicService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
-                    // 播放状态变化时也更新当前播放歌曲状态
-                    updateCurrentPlayingSong();
-                }
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(musicServiceReceiver, filter);
-    }
 
     /**
      * 根据数据类型设置标题
@@ -436,7 +424,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         }
 
         // 实现添加到播放队列下一首的功能
-        if (context instanceof MainActivity mainActivity) {
+        if (context instanceof MainActivity) {
             // 暂时使用Snackbar提示，后续可以扩展MusicService来支持添加到播放队列
             showSnackbar(getString(R.string.added_to_queue, selectedSongs.size()));
             // TODO: 后续需要在MusicService中添加addToPlayQueue方法
@@ -657,7 +645,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 switch (dataType) {
                     case DATA_TYPE_FAVORITE:
                         // 我的收藏 - 从FavoriteSong表查询真正的收藏歌曲
-                        List<com.magicalstory.music.model.FavoriteSong> favoriteSongList = 
+                        List<com.magicalstory.music.model.FavoriteSong> favoriteSongList =
                                 LitePal.order("addTime desc").find(com.magicalstory.music.model.FavoriteSong.class);
                         songs = new ArrayList<>();
                         if (favoriteSongList != null && !favoriteSongList.isEmpty()) {
@@ -676,7 +664,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         break;
                     case DATA_TYPE_HISTORY:
                         // 播放历史 - 从PlayHistory表查询播放历史，按播放时间倒序
-                        List<com.magicalstory.music.model.PlayHistory> playHistoryList = 
+                        List<com.magicalstory.music.model.PlayHistory> playHistoryList =
                                 LitePal.order("lastPlayTime desc").find(com.magicalstory.music.model.PlayHistory.class);
                         songs = new ArrayList<>();
                         if (playHistoryList != null && !playHistoryList.isEmpty()) {
@@ -691,7 +679,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         break;
                     case DATA_TYPE_MOST_PLAYED:
                         // 最常播放 - 从PlayHistory表查询播放次数最多的歌曲
-                        List<com.magicalstory.music.model.PlayHistory> mostPlayedList = 
+                        List<com.magicalstory.music.model.PlayHistory> mostPlayedList =
                                 LitePal.order("playCount desc").find(com.magicalstory.music.model.PlayHistory.class);
                         songs = new ArrayList<>();
                         if (mostPlayedList != null && !mostPlayedList.isEmpty()) {
@@ -787,15 +775,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     }
 
     /**
-     * 监听适配器选中状态变化
-     */
-    private void onSelectionChanged() {
-        if (isMultiSelectMode) {
-            updateSelectionCount();
-        }
-    }
-
-    /**
      * 显示Snackbar提示
      */
     private void showSnackbar(String message) {
@@ -824,9 +803,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
         // 将当前歌曲列表设置为播放列表并播放第一首
         if (getActivity() instanceof MainActivity mainActivity) {
-            mainActivity.setPlaylist(songList);
-            mainActivity.playSong(songList.get(0));
-            showSnackbar("开始播放所有歌曲，共 " + songList.size() + " 首");
+            mainActivity.playFromPlaylist(songList,0);
         }
     }
 }

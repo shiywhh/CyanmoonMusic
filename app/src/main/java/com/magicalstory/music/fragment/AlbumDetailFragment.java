@@ -1,9 +1,5 @@
 package com.magicalstory.music.fragment;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -13,16 +9,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.widget.Toolbar;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
 import androidx.palette.graphics.Palette;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -41,7 +33,7 @@ import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.utils.glide.Glide2;
 import com.magicalstory.music.utils.screen.DensityUtil;
@@ -57,6 +49,7 @@ import java.util.concurrent.Executors;
 /**
  * 专辑详情Fragment
  */
+@UnstableApi
 public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding> {
 
     private static final String ARG_ALBUM_ID = "album_id";
@@ -76,9 +69,21 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     // 颜色相关
     private int primaryColor = Color.parseColor("#6200EE");
     private int onPrimaryColor = Color.WHITE;
-    
-    // 广播接收器
-    private BroadcastReceiver musicServiceReceiver;
+    private MediaControllerHelper controllerHelper;
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void songChange(Song newSong) {
+            
+            // 更新当前播放歌曲的状态
+            updateCurrentPlayingSong();
+        }
+
+        @Override
+        public void stopPlay() {
+            songAdapter.setCurrentPlayingSongId(0);
+            songAdapter.notifyDataSetChanged();
+        }
+    };
 
     public static AlbumDetailFragment newInstance(long albumId, String artistName, String albumName) {
         AlbumDetailFragment fragment = new AlbumDetailFragment();
@@ -186,8 +191,7 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         binding.btnPlayAll.setOnClickListener(v -> {
             if (albumSongs != null && !albumSongs.isEmpty()) {
                 if (getActivity() instanceof MainActivity mainActivity) {
-                    mainActivity.setPlaylist(albumSongs);
-                    mainActivity.playSong(albumSongs.get(0));
+                    mainActivity.playFromPlaylist(albumSongs,0);
                 }
             }
         });
@@ -198,8 +202,7 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
                 if (getActivity() instanceof MainActivity mainActivity) {
                     List<Song> shuffledSongs = new ArrayList<>(albumSongs);
                     Collections.shuffle(shuffledSongs);
-                    mainActivity.setPlaylist(shuffledSongs);
-                    mainActivity.playSong(shuffledSongs.get(0));
+                    mainActivity.playFromPlaylist(shuffledSongs,0);
                 }
             }
         });
@@ -258,13 +261,18 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
             Navigation.findNavController(requireView()).navigate(R.id.action_album_detail_to_album_detail, bundle);
         });
         binding.rvOtherAlbums.setAdapter(albumAdapter);
-        
-        // 注册MusicService广播接收器
-        registerMusicServiceReceiver();
-        
+
+        initControllerHelper();
+
         // 获取当前播放歌曲并设置到适配器
         updateCurrentPlayingSong();
     }
+
+    private void initControllerHelper() {
+        controllerHelper = MediaControllerHelper.getInstance();
+        controllerHelper.addPlaybackStateListener(playbackStateListener);
+    }
+
 
     /**
      * 加载专辑详情
@@ -507,33 +515,6 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         binding.gradientOverlay.setVisibility(View.VISIBLE);
     }
 
-    /**
-     * 注册MusicService广播接收器
-     */
-    private void registerMusicServiceReceiver() {
-        musicServiceReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (MusicService.ACTION_SONG_CHANGED.equals(action)) {
-                    // 歌曲发生变化时更新适配器
-                    long songId = intent.getLongExtra("song_id", -1);
-                    if (songAdapter != null) {
-                        songAdapter.setCurrentPlayingSongId(songId);
-                    }
-                } else if (MusicService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
-                    // 播放状态变化时也更新当前播放歌曲状态
-                    updateCurrentPlayingSong();
-                }
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(musicServiceReceiver, filter);
-    }
 
     /**
      * 更新当前播放歌曲的状态
@@ -551,10 +532,8 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     public void onDestroy() {
         super.onDestroy();
 
-        // 取消注册广播接收器
-        if (musicServiceReceiver != null) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
-            musicServiceReceiver = null;
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
 
         // 清理ExecutorService

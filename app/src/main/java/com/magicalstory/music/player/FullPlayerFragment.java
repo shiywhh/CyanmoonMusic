@@ -1,15 +1,10 @@
 package com.magicalstory.music.player;
 
-import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -18,38 +13,28 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.database.Cursor;
-import android.media.MediaMetadataRetriever;
-import android.provider.MediaStore;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.core.content.ContextCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.session.MediaController;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
-import com.google.android.material.card.MaterialCardView;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentFullPlayerBinding;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.model.LyricLine;
-import com.magicalstory.music.myView.LyricsView;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.utils.favorite.FavoriteManager;
 import com.magicalstory.music.utils.glide.BlurUtils;
@@ -57,13 +42,12 @@ import com.magicalstory.music.utils.glide.ColorExtractor;
 import com.magicalstory.music.utils.glide.GlideUtils;
 import com.magicalstory.music.utils.lyrics.LyricsParser;
 import com.magicalstory.music.utils.text.TimeUtils;
-import com.magicalstory.music.utils.MediaControllerHelper;
 
 /**
- * 全屏播放器Fragment - 使用MediaController
+ * 全屏播放器Fragment - 使用MediaControllerHelper统一管理播放状态
  */
 @UnstableApi
-public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> implements Player.Listener {
+public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> {
 
     private static final String TAG = "FullPlayerFragment";
 
@@ -73,9 +57,77 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private static final int BACKGROUND_TYPE_GRADIENT = 2;
     private static final int BACKGROUND_TYPE_BLUR = 3;
 
-    // MediaController相关
-    private MediaController mediaController;
+    // MediaControllerHelper相关
     private MediaControllerHelper controllerHelper;
+
+    // 播放状态监听器
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void onPlaybackStateChanged(int playbackState) {
+            Log.d(TAG, "FullPlayerFragment收到播放状态改变: " + playbackState);
+            updatePlaybackState();
+        }
+
+        @Override
+        public void onIsPlayingChanged(boolean isPlaying) {
+            Log.d(TAG, "FullPlayerFragment收到播放状态改变: " + isPlaying);
+            updatePlayButton(isPlaying);
+        }
+
+        @Override
+        public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+            Log.d(TAG, "FullPlayerFragment收到媒体项切换: " + (mediaItem != null ? mediaItem.mediaId : "null"));
+            updateCurrentSong();
+        }
+
+        @Override
+        public void progressInit(long dur, long progress) {
+            int progress1 = (int) (((float) progress / dur) * 100);
+            binding.seekBarProgress.setProgress(progress1);
+            binding.txtCurrentTime.setText(TimeUtils.formatTime(progress));
+
+        }
+
+        @Override
+        public void onPlayerError(PlaybackException error) {
+            Log.e(TAG, "FullPlayerFragment收到播放错误: " + error.getMessage(), error);
+            // 可以在这里处理错误，比如显示错误信息
+        }
+
+        @Override
+        public void onRepeatModeChanged(int repeatMode) {
+            Log.d(TAG, "FullPlayerFragment收到重复模式改变: " + repeatMode);
+            currentPlayMode = repeatMode;
+            updatePlayModeButton(repeatMode);
+        }
+
+        @Override
+        public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+            Log.d(TAG, "FullPlayerFragment收到随机模式改变: " + shuffleModeEnabled);
+            updateShuffleButton(shuffleModeEnabled);
+        }
+
+        @Override
+        public void onPositionChanged(long position, long duration) {
+            updateProgressFromPosition(position, duration);
+        }
+
+        /**
+         * 从位置信息更新进度条
+         */
+        private void updateProgressFromPosition(long position, long duration) {
+            if (duration > 0 && binding != null) {
+                if (!isUserSeeking) {
+                    int progress = (int) (((float) position / duration) * 1000);
+                    binding.seekBarProgress.setProgress(progress);
+
+                    // 更新时间显示
+                    binding.txtCurrentTime.setText(TimeUtils.formatTime(position));
+                    binding.txtTotalTime.setText(TimeUtils.formatTime(duration));
+                }
+            }
+        }
+    };
 
     private boolean isUserSeeking = false;
     private FavoriteManager favoriteManager;
@@ -88,7 +140,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
     // 歌词相关
     private boolean isLyricsVisible = false;
-    private List<LyricLine> currentLyrics = new ArrayList<>();
+    private final List<LyricLine> currentLyrics = new ArrayList<>();
     private long currentSongId = -1; // 记录当前歌曲ID，用于判断是否需要重新加载歌词
 
     // 当前专辑封面和提取的颜色
@@ -100,11 +152,11 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private int defaultTextPrimaryColor;
     private int defaultTextSecondaryColor;
     private int defaultFavoriteColor;
-    private int whiteColor = Color.WHITE;
-    private int grayColor = Color.parseColor("#E0E0E0");
+    private final int whiteColor = Color.WHITE;
+    private final int grayColor = Color.parseColor("#E0E0E0");
 
     // 进度更新相关
-    private Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
+    private final Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable progressUpdateRunnable;
 
     @Override
@@ -142,13 +194,13 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private void initLyricsView() {
         // 设置歌词点击监听器
         binding.lyricsView.setOnLyricClickListener((position, lyricLine) -> {
-            if (mediaController != null) {
+            if (controllerHelper != null) {
                 // 跳转到歌词对应的播放位置
-                mediaController.seekTo(lyricLine.getStartTime());
+                controllerHelper.seekTo(lyricLine.getStartTime());
 
                 // 如果当前是暂停状态，点击歌词后开始播放
-                if (!mediaController.isPlaying()) {
-                    mediaController.play();
+                if (!controllerHelper.isPlaying()) {
+                    controllerHelper.togglePlayPause();
                 }
             }
         });
@@ -157,74 +209,59 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        
+
         // 停止进度更新
         if (progressUpdateRunnable != null) {
             progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
         }
 
-        // 移除Player监听器
-        if (mediaController != null) {
-            mediaController.removeListener(this);
+        // 移除播放状态监听器
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
     }
 
-    // ===========================================
-    // MediaController 设置
-    // ===========================================
-
     /**
-     * 设置MediaController
+     * 设置MediaControllerHelper
      */
-    public void setMediaController(@Nullable MediaController mediaController) {
-        Log.d(TAG, "设置MediaController: " + (mediaController != null ? "不为null" : "为null"));
-        
+    public void setMediaControllerHelper(@Nullable MediaControllerHelper controllerHelper) {
+        Log.d(TAG, "设置MediaControllerHelper: " + (controllerHelper != null ? "不为null" : "为null"));
+
         // 移除之前的监听器
-        if (this.mediaController != null) {
-            Log.d(TAG, "移除旧的MediaController监听器");
-            this.mediaController.removeListener(this);
+        if (this.controllerHelper != null) {
+            Log.d(TAG, "移除旧的MediaControllerHelper监听器");
+            this.controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
 
-        this.mediaController = mediaController;
+        this.controllerHelper = controllerHelper;
 
-        if (mediaController != null) {
-            Log.d(TAG, "MediaController可用，开始初始化");
-            
-            // 添加监听器
-            mediaController.addListener(this);
-            Log.d(TAG, "已添加播放器监听器");
-            
-            // 创建辅助类
-            controllerHelper = new MediaControllerHelper(mediaController, getContext());
-            Log.d(TAG, "已创建MediaControllerHelper");
-            
+        if (controllerHelper != null) {
+            Log.d(TAG, "MediaControllerHelper可用，开始初始化");
+
+            // 添加播放状态监听器
+            controllerHelper.addPlaybackStateListener(playbackStateListener);
+            Log.d(TAG, "已添加播放状态监听器");
+
             // 记录当前状态
-            Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
-            Log.d(TAG, "当前播放: " + mediaController.isPlaying());
-            Log.d(TAG, "当前媒体项: " + (mediaController.getCurrentMediaItem() != null ? 
-                mediaController.getCurrentMediaItem().mediaId : "null"));
-            Log.d(TAG, "播放列表大小: " + mediaController.getMediaItemCount());
-            Log.d(TAG, "当前重复模式: " + mediaController.getRepeatMode());
-            Log.d(TAG, "当前随机播放: " + mediaController.getShuffleModeEnabled());
-            
+            Log.d(TAG, "当前播放状态: " + controllerHelper.getPlaybackState());
+            Log.d(TAG, "当前播放: " + controllerHelper.isPlaying());
+            Log.d(TAG, "当前媒体项: " + (controllerHelper.getCurrentSong() != null ?
+                    controllerHelper.getCurrentSong().getTitle() : "null"));
+            Log.d(TAG, "播放列表大小: " + controllerHelper.getPlaylistSize());
+            Log.d(TAG, "当前重复模式: " + controllerHelper.getRepeatMode());
+            Log.d(TAG, "当前随机播放: " + controllerHelper.getShuffleModeEnabled());
+
             // 更新UI状态
             updatePlaybackState();
             updateCurrentSong();
-            updatePlayModeButton(mediaController.getRepeatMode());
-            
-            Log.d(TAG, "MediaController设置完成");
+            updatePlayModeButton(controllerHelper.getRepeatMode());
+
+            Log.d(TAG, "MediaControllerHelper设置完成");
         } else {
-            Log.d(TAG, "MediaController为null，重置状态");
-            controllerHelper = null;
             updateDefaultState();
         }
     }
 
-    // ===========================================
-    // Player.Listener 实现
-    // ===========================================
-
-    @Override
     public void onPlaybackStateChanged(int playbackState) {
         Log.d(TAG, "播放状态变化: " + playbackState);
         switch (playbackState) {
@@ -244,9 +281,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 Log.d(TAG, "播放器状态: 未知状态 " + playbackState);
                 break;
         }
-        
+
         updatePlayButton(playbackState);
-        
+
         if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
             Log.d(TAG, "状态为准备就绪或缓冲中，开始进度更新");
             startProgressUpdates();
@@ -256,11 +293,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         }
     }
 
-    @Override
     public void onIsPlayingChanged(boolean isPlaying) {
         Log.d(TAG, "播放状态变化: " + (isPlaying ? "正在播放" : "暂停"));
         updatePlayButton(isPlaying);
-        
+
         if (isPlaying) {
             Log.d(TAG, "开始播放，启动进度更新");
             startProgressUpdates();
@@ -270,11 +306,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         }
     }
 
-    @Override
     public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
         String mediaId = mediaItem != null ? mediaItem.mediaId : "null";
         Log.d(TAG, "媒体项切换: " + mediaId + ", 原因: " + reason);
-        
+
         switch (reason) {
             case Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT:
                 Log.d(TAG, "切换原因: 重复播放");
@@ -292,28 +327,26 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 Log.d(TAG, "切换原因: 未知原因 " + reason);
                 break;
         }
-        
+
         updateCurrentSong();
     }
 
-    @Override
     public void onPlayerError(PlaybackException error) {
         Log.e(TAG, "播放器错误: " + error.getMessage(), error);
         Log.e(TAG, "错误代码: " + error.errorCode);
         Log.e(TAG, "错误时间戳: " + error.timestampMs);
-        
+
         if (error.getCause() != null) {
             Log.e(TAG, "错误原因: " + error.getCause().getMessage());
         }
-        
+
         updateDefaultState();
-        
+
         // 显示错误提示
         String errorMessage = "播放失败: " + error.getMessage();
         ToastUtils.showToast(context, errorMessage);
     }
 
-    @Override
     public void onRepeatModeChanged(int repeatMode) {
         Log.d(TAG, "重复模式变化: " + repeatMode);
         switch (repeatMode) {
@@ -334,32 +367,27 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         updatePlayModeButton(repeatMode);
     }
 
-    @Override
     public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
         Log.d(TAG, "随机播放模式变化: " + (shuffleModeEnabled ? "开启" : "关闭"));
         updateShuffleButton(shuffleModeEnabled);
     }
 
-    // ===========================================
-    // UI 更新方法
-    // ===========================================
-
     /**
      * 更新播放状态
      */
     private void updatePlaybackState() {
-        if (mediaController == null) {
+        if (controllerHelper == null) {
             Log.w(TAG, "MediaController为null，无法更新播放状态");
             return;
         }
-        
+
         Log.d(TAG, "更新播放状态");
-        Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
-        Log.d(TAG, "当前播放: " + mediaController.isPlaying());
-        
-        updatePlayButton(mediaController.isPlaying());
-        
-        if (mediaController.isPlaying()) {
+        Log.d(TAG, "当前播放状态: " + controllerHelper.getPlaybackState());
+        Log.d(TAG, "当前播放: " + controllerHelper.isPlaying());
+
+        updatePlayButton(controllerHelper.isPlaying());
+
+        if (controllerHelper.isPlaying()) {
             Log.d(TAG, "正在播放，启动进度更新");
             startProgressUpdates();
         } else {
@@ -384,13 +412,13 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             Log.d(TAG, "歌曲专辑: " + currentSong.getAlbum());
             Log.d(TAG, "歌曲路径: " + currentSong.getPath());
             Log.d(TAG, "歌曲时长: " + currentSong.getDuration());
-            
+
             // 更新歌曲信息
             updateSongInfo(currentSong);
-            
+
             // 更新收藏按钮
             updateFavoriteButton();
-            
+
             // 加载歌词
             loadLyrics(currentSong);
         } else {
@@ -404,17 +432,17 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      */
     private void updateSongInfo(Song song) {
         if (song == null) return;
-        
+
         // 更新歌曲标题和艺术家
         binding.fullSongName.setText(song.getTitle());
         binding.fullSongArtist.setText(song.getArtist());
-        
+
         // 更新专辑封面
         updateAlbumCover(song);
-        
+
         // 更新时长
         binding.txtTotalTime.setText(TimeUtils.formatDuration(song.getDuration()));
-        
+
         currentSongId = song.getId();
     }
 
@@ -424,7 +452,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private void updatePlayButton(int playbackState) {
         switch (playbackState) {
             case Player.STATE_READY:
-                if (mediaController != null && mediaController.isPlaying()) {
+                if (controllerHelper != null && controllerHelper.isPlaying()) {
                     binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
                 } else {
                     binding.btnPlayPause.setImageResource(R.drawable.ic_play);
@@ -457,32 +485,26 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      */
     private void updatePlayModeButton(int repeatMode) {
         currentPlayMode = repeatMode;
-        
+
         switch (repeatMode) {
             case Player.REPEAT_MODE_OFF:
                 binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
-                binding.btnRepeat.setColorFilter(defaultTextSecondaryColor);
                 break;
             case Player.REPEAT_MODE_ONE:
                 binding.btnRepeat.setImageResource(R.drawable.ic_repeat_one);
-                binding.btnRepeat.setColorFilter(dominantColor);
                 break;
             case Player.REPEAT_MODE_ALL:
                 binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
-                binding.btnRepeat.setColorFilter(dominantColor);
                 break;
         }
+        updateButtonColors();
     }
 
     /**
      * 更新随机播放按钮
      */
     private void updateShuffleButton(boolean shuffleModeEnabled) {
-        if (shuffleModeEnabled) {
-            binding.btnShuffle.setColorFilter(dominantColor);
-        } else {
-            binding.btnShuffle.setColorFilter(defaultTextSecondaryColor);
-        }
+        updateButtonColors();
     }
 
     /**
@@ -499,7 +521,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 binding.btnFavorite.setColorFilter(defaultFavoriteColor);
             } else {
                 binding.btnFavorite.setImageResource(R.drawable.ic_favorite_off);
-                binding.btnFavorite.setColorFilter(defaultTextSecondaryColor);
+                binding.btnFavorite.setColorFilter(currentBackgroundType == BACKGROUND_TYPE_DEFAULT ? defaultTextSecondaryColor : whiteColor);
             }
         }
     }
@@ -515,26 +537,22 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.txtTotalTime.setText("00:00");
         binding.seekBarProgress.setProgress(0);
         binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-        
+
         // 重置背景
         resetBackground();
-        
+
         // 停止进度更新
         stopProgressUpdates();
-        
+
         // 清空歌词
         currentLyrics.clear();
         if (isLyricsVisible) {
             binding.lyricsView.updateLyrics(currentLyrics);
         }
-        
+
         currentSongId = -1;
         Log.d(TAG, "默认状态设置完成");
     }
-
-    // ===========================================
-    // 进度更新
-    // ===========================================
 
     /**
      * 开始进度更新
@@ -549,7 +567,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 }
             };
         }
-        
+
         progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
         progressUpdateHandler.post(progressUpdateRunnable);
     }
@@ -567,12 +585,12 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 从播放器更新进度
      */
     private void updateProgressFromPlayer() {
-        if (mediaController == null || isUserSeeking) return;
+        if (controllerHelper == null || isUserSeeking) return;
 
         try {
-            long currentPosition = mediaController.getCurrentPosition();
-            long duration = mediaController.getDuration();
-            
+            long currentPosition = controllerHelper.getCurrentPosition();
+            long duration = controllerHelper.getDuration();
+
             if (duration > 0) {
                 updateProgress((int) currentPosition, (int) duration);
             }
@@ -595,7 +613,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
         // 更新时间显示
         binding.txtCurrentTime.setText(TimeUtils.formatDuration(currentPosition));
-        
+
         // 更新歌词高亮
         if (isLyricsVisible && !currentLyrics.isEmpty()) {
             binding.lyricsView.updateCurrentTime((long) currentPosition);
@@ -607,10 +625,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      */
     private void updateAlbumCover(Song song) {
         if (song == null) return;
-        
+
         // 加载专辑封面
         GlideUtils.loadAlbumCover(context, song.getAlbumId(), binding.fullSheetCover);
-        
+
         // 使用Glide加载专辑封面并提取颜色
         Glide.with(context)
                 .asBitmap()
@@ -619,25 +637,25 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                     @Override
                     public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
                         currentAlbumBitmap = resource;
-                        
+
                         // 提取颜色
                         dominantColor = ColorExtractor.extractDominantColor(resource);
                         darkColor = ColorExtractor.extractDarkColor(resource);
-                        
+
                         // 更新背景罩层
                         updateBackgroundOverlay();
-                        
+
                         // 更新按钮颜色
                         updateButtonColors();
                     }
-                    
+
                     @Override
                     public void onLoadCleared(@Nullable android.graphics.drawable.Drawable placeholder) {
                         // 清理资源
                     }
                 });
     }
-    
+
     /**
      * 重置背景
      */
@@ -647,12 +665,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         darkColor = Color.parseColor("#1A237E");
         updateBackgroundOverlay();
     }
-    
 
-
-    // ===========================================
-    // 点击事件设置
-    // ===========================================
 
     /**
      * 设置点击事件
@@ -661,35 +674,35 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 播放/暂停按钮
         binding.btnPlayPause.setOnClickListener(v -> {
             Log.d(TAG, "播放/暂停按钮被点击");
-            if (mediaController != null) {
-                Log.d(TAG, "MediaController不为null，当前播放状态: " + mediaController.isPlaying());
-                Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
-                
-                if (mediaController.isPlaying()) {
+            if (controllerHelper != null) {
+                Log.d(TAG, "MediaControllerHelper不为null，当前播放状态: " + controllerHelper.isPlaying());
+                Log.d(TAG, "当前播放状态: " + controllerHelper.getPlaybackState());
+
+                if (controllerHelper.isPlaying()) {
                     Log.d(TAG, "正在播放，执行暂停操作");
-                    mediaController.pause();
+                    controllerHelper.pause();
                 } else {
                     Log.d(TAG, "未在播放，执行播放操作");
-                    Log.d(TAG, "当前媒体项: " + (mediaController.getCurrentMediaItem() != null ? 
-                        mediaController.getCurrentMediaItem().mediaId : "null"));
-                    Log.d(TAG, "播放列表大小: " + mediaController.getMediaItemCount());
-                    
+                    Log.d(TAG, "当前媒体项: " + (controllerHelper.getCurrentSong() != null ?
+                            controllerHelper.getCurrentSong().getId() : "null"));
+                    Log.d(TAG, "播放列表大小: " + controllerHelper.getPlaylistSize());
+
                     // 检查是否有媒体项
-                    if (mediaController.getMediaItemCount() == 0) {
+                    if (controllerHelper.getPlaylistSize() == 0) {
                         Log.w(TAG, "播放列表为空，无法播放");
                         ToastUtils.showToast(context, "播放列表为空");
                         return;
                     }
-                    
+
                     // 检查当前媒体项
-                    if (mediaController.getCurrentMediaItem() == null) {
+                    if (controllerHelper.getCurrentSong() == null) {
                         Log.w(TAG, "当前媒体项为null，尝试播放第一个媒体项");
-                        if (mediaController.getMediaItemCount() > 0) {
-                            mediaController.seekTo(0, 0);
+                        if (controllerHelper.getPlaylistSize() > 0) {
+                            controllerHelper.playAtIndex(0);
                         }
                     }
-                    
-                    mediaController.play();
+
+                    controllerHelper.play();
                     Log.d(TAG, "播放命令已发送");
                 }
             } else {
@@ -701,9 +714,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 上一首按钮
         binding.btnPrevious.setOnClickListener(v -> {
             Log.d(TAG, "上一首按钮被点击");
-            if (mediaController != null) {
+            if (controllerHelper != null) {
                 Log.d(TAG, "执行上一首操作");
-                mediaController.seekToPrevious();
+                controllerHelper.skipToPrevious();
             } else {
                 Log.e(TAG, "MediaController为null，无法执行上一首操作");
             }
@@ -712,9 +725,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 下一首按钮
         binding.btnNext.setOnClickListener(v -> {
             Log.d(TAG, "下一首按钮被点击");
-            if (mediaController != null) {
+            if (controllerHelper != null) {
                 Log.d(TAG, "执行下一首操作");
-                mediaController.seekToNext();
+                controllerHelper.skipToNext();
             } else {
                 Log.e(TAG, "MediaController为null，无法执行下一首操作");
             }
@@ -723,10 +736,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 随机播放按钮
         binding.btnShuffle.setOnClickListener(v -> {
             Log.d(TAG, "随机播放按钮被点击");
-            if (mediaController != null) {
-                boolean currentShuffle = mediaController.getShuffleModeEnabled();
+            if (controllerHelper != null) {
+                boolean currentShuffle = controllerHelper.getShuffleModeEnabled();
                 Log.d(TAG, "当前随机播放状态: " + currentShuffle + "，切换为: " + !currentShuffle);
-                mediaController.setShuffleModeEnabled(!currentShuffle);
+                controllerHelper.setShuffleModeEnabled(!currentShuffle);
             } else {
                 Log.e(TAG, "MediaController为null，无法切换随机播放");
             }
@@ -735,21 +748,21 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 循环播放按钮
         binding.btnRepeat.setOnClickListener(v -> {
             Log.d(TAG, "循环播放按钮被点击");
-            if (mediaController != null) {
-                int currentRepeatMode = mediaController.getRepeatMode();
+            if (controllerHelper != null) {
+                int currentRepeatMode = controllerHelper.getRepeatMode();
                 Log.d(TAG, "当前循环播放模式: " + currentRepeatMode);
                 switch (currentRepeatMode) {
                     case Player.REPEAT_MODE_OFF:
                         Log.d(TAG, "切换到单曲循环");
-                        mediaController.setRepeatMode(Player.REPEAT_MODE_ONE);
+                        controllerHelper.setRepeatMode(Player.REPEAT_MODE_ONE);
                         break;
                     case Player.REPEAT_MODE_ONE:
                         Log.d(TAG, "切换到列表循环");
-                        mediaController.setRepeatMode(Player.REPEAT_MODE_ALL);
+                        controllerHelper.setRepeatMode(Player.REPEAT_MODE_ALL);
                         break;
                     case Player.REPEAT_MODE_ALL:
                         Log.d(TAG, "切换到关闭循环");
-                        mediaController.setRepeatMode(Player.REPEAT_MODE_OFF);
+                        controllerHelper.setRepeatMode(Player.REPEAT_MODE_OFF);
                         break;
                 }
             } else {
@@ -864,7 +877,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 设置动画监听器
         fadeOutAnimation.setAnimationListener(new Animation.AnimationListener() {
             @Override
-            public void onAnimationStart(Animation animation) {}
+            public void onAnimationStart(Animation animation) {
+            }
 
             @Override
             public void onAnimationEnd(Animation animation) {
@@ -873,7 +887,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 binding.songInfoLayout.setVisibility(View.INVISIBLE);
                 binding.lyricsView.setVisibility(View.VISIBLE);
                 binding.lyricsView.startAnimation(fadeInAnimation);
-                
+
                 // 检查是否需要加载歌词
                 binding.lyricsView.post(() -> {
                     if (controllerHelper != null) {
@@ -888,7 +902,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             }
 
             @Override
-            public void onAnimationRepeat(Animation animation) {}
+            public void onAnimationRepeat(Animation animation) {
+            }
         });
 
         // 开始淡出动画
@@ -908,7 +923,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 设置动画监听器
         fadeOutAnimation.setAnimationListener(new Animation.AnimationListener() {
             @Override
-            public void onAnimationStart(Animation animation) {}
+            public void onAnimationStart(Animation animation) {
+            }
 
             @Override
             public void onAnimationEnd(Animation animation) {
@@ -921,7 +937,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             }
 
             @Override
-            public void onAnimationRepeat(Animation animation) {}
+            public void onAnimationRepeat(Animation animation) {
+            }
         });
 
         // 开始淡出动画
@@ -945,34 +962,45 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private void loadLyrics(Song song) {
         if (controllerHelper == null) return;
 
-        // 从歌曲文件解析歌词
-        List<LyricLine> lyrics = LyricsParser.parseLyricsFromSong(context, song.getPath());
+        new Thread() {
+            @Override
+            public void run() {
+                super.run();
 
-        // 如果没有找到歌词，显示"暂无歌词"
-        if (lyrics.isEmpty()) {
-            lyrics.add(new LyricLine(0, getString(R.string.no_lyrics)));
-        }
+                // 从歌曲文件解析歌词
+                List<LyricLine> lyrics = LyricsParser.parseLyricsFromSong(context, song.getPath());
 
-        currentLyrics.clear();
-        currentLyrics.addAll(lyrics);
-        binding.lyricsView.setLyrics(currentLyrics);
+                // 如果没有找到歌词，显示"暂无歌词"
+                if (lyrics.isEmpty()) {
+                    lyrics.add(new LyricLine(0, getString(R.string.no_lyrics)));
+                }
 
-        // 更新当前播放位置的歌词
-        long currentPosition = controllerHelper.getCurrentPosition();
-        binding.lyricsView.updateCurrentPosition(currentPosition);
 
-        // 打印调试信息
-        System.out.println("歌词加载完成，共 " + lyrics.size() + " 行");
+                binding.lyricsView.post(() -> {
+                    currentLyrics.clear();
+                    currentLyrics.addAll(lyrics);
+                    binding.lyricsView.setLyrics(currentLyrics);
+
+                    // 更新当前播放位置的歌词
+                    long currentPosition = controllerHelper.getCurrentPosition();
+                    binding.lyricsView.updateCurrentPosition(currentPosition);
+
+                    // 打印调试信息
+                    System.out.println("歌词加载完成，共 " + lyrics.size() + " 行");
+                });
+
+            }
+        }.start();
+
+
     }
-
 
     /**
      * 更新背景罩层
      */
     private void updateBackgroundOverlay() {
-        if (!(getActivity() instanceof MainActivity)) return;
+        if (!(getActivity() instanceof MainActivity mainActivity)) return;
 
-        MainActivity mainActivity = (MainActivity) getActivity();
         Song currentSong = mainActivity.getCurrentSong();
         if (currentSong == null) {
             // 没有歌曲时显示渐变背景
@@ -1086,8 +1114,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      */
     private void updateButtonColors() {
         boolean isDefault = currentBackgroundType == BACKGROUND_TYPE_DEFAULT;
-        int buttonNormalColor = isDefault ? defaultTextSecondaryColor : whiteColor;
-        int buttonActiveColor = isDefault ? defaultTextPrimaryColor : whiteColor;
+        int buttonNormalColor = isDefault ? defaultTextSecondaryColor : Color.WHITE;
+        int buttonActiveColor = isDefault ? defaultTextPrimaryColor : Color.WHITE;
 
         if (isDefault) {
             binding.btnPlayPause.setColorFilter(whiteColor);
@@ -1095,18 +1123,15 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             binding.btnPlayPause.setColorFilter(dominantColor);
         } else {
             binding.btnPlayPause.setColorFilter(darkColor);
-
         }
 
-
         binding.btnPlayBackground.setCardBackgroundColor(isDefault ? getResources().getColor(R.color.md_theme_primary) : whiteColor);
-
 
         binding.btnPrevious.setColorFilter(buttonNormalColor);
         binding.btnNext.setColorFilter(buttonNormalColor);
 
         // 更新随机播放按钮
-        if (mediaController != null && mediaController.getShuffleModeEnabled()) {
+        if (controllerHelper != null && controllerHelper.getShuffleModeEnabled()) {
             binding.btnShuffle.setColorFilter(buttonActiveColor);
             binding.btnShuffle.setAlpha(1.0f); // 随机播放开启时设置正常透明度
         } else {
@@ -1219,11 +1244,13 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.seekBarProgress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && mediaController != null) {
-                    long duration = mediaController.getDuration();
+                // 拖动过程中只更新时间显示，不更新媒体进度
+                if (fromUser && controllerHelper != null) {
+                    long duration = controllerHelper.getDuration();
                     if (duration > 0) {
                         long position = (long) ((float) progress / 100 * duration);
-                        mediaController.seekTo(position);
+                        // 只更新时间显示，不调用seekTo
+                        binding.txtCurrentTime.setText(TimeUtils.formatTime(position));
                     }
                 }
             }
@@ -1236,6 +1263,16 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 isUserSeeking = false;
+                // 松手后才更新媒体进度
+                if (controllerHelper != null) {
+                    int progress = seekBar.getProgress();
+                    long duration = controllerHelper.getDuration();
+                    if (duration > 0) {
+                        binding.lyricsView.updateCurrentTime(progress);
+                        long position = (long) ((float) progress / 100 * duration);
+                        controllerHelper.seekTo(position);
+                    }
+                }
             }
         });
     }
@@ -1243,50 +1280,19 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     @Override
     public void onStart() {
         super.onStart();
-        // 注册MediaController监听器
-        if (mediaController != null) {
-            mediaController.addListener(this);
+        // 注册播放状态监听器
+        if (controllerHelper != null) {
+            controllerHelper.addPlaybackStateListener(playbackStateListener);
         }
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        // 移除MediaController监听器
-        if (mediaController != null) {
-            mediaController.removeListener(this);
+        // 移除播放状态监听器
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
-    }
-
-    /**
-     * 开始播放歌曲
-     */
-    public void playSong(Song song) {
-        // 这个方法应该通过MainActivity调用，不应该直接在Fragment中创建MediaItem
-        // 委托给MainActivity处理
-        if (getActivity() instanceof MainActivity) {
-            ((MainActivity) getActivity()).playSong(song);
-        }
-    }
-
-    /**
-     * 设置播放列表
-     */
-    public void setPlaylist(java.util.List<Song> songs) {
-        // 委托给MainActivity处理
-        if (getActivity() instanceof MainActivity) {
-            ((MainActivity) getActivity()).setPlaylist(songs);
-        }
-    }
-
-    /**
-     * 获取当前播放状态
-     */
-    public boolean isPlaying() {
-        if (mediaController != null) {
-            return mediaController.isPlaying();
-        }
-        return false;
     }
 
     /**
@@ -1297,25 +1303,6 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             return controllerHelper.getCurrentSong();
         }
         return null;
-    }
-
-    /**
-     * 设置播放模式
-     */
-    public void setPlayMode(int playMode) {
-        if (mediaController != null) {
-            mediaController.setRepeatMode(playMode);
-        }
-    }
-
-    /**
-     * 获取播放模式
-     */
-    public int getPlayMode() {
-        if (mediaController != null) {
-            return mediaController.getRepeatMode();
-        }
-        return Player.REPEAT_MODE_OFF;
     }
 
     @Override

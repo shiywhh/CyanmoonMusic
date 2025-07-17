@@ -2,10 +2,7 @@ package com.magicalstory.music.fragment;
 
 import static java.lang.Thread.sleep;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,6 +16,7 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
 import androidx.recyclerview.widget.GridLayoutManager;
 
@@ -31,7 +29,7 @@ import com.magicalstory.music.dialog.dialogUtils;
 import com.magicalstory.music.adapter.AlbumGridAdapter;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -45,6 +43,7 @@ import java.util.List;
  * 专辑Fragment - 显示最近播放的专辑
  * 支持长按进入多选模式
  */
+@UnstableApi
 public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
     // 请求代码常量
@@ -53,7 +52,10 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     private AlbumGridAdapter albumAdapter;
     private List<Album> albumList;
     private Handler mainHandler;
-    private BroadcastReceiver musicServiceReceiver;
+
+    private MediaControllerHelper controllerHelper;
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+    };
 
     // 多选相关
     private boolean isMultiSelectMode = false;
@@ -72,6 +74,11 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     @Override
     protected int getLayoutRes() {
         return R.layout.fragment_album;
+    }
+
+    private void initControllerHelper() {
+        controllerHelper = MediaControllerHelper.getInstance();
+        controllerHelper.addPlaybackStateListener(playbackStateListener);
     }
 
     @Override
@@ -94,8 +101,6 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         // 初始化RecyclerView
         initRecyclerView();
 
-        // 注册MusicService广播接收器
-        registerMusicServiceReceiver();
 
         // 设置menu选项
         setHasOptionsMenu(true);
@@ -105,6 +110,8 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
         // 加载数据
         loadAlbums();
+
+        initControllerHelper();
     }
 
     @Override
@@ -161,9 +168,9 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // 取消注册广播接收器
-        if (musicServiceReceiver != null) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
+
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
     }
 
@@ -213,30 +220,6 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         });
     }
 
-    /**
-     * 注册MusicService广播接收器
-     */
-    private void registerMusicServiceReceiver() {
-        musicServiceReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (MusicService.ACTION_SONG_CHANGED.equals(action)) {
-                    // 歌曲发生变化时更新适配器
-                    updateCurrentPlayingSong();
-                } else if (MusicService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
-                    // 播放状态变化时也更新当前播放歌曲状态
-                    updateCurrentPlayingSong();
-                }
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(musicServiceReceiver, filter);
-    }
 
     /**
      * 初始化RecyclerView
@@ -251,8 +234,6 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         binding.rvAlbums.setLayoutManager(layoutManager);
         binding.rvAlbums.setAdapter(albumAdapter);
 
-        // 获取当前播放歌曲并设置到适配器
-        updateCurrentPlayingSong();
 
         // 设置专辑点击事件
         albumAdapter.setOnItemClickListener((album, position) -> {
@@ -275,17 +256,6 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         });
     }
 
-    /**
-     * 更新当前播放歌曲的状态
-     */
-    private void updateCurrentPlayingSong() {
-        if (context instanceof MainActivity mainActivity) {
-            Song currentSong = mainActivity.getCurrentSong();
-            if (currentSong != null && albumAdapter != null) {
-                // 专辑适配器不需要设置当前播放歌曲
-            }
-        }
-    }
 
     /**
      * 进入多选模式
@@ -632,8 +602,6 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                         albumList.addAll(albums);
                         albumAdapter.notifyDataSetChanged();
 
-                        // 数据加载完成后更新当前播放歌曲状态
-                        updateCurrentPlayingSong();
 
                         // 显示列表，隐藏空状态
                         binding.rvAlbums.setVisibility(View.VISIBLE);
@@ -641,7 +609,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                         binding.fab.setVisibility(View.VISIBLE);
                         // 有数据时显示fab
                         binding.fab.show();
-                        
+
                         // 延迟禁用动画，确保首屏动画完成
                         mainHandler.postDelayed(() -> {
                             if (albumAdapter != null) {
@@ -708,10 +676,10 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         new Thread(() -> {
             try {
                 List<Song> allSongs = new ArrayList<>();
-                
+
                 // 遍历所有专辑，获取每个专辑的歌曲
                 for (Album album : albumList) {
-                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?", 
+                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
                             String.valueOf(album.getAlbumId()), album.getArtist())
                             .order("track asc")
                             .find(Song.class);
@@ -719,20 +687,19 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                         allSongs.addAll(albumSongs);
                     }
                 }
-                
+
                 // 在主线程更新UI并播放
                 mainHandler.post(() -> {
                     if (!allSongs.isEmpty()) {
                         if (getActivity() instanceof MainActivity mainActivity) {
-                            mainActivity.setPlaylist(allSongs);
-                            mainActivity.playSong(allSongs.get(0));
+                            mainActivity.playFromPlaylist(allSongs,0);
                             showSnackbar("开始播放所有专辑歌曲，共 " + allSongs.size() + " 首");
                         }
                     } else {
                         showSnackbar("没有找到可播放的歌曲");
                     }
                 });
-                
+
             } catch (Exception e) {
                 e.printStackTrace();
                 mainHandler.post(() -> {

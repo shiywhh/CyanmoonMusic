@@ -9,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -27,6 +28,7 @@ import java.util.List;
 /**
  * 专辑横向滑动列表适配器
  */
+@UnstableApi
 public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontalAdapter.ViewHolder> {
     
     private static final String TAG = "AlbumHorizontalAdapter";
@@ -78,8 +80,7 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
 
         holder.binding.btnPlay.setOnClickListener(v -> {
             //在这里添加播放专辑音乐
-            if (context instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) context;
+            if (context instanceof MainActivity mainActivity) {
                 playAlbumSongs(mainActivity, album);
             }
         });

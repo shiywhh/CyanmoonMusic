@@ -89,10 +89,7 @@
         <item name="cornerSize">30dp</item>
     </style>
 
-    <style name="StartingWindowTheme" parent="AppTheme">
-        <item name="android:statusBarColor">@color/transparent</item>
-        <item name="android:windowBackground">@drawable/splash_bg</item>
-    </style>
+
 
     <style name="bottomItemActive" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:height">28dp</item>

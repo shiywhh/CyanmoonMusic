@@ -13,6 +13,7 @@ import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.media3.common.util.UnstableApi;
 import androidx.palette.graphics.Palette;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -33,6 +34,7 @@ import java.util.List;
 /**
  * 歌曲横向滑动列表适配器
  */
+@UnstableApi
 public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     // ViewType常量

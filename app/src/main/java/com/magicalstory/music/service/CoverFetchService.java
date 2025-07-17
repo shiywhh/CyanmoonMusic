@@ -9,10 +9,12 @@ import android.util.Log;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.magicalstory.music.R;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.utils.network.NetUtils;
+import com.magicalstory.music.utils.text.RawTextReader;
 
 import org.litepal.LitePal;
 
@@ -180,15 +182,23 @@ public class CoverFetchService extends IntentService {
         int successCount = 0;
         int apiRequestCount = 0;
 
+        long time_start = System.currentTimeMillis();
+        String singerName = RawTextReader.getRawText(this, R.raw.singer_name);
+        long time_end = System.currentTimeMillis();
+        System.out.println("读取耗时 = " + (time_end - time_start));
         for (Artist artist : artists) {
             processedCount++;
 
             // 检查歌手是否已经有封面或已经尝试过获取封面
             if (TextUtils.isEmpty(artist.getCoverUrl()) && !artist.isCoverFetched()) {
                 Log.d(TAG, "处理歌手封面: " + artist.getArtistName() + " (" + processedCount + "/" + artists.size() + ")");
-
-                // 优先从API获取歌手封面
-                if (fetchArtistCoverFromAPI(artist)) {
+                if (!(singerName.contains(".") || singerName.contains("&") || singerName.contains("=")) && singerName.contains(artist.getArtistName().split(";")[0] + "|")) {
+                    artist.setCoverUrl("https://cdn.magicalapk.com/singerCover/singerCover/" + artist.getArtistName().split(";")[0] + ".png");
+                    artist.setCoverFetched(true);
+                    System.out.println("歌手 = " + artist.getArtistName() + " 有CDN封面");
+                    successCount++;
+                    artist.save();
+                } else if (fetchArtistCoverFromAPI(artist)) {
                     successCount++;
                     apiRequestCount++;
                     Log.d(TAG, "成功从API获取歌手 " + artist.getArtistName() + " 的封面");
@@ -212,17 +222,9 @@ public class CoverFetchService extends IntentService {
                 Log.d(TAG, "歌手封面处理进度: " + processedCount + "/" + artists.size() + " (成功: " + successCount + ", API请求: " + apiRequestCount + ")");
             }
 
-            // 为了避免频繁请求API，每次API请求后稍作延迟
-            if (apiRequestCount > 0) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
         }
 
+        singerName = null;
         Log.d(TAG, "歌手封面处理完成: 处理了 " + processedCount + " 个歌手，成功设置 " + successCount + " 个封面 (API请求: " + apiRequestCount + ")");
     }
 
@@ -262,13 +264,13 @@ public class CoverFetchService extends IntentService {
 
             Request request = requestBuilder.build();
             Response response = NetUtils.getInstance().mOkHttpClient.newCall(request).execute();
-            
+
             // 如果自定义请求失败，尝试使用现有的方法
-            if (response == null || !response.isSuccessful()) {
+            if (!response.isSuccessful()) {
                 Log.w(TAG, "自定义请求失败，尝试使用现有方法");
                 response = NetUtils.getInstance().getDataSynFromNetPC(url);
             }
-            
+
             if (response != null && response.isSuccessful()) {
                 String jsonResponse = response.body().string();
                 Log.d(TAG, "歌手 " + artistName + " 的原始数据长度: " + jsonResponse.length());
@@ -316,7 +318,7 @@ public class CoverFetchService extends IntentService {
                 JsonObject result = jsonObject.getAsJsonObject("result");
                 if (result.has("artists")) {
                     JsonArray artists = result.getAsJsonArray("artists");
-                    if (artists.size() > 0) {
+                    if (!artists.isEmpty()) {
                         JsonObject artistInfo = artists.get(0).getAsJsonObject();
                         if (artistInfo.has("picUrl")) {
                             String picUrl = artistInfo.get("picUrl").getAsString();
@@ -326,6 +328,7 @@ public class CoverFetchService extends IntentService {
                                 artist.setCoverUrl(picUrl);
                                 artist.setCoverFetched(true);
                                 artist.save();
+
                                 return true;
                             } else {
                                 Log.w(TAG, "歌手 " + artist.getArtistName() + " 的封面URL为空");
@@ -342,7 +345,7 @@ public class CoverFetchService extends IntentService {
             } else {
                 Log.w(TAG, "歌手 " + artist.getArtistName() + " 的API响应状态码不是200或没有result字段");
             }
-            
+
             // 如果没有获取到封面，也标记为已尝试过
             artist.setCoverFetched(true);
             artist.save();

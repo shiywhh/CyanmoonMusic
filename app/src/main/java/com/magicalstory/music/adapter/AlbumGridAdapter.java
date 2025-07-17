@@ -14,6 +14,7 @@ import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -33,6 +34,7 @@ import java.util.List;
 /**
  * 专辑宫格双列布局适配器
  */
+@UnstableApi
 public class AlbumGridAdapter extends RecyclerView.Adapter<AlbumGridAdapter.ViewHolder> {
     
     private static final String TAG = "AlbumGridAdapter";
@@ -203,8 +205,7 @@ public class AlbumGridAdapter extends RecyclerView.Adapter<AlbumGridAdapter.View
 
         holder.binding.btnPlay.setOnClickListener(v -> {
             //在这里添加播放专辑音乐
-            if (context instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) context;
+            if (context instanceof MainActivity mainActivity) {
                 playAlbumSongs(mainActivity, album);
             }
         });

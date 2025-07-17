@@ -1,4 +1,5 @@
 <resources>
+
     <style name="AppTheme" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
@@ -46,6 +47,18 @@
         <item name="colorSurfaceContainer">@color/md_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/md_theme_surfaceContainerHigh</item>
         <item name="colorSurfaceContainerHighest">@color/md_theme_surfaceContainerHighest</item>
+    </style>
+
+    <!-- SplashScreen主题 -->
+    <style name="AppTheme.Splash" parent="Theme.SplashScreen">
+        <!-- 设置启动屏幕背景颜色 -->
+        <item name="windowSplashScreenBackground">@color/background_secondary</item>
+        <!-- 设置启动屏幕图标 -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_animate_icon</item>
+        <!-- 设置启动屏幕动画持续时间 -->
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <!-- 设置启动屏幕退出动画 -->
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 
     <!-- Text Appearance Styles -->

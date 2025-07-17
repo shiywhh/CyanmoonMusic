@@ -11,6 +11,7 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.Navigation;
@@ -28,6 +29,7 @@ import java.util.List;
 /**
  * 艺术家宫格双列布局适配器
  */
+@UnstableApi
 public class ArtistGridAdapter extends RecyclerView.Adapter<ArtistGridAdapter.ViewHolder> {
     
     private Context context;

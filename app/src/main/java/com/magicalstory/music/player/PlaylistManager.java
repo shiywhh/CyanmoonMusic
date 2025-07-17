@@ -1,7 +1,6 @@
-package com.magicalstory.music.utils;
+package com.magicalstory.music.player;
 
 import android.content.Context;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -12,7 +11,9 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.util.UnstableApi;
 
+import com.hjq.gson.factory.GsonFactory;
 import com.magicalstory.music.model.Song;
+import com.tencent.mmkv.MMKV;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -21,22 +22,64 @@ import java.util.List;
 /**
  * 简化后的播放列表管理器
  * 移除缓存机制，直接创建MediaItem
+ * 使用单例模式确保全局唯一实例
  */
 @UnstableApi
 public class PlaylistManager {
-    
+
     private static final String TAG = "PlaylistManager";
     
-    private final Context context;
-    private final List<Song> currentPlaylist;
-    private final Handler mainHandler;
+    // 单例实例
+    private static volatile PlaylistManager instance;
     
-    public PlaylistManager(@NonNull Context context) {
-        this.context = context;
+    // 应用上下文
+    private Context context;
+    private final ArrayList<Song> currentPlaylist;
+    private final Handler mainHandler;
+
+    /**
+     * 私有构造函数，防止外部实例化
+     */
+    private PlaylistManager() {
         this.currentPlaylist = new ArrayList<>();
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
-    
+
+    /**
+     * 获取 PlaylistManager 单例实例
+     * @return PlaylistManager 实例
+     */
+    public static PlaylistManager getInstance() {
+        if (instance == null) {
+            synchronized (PlaylistManager.class) {
+                if (instance == null) {
+                    instance = new PlaylistManager();
+                }
+            }
+        }
+        return instance;
+    }
+
+    /**
+     * 初始化 PlaylistManager，设置上下文
+     * 必须在应用启动时调用一次
+     * @param context 应用上下文
+     */
+    public void init(@NonNull Context context) {
+        if (this.context == null) {
+            this.context = context.getApplicationContext();
+            Log.d(TAG, "PlaylistManager 初始化完成");
+        }
+    }
+
+    /**
+     * 检查是否已初始化
+     * @return 是否已初始化
+     */
+    public boolean isInitialized() {
+        return context != null;
+    }
+
     /**
      * 设置播放列表
      */
@@ -44,25 +87,25 @@ public class PlaylistManager {
     public List<MediaItem> setPlaylist(@NonNull List<Song> songs, int startIndex) {
         long startTime = System.currentTimeMillis();
         Log.d(TAG, "设置播放列表，歌曲数量: " + songs.size() + ", 起始索引: " + startIndex);
-        
+
         // 更新播放列表
         long updatePlaylistStart = System.currentTimeMillis();
         currentPlaylist.clear();
         currentPlaylist.addAll(songs);
         long updatePlaylistEnd = System.currentTimeMillis();
         Log.d(TAG, "更新播放列表耗时: " + (updatePlaylistEnd - updatePlaylistStart) + "ms");
-        
+
         // 创建MediaItem列表
         long createMediaItemsStart = System.currentTimeMillis();
         List<MediaItem> mediaItems = new ArrayList<>();
         int validItemCount = 0;
         int skippedItemCount = 0;
-        
+
         for (int i = 0; i < songs.size(); i++) {
             long itemStart = System.currentTimeMillis();
             Song song = songs.get(i);
             MediaItem mediaItem = createMediaItemSync(song);
-            
+
             if (mediaItem != null) {
                 mediaItems.add(mediaItem);
                 validItemCount++;
@@ -74,23 +117,23 @@ public class PlaylistManager {
                     startIndex--;
                 }
             }
-            
+
             long itemEnd = System.currentTimeMillis();
             if (itemEnd - itemStart > 5) { // 只打印超过5ms的项目
                 Log.d(TAG, "创建MediaItem[" + i + "]耗时: " + (itemEnd - itemStart) + "ms, 歌曲: " + song.getTitle());
             }
         }
-        
+
         long createMediaItemsEnd = System.currentTimeMillis();
         Log.d(TAG, "创建MediaItem列表总耗时: " + (createMediaItemsEnd - createMediaItemsStart) + "ms");
         Log.d(TAG, "有效MediaItem数量: " + validItemCount + ", 跳过数量: " + skippedItemCount);
-        
+
         long totalTime = System.currentTimeMillis() - startTime;
         Log.d(TAG, "播放列表设置完成，MediaItem数量: " + mediaItems.size() + ", 总耗时: " + totalTime + "ms");
-        
+
         return mediaItems;
     }
-    
+
     /**
      * 根据歌曲列表创建MediaItem列表（向后兼容）
      */
@@ -98,7 +141,7 @@ public class PlaylistManager {
     public List<MediaItem> createMediaItems(@NonNull List<Song> songs) {
         return setPlaylist(songs, 0);
     }
-    
+
     /**
      * 获取指定索引的MediaItem
      */
@@ -107,11 +150,11 @@ public class PlaylistManager {
         if (index < 0 || index >= currentPlaylist.size()) {
             return null;
         }
-        
+
         Song song = currentPlaylist.get(index);
         return createMediaItemSync(song);
     }
-    
+
     /**
      * 同步创建MediaItem
      */
@@ -120,14 +163,14 @@ public class PlaylistManager {
         long startTime = System.currentTimeMillis();
         MediaItem result = createMediaItemInternal(song);
         long endTime = System.currentTimeMillis();
-        
+
         if (endTime - startTime > 10) { // 只打印超过10ms的创建操作
             Log.d(TAG, "同步创建MediaItem耗时: " + (endTime - startTime) + "ms, 歌曲: " + song.getTitle());
         }
-        
+
         return result;
     }
-    
+
     /**
      * 根据单个歌曲创建MediaItem（向后兼容）
      */
@@ -135,7 +178,7 @@ public class PlaylistManager {
     public MediaItem createMediaItem(@NonNull Song song) {
         return createMediaItemSync(song);
     }
-    
+
     /**
      * 内部创建MediaItem的方法
      */
@@ -143,7 +186,7 @@ public class PlaylistManager {
     private MediaItem createMediaItemInternal(@NonNull Song song) {
         long startTime = System.currentTimeMillis();
         Log.d(TAG, "创建MediaItem: " + song.getTitle());
-        
+
         try {
             // 验证歌曲文件
             long fileValidationStart = System.currentTimeMillis();
@@ -151,18 +194,18 @@ public class PlaylistManager {
                 Log.w(TAG, "歌曲路径为空: " + song.getTitle());
                 return null;
             }
-            
+
             File songFile = new File(song.getPath());
             if (!songFile.exists()) {
                 Log.w(TAG, "歌曲文件不存在: " + song.getPath());
                 return null;
             }
             long fileValidationEnd = System.currentTimeMillis();
-            
+
             if (fileValidationEnd - fileValidationStart > 3) {
                 Log.d(TAG, "文件验证耗时: " + (fileValidationEnd - fileValidationStart) + "ms, 路径: " + song.getPath());
             }
-            
+
             // 创建媒体元数据
             long metadataStart = System.currentTimeMillis();
             MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
@@ -172,24 +215,24 @@ public class PlaylistManager {
                     .setDisplayTitle(song.getTitle())
                     .setSubtitle(song.getArtist())
                     .setDescription(song.getAlbum());
-            
+
             if (song.getTrack() > 0) {
                 metadataBuilder.setTrackNumber(song.getTrack());
             }
-            
+
             if (song.getDuration() > 0) {
                 metadataBuilder.setDurationMs(song.getDuration());
             }
-            
+
             if (song.getYear() > 0) {
                 metadataBuilder.setReleaseYear(song.getYear());
             }
             long metadataEnd = System.currentTimeMillis();
-            
+
             if (metadataEnd - metadataStart > 3) {
                 Log.d(TAG, "创建元数据耗时: " + (metadataEnd - metadataStart) + "ms, 歌曲: " + song.getTitle());
             }
-            
+
             // 创建MediaItem
             long mediaItemStart = System.currentTimeMillis();
             MediaItem mediaItem = new MediaItem.Builder()
@@ -198,55 +241,51 @@ public class PlaylistManager {
                     .setMediaMetadata(metadataBuilder.build())
                     .build();
             long mediaItemEnd = System.currentTimeMillis();
-            
+
             if (mediaItemEnd - mediaItemStart > 3) {
                 Log.d(TAG, "创建MediaItem对象耗时: " + (mediaItemEnd - mediaItemStart) + "ms, 歌曲: " + song.getTitle());
             }
-            
+
             long totalTime = System.currentTimeMillis() - startTime;
             Log.d(TAG, "MediaItem创建成功，总耗时: " + totalTime + "ms, ID: " + mediaItem.mediaId);
-            
+
             return mediaItem;
-            
+
         } catch (Exception e) {
             long totalTime = System.currentTimeMillis() - startTime;
             Log.e(TAG, "创建MediaItem时发生错误，耗时: " + totalTime + "ms, 歌曲: " + song.getTitle(), e);
             return null;
         }
     }
-    
+
     /**
      * 从MediaItem获取对应的Song对象
      */
     @Nullable
     public Song getSongFromMediaItem(@NonNull MediaItem mediaItem) {
-        if (mediaItem.mediaId == null) {
-            return null;
-        }
-        
+
         // 尝试从数据库查找
         try {
             long songId = Long.parseLong(mediaItem.mediaId);
-            Song song = org.litepal.LitePal.find(Song.class, songId);
-            return song;
+            return org.litepal.LitePal.find(Song.class, songId);
         } catch (NumberFormatException e) {
             Log.e(TAG, "无效的媒体ID: " + mediaItem.mediaId, e);
         }
-        
+
         return null;
     }
-    
+
     /**
      * 添加媒体项到播放列表（兼容性方法）
      */
     @NonNull
     public List<MediaItem> addMediaItems(@NonNull List<MediaItem> mediaItems) {
         List<MediaItem> validMediaItems = new ArrayList<>();
-        
+
         for (MediaItem mediaItem : mediaItems) {
             if (mediaItem != null && isValidMediaItem(mediaItem)) {
                 validMediaItems.add(mediaItem);
-                
+
                 // 尝试从MediaItem获取Song信息
                 Song song = getSongFromMediaItem(mediaItem);
                 if (song != null) {
@@ -254,11 +293,11 @@ public class PlaylistManager {
                 }
             }
         }
-        
+
         Log.d(TAG, "添加 " + validMediaItems.size() + " 个有效媒体项");
         return validMediaItems;
     }
-    
+
     /**
      * 设置播放列表媒体项（兼容性方法）
      */
@@ -266,13 +305,13 @@ public class PlaylistManager {
     public List<MediaItem> setMediaItems(@NonNull List<MediaItem> mediaItems) {
         // 清理旧数据
         currentPlaylist.clear();
-        
+
         List<MediaItem> validMediaItems = new ArrayList<>();
-        
+
         for (MediaItem mediaItem : mediaItems) {
             if (mediaItem != null && isValidMediaItem(mediaItem)) {
                 validMediaItems.add(mediaItem);
-                
+
                 // 尝试从MediaItem获取Song信息
                 Song song = getSongFromMediaItem(mediaItem);
                 if (song != null) {
@@ -280,26 +319,26 @@ public class PlaylistManager {
                 }
             }
         }
-        
+
         Log.d(TAG, "设置 " + validMediaItems.size() + " 个有效媒体项");
         return validMediaItems;
     }
-    
+
     /**
      * 验证MediaItem是否有效
      */
     private boolean isValidMediaItem(@NonNull MediaItem mediaItem) {
-        if (mediaItem.mediaId == null || mediaItem.mediaId.isEmpty()) {
+        if (mediaItem.mediaId.isEmpty()) {
             Log.w(TAG, "MediaItem mediaId为空或无效");
             return false;
         }
-        
+
         // 检查是否有本地配置
-        if (mediaItem.localConfiguration == null || mediaItem.localConfiguration.uri == null) {
+        if (mediaItem.localConfiguration == null) {
             Log.w(TAG, "MediaItem缺少本地配置或URI");
             return false;
         }
-        
+
         // 验证文件是否存在
         String path = mediaItem.localConfiguration.uri.getPath();
         if (path != null) {
@@ -309,10 +348,10 @@ public class PlaylistManager {
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+
     /**
      * 获取当前播放列表
      */
@@ -320,14 +359,14 @@ public class PlaylistManager {
     public List<Song> getCurrentPlaylist() {
         return new ArrayList<>(currentPlaylist);
     }
-    
+
     /**
      * 获取播放列表大小
      */
     public int getPlaylistSize() {
         return currentPlaylist.size();
     }
-    
+
     /**
      * 根据索引获取歌曲
      */
@@ -338,14 +377,14 @@ public class PlaylistManager {
         }
         return null;
     }
-    
+
     /**
      * 获取歌曲在播放列表中的索引
      */
     public int getSongIndex(@NonNull Song song) {
         return currentPlaylist.indexOf(song);
     }
-    
+
     /**
      * 清除播放列表
      */
@@ -353,12 +392,39 @@ public class PlaylistManager {
         currentPlaylist.clear();
         Log.d(TAG, "播放列表已清空");
     }
-    
+
     /**
      * 清理资源
      */
     public void cleanup() {
         currentPlaylist.clear();
         Log.d(TAG, "PlaylistManager已清理");
+    }
+
+    public void savePlayStatus(boolean isPlaying) {
+        MMKV.defaultMMKV().encode("playStatus", isPlaying);
+
+    }
+
+
+    public boolean getPlayStatus() {
+        return MMKV.defaultMMKV().decodeBool("playStatus",false);
+    }
+
+    public String getPlayList() {
+        return MMKV.defaultMMKV().decodeString("playList","");
+    }
+
+    public void savePlayList(ArrayList<Song> songs,int pos) {
+        MMKV.defaultMMKV().encode("playList", GsonFactory.getSingletonGson().toJson(songs));
+        MMKV.defaultMMKV().encode("playListIndex", pos);
+    }
+
+    public void cleanLocalPlayList() {
+        MMKV.defaultMMKV().encode("playList","");
+    }
+
+    public int getPlayListIndex() {
+        return MMKV.defaultMMKV().decodeInt("playListIndex",0);
     }
 } 

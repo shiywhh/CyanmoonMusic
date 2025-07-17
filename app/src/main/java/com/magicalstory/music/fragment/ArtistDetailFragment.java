@@ -1,9 +1,5 @@
 package com.magicalstory.music.fragment;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -13,16 +9,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.widget.Toolbar;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
 import androidx.palette.graphics.Palette;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -30,7 +22,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
-import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.button.MaterialButton;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
@@ -41,9 +32,8 @@ import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.app.ToastUtils;
-import com.magicalstory.music.utils.glide.Glide2;
 import com.magicalstory.music.utils.screen.DensityUtil;
 
 import org.litepal.LitePal;
@@ -57,6 +47,8 @@ import java.util.concurrent.Executors;
 /**
  * 歌手详情Fragment
  */
+@UnstableApi
+
 public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBinding> {
 
     private static final String ARG_ARTIST_NAME = "artist_name";
@@ -64,27 +56,32 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
     private Artist currentArtist;
     private List<Song> popularSongs;
     private List<Album> artistAlbums;
-    
+
     private SongVerticalAdapter songAdapter;
     private AlbumHorizontalAdapter albumAdapter;
-    
+
     private ExecutorService executorService;
     private Handler mainHandler;
-    
+
     // 颜色相关
     private int primaryColor = Color.parseColor("#6200EE");
     private int onPrimaryColor = Color.WHITE;
-    
-    // 广播接收器
-    private BroadcastReceiver musicServiceReceiver;
 
-    public static ArtistDetailFragment newInstance(String artistName) {
-        ArtistDetailFragment fragment = new ArtistDetailFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_ARTIST_NAME, artistName);
-        fragment.setArguments(args);
-        return fragment;
-    }
+    private MediaControllerHelper controllerHelper;
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void songChange(Song newSong) {
+            
+            // 更新当前播放歌曲的状态
+            updateCurrentPlayingSong();
+        }
+
+        @Override
+        public void stopPlay() {
+            songAdapter.setCurrentPlayingSongId(0);
+            songAdapter.notifyDataSetChanged();
+        }
+    };
 
     @Override
     protected FragmentArtistDetailBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -109,22 +106,22 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
     @Override
     protected void initViewForPersistentView() {
         super.initViewForPersistentView();
-        
+
         // 初始化Handler和线程池
         mainHandler = new Handler(Looper.getMainLooper());
         executorService = Executors.newCachedThreadPool();
-        
+
         // 设置menu选项
         setHasOptionsMenu(true);
-        
+
         // 初始化RecyclerView
         initRecyclerViews();
-        
+
         // 获取传递的参数
         Bundle args = getArguments();
         if (args != null) {
             String artistName = args.getString(ARG_ARTIST_NAME);
-            
+
             // 加载歌手详情
             loadArtistDetail(artistName);
         }
@@ -178,29 +175,26 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         });
 
 
-        
         // 全部播放按钮
         binding.btnPlayAll.setOnClickListener(v -> {
             if (popularSongs != null && !popularSongs.isEmpty()) {
                 if (getActivity() instanceof MainActivity mainActivity) {
-                    mainActivity.setPlaylist(popularSongs);
-                    mainActivity.playSong(popularSongs.get(0));
+                    mainActivity.playFromPlaylist(popularSongs, 0);
                 }
             }
         });
-        
+
         // 随机播放按钮
         binding.btnShufflePlay.setOnClickListener(v -> {
             if (popularSongs != null && !popularSongs.isEmpty()) {
                 if (getActivity() instanceof MainActivity mainActivity) {
                     List<Song> shuffledSongs = new ArrayList<>(popularSongs);
                     Collections.shuffle(shuffledSongs);
-                    mainActivity.setPlaylist(shuffledSongs);
-                    mainActivity.playSong(shuffledSongs.get(0));
+                    mainActivity.playFromPlaylist(shuffledSongs, 0);
                 }
             }
         });
-        
+
         // 查看全部歌曲
         binding.btnViewAllSongs.setOnClickListener(v -> {
             Bundle bundle = new Bundle();
@@ -208,7 +202,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
             bundle.putString("artistName", currentArtist.getArtistName());
             Navigation.findNavController(requireView()).navigate(R.id.action_artist_detail_to_recent_songs, bundle);
         });
-        
+
         // 查看全部专辑
         binding.btnViewAllAlbums.setOnClickListener(v -> {
             Bundle bundle = new Bundle();
@@ -231,7 +225,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         binding.rvPopularSongs.setLayoutManager(new LinearLayoutManager(getContext()));
         songAdapter = new SongVerticalAdapter(getContext(), new ArrayList<>());
         binding.rvPopularSongs.setAdapter(songAdapter);
-        
+
         // 专辑列表
         binding.rvAlbums.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
@@ -245,12 +239,16 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
             Navigation.findNavController(requireView()).navigate(R.id.action_artist_detail_to_album_detail, bundle);
         });
         binding.rvAlbums.setAdapter(albumAdapter);
-        
-        // 注册MusicService广播接收器
-        registerMusicServiceReceiver();
-        
+
+        initControllerHelper();
+
         // 获取当前播放歌曲并设置到适配器
         updateCurrentPlayingSong();
+    }
+
+    private void initControllerHelper() {
+        controllerHelper = MediaControllerHelper.getInstance();
+        controllerHelper.addPlaybackStateListener(playbackStateListener);
     }
 
     /**
@@ -258,40 +256,40 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
      */
     private void loadArtistDetail(String artistName) {
         binding.progressBar.setVisibility(View.VISIBLE);
-        
+
         executorService.execute(() -> {
             try {
                 // 查询歌手信息
                 currentArtist = LitePal.where("artistName = ?", artistName).findFirst(Artist.class);
-                
+
                 if (currentArtist == null) {
                     // 如果数据库中没有歌手信息，创建一个基本的歌手对象
                     currentArtist = new Artist();
                     currentArtist.setArtistName(artistName);
                 }
-                
+
                 // 查询歌手的热门歌曲（按播放次数排序，取前10首）
                 popularSongs = LitePal.where("artist = ?", artistName)
                         .order("dateAdded desc")
                         .limit(10)
                         .find(Song.class);
-                
+
                 // 更新歌手歌曲数量
                 if (popularSongs != null) {
                     currentArtist.setSongCount(popularSongs.size());
                 }
-                
+
                 // 查询歌手的专辑
                 artistAlbums = LitePal.where("artist = ?", artistName)
                         .limit(10)
                         .find(Album.class);
-                
+
                 // 在主线程更新UI
                 mainHandler.post(() -> {
                     updateUI();
                     binding.progressBar.setVisibility(View.GONE);
                 });
-                
+
             } catch (Exception e) {
                 e.printStackTrace();
                 mainHandler.post(() -> {
@@ -307,20 +305,20 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
      */
     private void updateUI() {
         if (currentArtist == null) return;
-        
+
         // 设置歌手名称
         binding.tvArtistName.setText(currentArtist.getArtistName());
-        
+
         // 设置歌曲数量
         int totalSongCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Song.class);
         binding.tvSongCount.setText(totalSongCount + " 首歌曲");
-        
+
         // 加载歌手头像并提取颜色
         loadArtistAvatar();
-        
+
         // 更新热门歌曲列表
         updatePopularSongsList();
-        
+
         // 更新专辑列表
         updateAlbumsList();
     }
@@ -342,7 +340,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
                                 return;
                             }
                             binding.ivArtistAvatar.setImageBitmap(resource);
-                            
+
                             // 使用Palette进行取色
                             Palette.from(resource).generate(palette -> {
                                 if (palette != null) {
@@ -375,7 +373,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         if (popularSongs != null && !popularSongs.isEmpty()) {
             songAdapter.updateData(popularSongs);
             binding.layoutPopularSongs.setVisibility(View.VISIBLE);
-            
+
             // 获取歌手的所有歌曲数量
             int totalSongCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Song.class);
             if (totalSongCount > 10) {
@@ -395,7 +393,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         if (artistAlbums != null && !artistAlbums.isEmpty()) {
             albumAdapter.updateData(artistAlbums);
             binding.layoutAlbums.setVisibility(View.VISIBLE);
-            
+
             // 查询歌手的所有专辑数量
             int totalAlbumCount = LitePal.where("artist = ?", currentArtist.getArtistName()).count(Album.class);
             if (totalAlbumCount > artistAlbums.size()) {
@@ -416,14 +414,14 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         int vibrantColor = palette.getVibrantColor(primaryColor);
         int darkVibrantColor = palette.getDarkVibrantColor(primaryColor);
         int mutedColor = palette.getMutedColor(primaryColor);
-        
+
         // 选择最适合的颜色
-        primaryColor = vibrantColor != primaryColor ? vibrantColor : 
-                      (darkVibrantColor != primaryColor ? darkVibrantColor : mutedColor);
-        
+        primaryColor = vibrantColor != primaryColor ? vibrantColor :
+                (darkVibrantColor != primaryColor ? darkVibrantColor : mutedColor);
+
         // 应用颜色到按钮
         updateButtonColors();
-        
+
         // 创建渐变罩层
         createGradientOverlay();
     }
@@ -445,14 +443,14 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         playAllButton.setBackgroundTintList(ColorStateList.valueOf(primaryColor));
         playAllButton.setTextColor(onPrimaryColor);
         playAllButton.setIconTint(ColorStateList.valueOf(onPrimaryColor));
-        
+
         // 随机播放按钮 - 边框样式
         MaterialButton shufflePlayButton = (MaterialButton) binding.btnShufflePlay;
         shufflePlayButton.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
         shufflePlayButton.setTextColor(primaryColor);
         shufflePlayButton.setIconTint(ColorStateList.valueOf(primaryColor));
         shufflePlayButton.setStrokeColor(ColorStateList.valueOf(primaryColor));
-        
+
         // 查看全部按钮颜色
         binding.btnViewAllSongs.setTextColor(primaryColor);
         binding.btnViewAllAlbums.setTextColor(primaryColor);
@@ -466,37 +464,9 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
                 GradientDrawable.Orientation.BOTTOM_TOP,
                 new int[]{primaryColor, Color.TRANSPARENT}
         );
-        
+
         binding.gradientOverlay.setBackground(gradientDrawable);
         binding.gradientOverlay.setVisibility(View.VISIBLE);
-    }
-
-    /**
-     * 注册MusicService广播接收器
-     */
-    private void registerMusicServiceReceiver() {
-        musicServiceReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (MusicService.ACTION_SONG_CHANGED.equals(action)) {
-                    // 歌曲发生变化时更新适配器
-                    long songId = intent.getLongExtra("song_id", -1);
-                    if (songAdapter != null) {
-                        songAdapter.setCurrentPlayingSongId(songId);
-                    }
-                } else if (MusicService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
-                    // 播放状态变化时也更新当前播放歌曲状态
-                    updateCurrentPlayingSong();
-                }
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(musicServiceReceiver, filter);
     }
 
     /**
@@ -514,19 +484,17 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
     @Override
     public void onDestroy() {
         super.onDestroy();
-        
-        // 取消注册广播接收器
-        if (musicServiceReceiver != null) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
-            musicServiceReceiver = null;
+
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
-        
+
         // 清理ExecutorService
         if (executorService != null) {
             executorService.shutdown();
             executorService = null;
         }
-        
+
         // 清理Handler
         if (mainHandler != null) {
             mainHandler.removeCallbacksAndMessages(null);
@@ -564,8 +532,4 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         }
     }
 
-    @Override
-    public boolean autoHideBottomNavigation() {
-        return true;
-    }
-} 
+}

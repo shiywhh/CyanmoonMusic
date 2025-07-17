@@ -4,14 +4,18 @@ import android.animation.ValueAnimator;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 
+import androidx.core.splashscreen.SplashScreen;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -25,28 +29,35 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.gson.reflect.TypeToken;
 import com.gyf.immersionbar.ImmersionBar;
+import com.hjq.gson.factory.GsonFactory;
 import com.magicalstory.music.databinding.ActivityMainBinding;
 import com.magicalstory.music.homepage.HomeFragment;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.player.MiniPlayerFragment;
 import com.magicalstory.music.player.FullPlayerFragment;
+import com.magicalstory.music.player.PlaylistManager;
 import com.magicalstory.music.service.MusicService;
-import com.magicalstory.music.utils.MediaControllerHelper;
+import com.magicalstory.music.player.MediaControllerHelper;
+import com.tencent.mmkv.MMKV;
 
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
  * 主Activity - 完全按照Google Media3框架最佳实践重构
- * 
+ *
  * 使用MediaController控制播放，而不是直接绑定Service
+ * 通过MediaControllerHelper统一管理播放状态监听
  */
 @UnstableApi
-public class MainActivity extends AppCompatActivity implements Player.Listener {
+public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    
+
     // 广播常量
     public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";
 
@@ -63,18 +74,107 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
     private MiniPlayerFragment miniPlayerFragment;
     private FullPlayerFragment fullPlayerFragment;
 
-    // Media3 MediaController
+    // Media3 MediaController - 唯一实例
     private MediaController mediaController;
     private ListenableFuture<MediaController> controllerFuture;
     private MediaControllerHelper controllerHelper;
+    private ArrayList<Song> songArrayList_lastest;
+    private boolean hasLastedPlayList = false;
+
+    // SplashScreen相关
+    private boolean isAppReady = false;
+
+    // 播放状态监听器
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void onPlaybackStateChanged(int playbackState) {
+            Log.d(TAG, "MainActivity收到播放状态改变: " + playbackState);
+
+            // 通知Fragment播放状态变化
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onPlaybackStateChanged(playbackState);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onPlaybackStateChanged(playbackState);
+            }
+        }
+
+        @Override
+        public void onIsPlayingChanged(boolean isPlaying) {
+            Log.d(TAG, "MainActivity收到播放状态改变: " + isPlaying);
+
+            // 通知Fragment播放状态变化
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onIsPlayingChanged(isPlaying);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onIsPlayingChanged(isPlaying);
+            }
+        }
+
+        @Override
+        public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+            Log.d(TAG, "MainActivity收到媒体项切换: " + (mediaItem != null ? mediaItem.mediaId : "null"));
+
+            // 通知Fragment媒体项变化
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onMediaItemTransition(mediaItem, reason);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onMediaItemTransition(mediaItem, reason);
+            }
+        }
+
+        @Override
+        public void onPlayerError(PlaybackException error) {
+            Log.e(TAG, "MainActivity收到播放错误: " + error.getMessage(), error);
+
+            // 通知Fragment播放错误
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onPlayerError(error);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onPlayerError(error);
+            }
+        }
+
+        @Override
+        public void onRepeatModeChanged(int repeatMode) {
+            Log.d(TAG, "MainActivity收到重复模式改变: " + repeatMode);
+
+            // 通知Fragment重复模式变化
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onRepeatModeChanged(repeatMode);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onRepeatModeChanged(repeatMode);
+            }
+        }
+
+        @Override
+        public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+            Log.d(TAG, "MainActivity收到随机模式改变: " + shuffleModeEnabled);
+
+            // 通知Fragment随机模式变化
+            if (miniPlayerFragment != null) {
+                miniPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
+            }
+            if (fullPlayerFragment != null) {
+                fullPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 在super.onCreate之前安装SplashScreen
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+
         super.onCreate(savedInstanceState);
         Log.d(TAG, "MainActivity created");
-        
+
         setupStatusBar();
-        
+
         // 使用ViewBinding
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -87,9 +187,40 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         setupBottomSheet();
         setupPlayerFragments();
         setupBackPressHandler();
-        
+
         // 初始化MediaController
         initializeMediaController();
+
+        // 设置SplashScreen保持显示的条件
+        splashScreen.setKeepOnScreenCondition(() -> {
+            // 检查应用是否准备就绪
+            // 可以在这里添加更多初始化检查，比如：
+            // - 数据加载完成
+            // - 网络连接检查
+            // - 权限检查等
+            return !isAppReady;
+        });
+
+        resumePlayList();
+    }
+
+    //恢复上次播放的列表
+    private void resumePlayList() {
+        binding.getRoot().postDelayed(() -> {
+            if (hasLastedPlayList) {
+                long dur = MMKV.defaultMMKV().decodeLong("playPosition", 0);
+                if (dur == 0) {
+                    dur = 1;
+                }
+                MediaControllerHelper.getInstance().initializePlaylistWithPosition(songArrayList_lastest,
+                        PlaylistManager.getInstance().getPlayListIndex(), dur);
+            }
+        }, 500);
+
+    }
+
+    public void hideSplashScreen() {
+        isAppReady = true;
     }
 
     private void setupStatusBar() {
@@ -111,7 +242,7 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
             if (navHostFragment != null) {
                 // 从NavHostFragment获取NavController
                 NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
-                
+
                 // 设置底部导航与NavController关联
                 NavigationUI.setupWithNavController(binding.bottomNavigation, navController);
                 // 默认选中主页
@@ -140,15 +271,22 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         View bottomSheet = binding.playerBottomSheet;
         bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
 
+        Type listType = new TypeToken<List<Song>>() {
+        }.getType();
+        songArrayList_lastest = GsonFactory.getSingletonGson().fromJson(PlaylistManager.getInstance().getPlayList(), listType);
+        hasLastedPlayList = !songArrayList_lastest.isEmpty();
+
         // 获取mini player和full player的容器
         miniPlayerContainer = bottomSheet.findViewById(R.id.mini_player_container);
         fullPlayerContainer = bottomSheet.findViewById(R.id.full_player_container);
 
-        // 初始状态设置为HIDDEN - 默认不显示播放器
-        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        // 如果上次没有播放列表，然后初始状态设置为HIDDEN - 默认不显示播放器
+        if (!hasLastedPlayList) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        }
 
         // 初始状态设置 - 两个播放器都隐藏
-        if (miniPlayerContainer != null) {
+        if (miniPlayerContainer != null && !hasLastedPlayList) {
             miniPlayerContainer.setVisibility(View.GONE);
             miniPlayerContainer.setAlpha(0.0f);
         }
@@ -190,7 +328,7 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
                             fullPlayerContainer.setVisibility(View.VISIBLE);
                             fullPlayerContainer.setAlpha(0.0f);
                             // 底部导航栏完全可见
-                            if (binding != null && binding.bottomNavigation != null) {
+                            if (binding != null) {
                                 binding.bottomNavigation.setAlpha(1.0f);
                             }
                             break;
@@ -212,16 +350,16 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
                             fullPlayerContainer.setVisibility(View.GONE);
                             fullPlayerContainer.setAlpha(0.0f);
                             // 底部导航栏完全可见
-                            if (binding != null && binding.bottomNavigation != null) {
+                            if (binding != null) {
                                 binding.bottomNavigation.setAlpha(1.0f);
                             }
                             // 停止音乐播放
                             stopMusicPlayback();
+                            LocalBroadcastManager.getInstance(MainActivity.this).sendBroadcast(new Intent(ACTION_BOTTOM_SHEET_STATE_CHANGED));
                             break;
                         case BottomSheetBehavior.STATE_DRAGGING:
                         case BottomSheetBehavior.STATE_SETTLING:
                             // 拖拽和稳定状态由 onSlide 处理
-                            // 确保两个播放器都保持可见状态
                             binding.bottomNavigation.setVisibility(View.VISIBLE);
                             miniPlayerContainer.setVisibility(View.VISIBLE);
                             fullPlayerContainer.setVisibility(View.VISIBLE);
@@ -391,51 +529,47 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         }
     }
 
-    // ===========================================
-    // MediaController 初始化和管理
-    // ===========================================
-
     /**
      * 初始化MediaController
      */
     private void initializeMediaController() {
         Log.d(TAG, "开始初始化MediaController");
-        
+
         // 创建SessionToken
         SessionToken sessionToken = new SessionToken(this, new ComponentName(this, MusicService.class));
         Log.d(TAG, "SessionToken创建成功: " + sessionToken);
-        
+
         // 创建MediaController
         controllerFuture = new MediaController.Builder(this, sessionToken).buildAsync();
         Log.d(TAG, "MediaController构建器创建成功");
-        
+
         // 设置回调监听
         controllerFuture.addListener(() -> {
             try {
                 Log.d(TAG, "MediaController连接回调触发");
                 mediaController = controllerFuture.get();
                 Log.d(TAG, "MediaController获取成功");
-                
+
                 // 检查MediaController状态
                 Log.d(TAG, "MediaController状态检查:");
                 Log.d(TAG, "- 是否连接: " + mediaController.isConnected());
                 Log.d(TAG, "- 播放状态: " + mediaController.getPlaybackState());
                 Log.d(TAG, "- 是否播放: " + mediaController.isPlaying());
                 Log.d(TAG, "- 媒体项数量: " + mediaController.getMediaItemCount());
-                
-                // 添加播放器监听器
-                mediaController.addListener(this);
-                Log.d(TAG, "播放器监听器添加成功");
-                
-                // 初始化辅助类
-                controllerHelper = new MediaControllerHelper(mediaController, this);
+
+                // 初始化辅助类（MediaControllerHelper会自动添加Player.Listener）
+                controllerHelper = MediaControllerHelper.getInstance(mediaController, this);
                 Log.d(TAG, "MediaControllerHelper初始化成功");
-                
+
+                // 添加播放状态监听器到MediaControllerHelper
+                controllerHelper.addPlaybackStateListener(playbackStateListener);
+                Log.d(TAG, "播放状态监听器添加成功");
+
                 Log.d(TAG, "MediaController连接成功");
-                
+
                 // 通知Fragment MediaController已准备好
                 notifyFragmentsControllerReady();
-                
+
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "MediaController创建失败", e);
                 if (e.getCause() != null) {
@@ -443,53 +577,31 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
                 }
             }
         }, MoreExecutors.directExecutor());
-        
+
         Log.d(TAG, "MediaController初始化设置完成");
     }
 
     /**
-     * 通知Fragment MediaController已准备好
+     * 通知Fragment MediaControllerHelper已准备好
      */
     private void notifyFragmentsControllerReady() {
-        Log.d(TAG, "通知Fragment MediaController已准备好");
-        
+        Log.d(TAG, "通知Fragment MediaControllerHelper已准备好");
+
         if (miniPlayerFragment != null) {
-            Log.d(TAG, "设置MiniPlayerFragment的MediaController");
-            miniPlayerFragment.setMediaController(mediaController);
+            Log.d(TAG, "设置MiniPlayerFragment的MediaControllerHelper");
+            miniPlayerFragment.setMediaControllerHelper(controllerHelper);
         } else {
             Log.w(TAG, "MiniPlayerFragment为null");
         }
-        
+
         if (fullPlayerFragment != null) {
-            Log.d(TAG, "设置FullPlayerFragment的MediaController");
-            fullPlayerFragment.setMediaController(mediaController);
+            Log.d(TAG, "设置FullPlayerFragment的MediaControllerHelper");
+            fullPlayerFragment.setMediaControllerHelper(controllerHelper);
         } else {
             Log.w(TAG, "FullPlayerFragment为null");
         }
-        
+
         Log.d(TAG, "Fragment通知完成");
-    }
-
-    // ===========================================
-    // 播放控制方法 (使用MediaController)
-    // ===========================================
-
-    /**
-     * 播放歌曲
-     */
-    public void playSong(Song song) {
-        Log.d(TAG, "播放歌曲请求: " + song.getTitle());
-        
-        if (controllerHelper != null) {
-            Log.d(TAG, "MediaControllerHelper可用，开始播放");
-            controllerHelper.playSong(song);
-        } else {
-            Log.w(TAG, "MediaControllerHelper未准备好");
-        }
-
-        // 如果bottomSheet处于隐藏状态，则显示为收起状态
-        Log.d(TAG, "显示播放器");
-        showPlayer();
     }
 
     /**
@@ -511,13 +623,13 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
     public void playFromPlaylist(List<Song> songs, int position) {
         long startTime = System.currentTimeMillis();
         Log.d(TAG, "播放列表中的歌曲请求: position=" + position);
-        
+
         if (controllerHelper != null) {
             // 检查是否需要更新播放列表
             long playlistCheckStart = System.currentTimeMillis();
             List<Song> currentPlaylist = controllerHelper.getPlaylist();
             boolean needUpdatePlaylist = false;
-            
+
             if (currentPlaylist.size() != songs.size()) {
                 needUpdatePlaylist = true;
             } else {
@@ -529,7 +641,7 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
                         break;
                     }
                 }
-                
+
                 // 如果当前位置的歌曲不同，也需要更新
                 if (!needUpdatePlaylist && position < songs.size() && position < currentPlaylist.size()) {
                     if (!songs.get(position).getPath().equals(currentPlaylist.get(position).getPath())) {
@@ -537,10 +649,10 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
                     }
                 }
             }
-            
+
             long playlistCheckEnd = System.currentTimeMillis();
             Log.d(TAG, "播放列表比较耗时: " + (playlistCheckEnd - playlistCheckStart) + "ms");
-            
+
             if (needUpdatePlaylist) {
                 Log.d(TAG, "需要更新播放列表，使用延迟加载");
                 long updatePlaylistStart = System.currentTimeMillis();
@@ -557,134 +669,15 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         } else {
             Log.w(TAG, "MediaControllerHelper未准备好");
         }
-        
+
         long totalTime = System.currentTimeMillis() - startTime;
         Log.d(TAG, "播放列表请求处理完成，总耗时: " + totalTime + "ms");
-        
+
         // 如果bottomSheet处于隐藏状态，则显示为收起状态
         Log.d(TAG, "显示播放器");
         showPlayer();
-    }
 
-    /**
-     * 播放控制 - 播放/暂停
-     */
-    public void playOrPause() {
-        Log.d(TAG, "播放/暂停请求");
-        
-        if (mediaController != null) {
-            boolean isPlaying = mediaController.isPlaying();
-            Log.d(TAG, "当前播放状态: " + isPlaying);
-            
-            if (isPlaying) {
-                Log.d(TAG, "执行暂停操作");
-                mediaController.pause();
-            } else {
-                Log.d(TAG, "执行播放操作");
-                mediaController.play();
-            }
-        } else {
-            Log.w(TAG, "MediaController未准备好");
-        }
-    }
-
-    /**
-     * 播放
-     */
-    public void play() {
-        if (mediaController != null) {
-            mediaController.play();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 暂停
-     */
-    public void pause() {
-        if (mediaController != null) {
-            mediaController.pause();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 停止播放
-     */
-    public void stop() {
-        if (mediaController != null) {
-            mediaController.stop();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 上一首
-     */
-    public void previous() {
-        if (mediaController != null) {
-            mediaController.seekToPrevious();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 下一首
-     */
-    public void next() {
-        if (mediaController != null) {
-            mediaController.seekToNext();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 跳转到指定进度
-     */
-    public void seekTo(long position) {
-        if (mediaController != null) {
-            mediaController.seekTo(position);
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 切换随机播放
-     */
-    public void toggleShuffle() {
-        if (controllerHelper != null) {
-            controllerHelper.toggleShuffle();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    /**
-     * 切换重复播放
-     */
-    public void toggleRepeat() {
-        if (controllerHelper != null) {
-            controllerHelper.toggleRepeat();
-        } else {
-            Log.w(TAG, "MediaController not ready yet");
-        }
-    }
-
-    // ===========================================
-    // 状态查询方法
-    // ===========================================
-
-    /**
-     * 获取当前是否在播放
-     */
-    public boolean isPlaying() {
-        return mediaController != null && mediaController.isPlaying();
+        binding.getRoot().postDelayed(() -> LocalBroadcastManager.getInstance(MainActivity.this).sendBroadcast(new Intent(ACTION_BOTTOM_SHEET_STATE_CHANGED)), 0);
     }
 
     /**
@@ -693,142 +686,13 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
     @Nullable
     public Song getCurrentSong() {
         if (controllerHelper != null) {
+            if (controllerHelper.getPlaybackState() == 1) {
+                return null;
+            }
             return controllerHelper.getCurrentSong();
         }
         return null;
     }
-
-    /**
-     * 获取播放列表
-     */
-    @Nullable
-    public List<Song> getPlaylist() {
-        if (controllerHelper != null) {
-            return controllerHelper.getPlaylist();
-        }
-        return null;
-    }
-
-    /**
-     * 获取当前播放进度
-     */
-    public long getCurrentPosition() {
-        return mediaController != null ? mediaController.getCurrentPosition() : 0;
-    }
-
-    /**
-     * 获取歌曲总时长
-     */
-    public long getDuration() {
-        return mediaController != null ? mediaController.getDuration() : 0;
-    }
-
-    /**
-     * 获取播放状态
-     */
-    public int getPlaybackState() {
-        return mediaController != null ? mediaController.getPlaybackState() : Player.STATE_IDLE;
-    }
-
-    /**
-     * 获取重复播放模式
-     */
-    public int getRepeatMode() {
-        return mediaController != null ? mediaController.getRepeatMode() : Player.REPEAT_MODE_OFF;
-    }
-
-    /**
-     * 获取随机播放模式
-     */
-    public boolean getShuffleModeEnabled() {
-        return mediaController != null && mediaController.getShuffleModeEnabled();
-    }
-
-    // ===========================================
-    // Player.Listener 实现
-    // ===========================================
-
-    @Override
-    public void onPlaybackStateChanged(int playbackState) {
-        Log.d(TAG, "Playback state changed: " + playbackState);
-        
-        // 通知Fragment播放状态变化
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onPlaybackStateChanged(playbackState);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onPlaybackStateChanged(playbackState);
-        }
-    }
-
-    @Override
-    public void onIsPlayingChanged(boolean isPlaying) {
-        Log.d(TAG, "Is playing changed: " + isPlaying);
-        
-        // 通知Fragment播放状态变化
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onIsPlayingChanged(isPlaying);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onIsPlayingChanged(isPlaying);
-        }
-    }
-
-    @Override
-    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-        Log.d(TAG, "Media item transition: " + (mediaItem != null ? mediaItem.mediaId : "null"));
-        
-        // 通知Fragment媒体项变化
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onMediaItemTransition(mediaItem, reason);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onMediaItemTransition(mediaItem, reason);
-        }
-    }
-
-    @Override
-    public void onPlayerError(PlaybackException error) {
-        Log.e(TAG, "Player error: " + error.getMessage(), error);
-        
-        // 通知Fragment播放错误
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onPlayerError(error);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onPlayerError(error);
-        }
-    }
-
-    @Override
-    public void onRepeatModeChanged(int repeatMode) {
-        Log.d(TAG, "Repeat mode changed: " + repeatMode);
-        
-        // 通知Fragment重复模式变化
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onRepeatModeChanged(repeatMode);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onRepeatModeChanged(repeatMode);
-        }
-    }
-
-    @Override
-    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
-        Log.d(TAG, "Shuffle mode changed: " + shuffleModeEnabled);
-        
-        // 通知Fragment随机模式变化
-        if (miniPlayerFragment != null) {
-            miniPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
-        }
-        if (fullPlayerFragment != null) {
-            fullPlayerFragment.onShuffleModeEnabledChanged(shuffleModeEnabled);
-        }
-    }
-
-    // ===========================================
-    // 底部导航栏控制
-    // ===========================================
 
     /**
      * 显示底部导航栏
@@ -921,15 +785,11 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         animator.start();
     }
 
-    // ===========================================
-    // 播放器界面控制
-    // ===========================================
-
     /**
      * 是否展开mini播放器
      */
     public boolean showMiniPlayer() {
-        return bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_COLLAPSED;
+        return bottomSheetBehavior.getState() != BottomSheetBehavior.STATE_HIDDEN;
     }
 
     /**
@@ -963,34 +823,10 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
     private void stopMusicPlayback() {
         if (mediaController != null) {
             mediaController.stop();
+            PlaylistManager.getInstance().clearPlaylist();
+            controllerHelper.notifyStopPlay();
         }
     }
-
-    /**
-     * 获取MiniPlayerFragment
-     */
-    public MiniPlayerFragment getMiniPlayerFragment() {
-        return miniPlayerFragment;
-    }
-
-    /**
-     * 获取FullPlayerFragment
-     */
-    public FullPlayerFragment getFullPlayerFragment() {
-        return fullPlayerFragment;
-    }
-
-    /**
-     * 获取MediaController
-     */
-    @Nullable
-    public MediaController getMusicController() {
-        return mediaController;
-    }
-
-    // ===========================================
-    // 生命周期管理
-    // ===========================================
 
     @Override
     protected void onStart() {
@@ -1009,17 +845,18 @@ public class MainActivity extends AppCompatActivity implements Player.Listener {
         super.onDestroy();
         Log.d(TAG, "MainActivity destroyed");
 
-        // 释放MediaController
-        if (mediaController != null) {
-            mediaController.removeListener(this);
-            MediaController.releaseFuture(controllerFuture);
-            mediaController = null;
-        }
-
-        // 清理辅助类
+        // 清理辅助类（会自动移除Player.Listener）
         if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
             controllerHelper.cleanup();
             controllerHelper = null;
         }
+
+        // 释放MediaController
+        if (mediaController != null) {
+            MediaController.releaseFuture(controllerFuture);
+            mediaController = null;
+        }
     }
+
 }

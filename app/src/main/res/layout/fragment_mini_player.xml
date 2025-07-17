@@ -16,21 +16,78 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- RecyclerView for song items with swipe support -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/mini_player_recycler_view"
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:overScrollMode="never"
-            tools:listitem="@layout/item_mini_player" />
+            android:layout_weight="1">
 
-        <!-- Play/Pause Button -->
+            <LinearLayout
+                android:id="@+id/item_placeholder"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/mini_player_height"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="@dimen/margin_12"
+                android:paddingEnd="@dimen/margin_12">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/cover_image"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:scaleType="centerCrop"
+                    app:shapeAppearanceOverlay="@style/roundedCornerImageStyle_10"
+                    app:srcCompat="@drawable/place_holder_album" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/song_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/app_name"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/artist_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/slogan"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/mini_player_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@color/md_theme_navigationBarBackground"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:visibility="invisible"
+                tools:listitem="@layout/item_mini_player" />
+        </FrameLayout>
+
+
         <ImageButton
             android:id="@+id/mini_play_pause"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:visibility="invisible"
             android:layout_marginEnd="@dimen/margin_12"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_play"

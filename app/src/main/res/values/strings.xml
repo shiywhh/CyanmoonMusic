@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">奇妙音乐</string>
-    
+
     <!-- 底部导航菜单 -->
     <string name="nav_home">主页</string>
     <string name="nav_playlist">歌单</string>
@@ -8,13 +8,13 @@
     <string name="nav_profile">我的</string>
     <string name="search_music">搜索您的音乐</string>
     <string name="songs_lastest_added">最近添加的歌曲</string>
-    
+
     <!-- 功能区域 -->
     <string name="play_history">播放历史</string>
     <string name="my_favorites">我的收藏</string>
     <string name="most_played">最常播放</string>
     <string name="random_play">随机播放</string>
-    
+
     <!-- 内容区域 -->
     <string name="recent_albums">最近播放专辑</string>
     <string name="recent_artists">最近听过的艺术家</string>
@@ -22,7 +22,7 @@
     <string name="random_recommendations">随机推荐</string>
     <string name="title_input">文本输入框</string>
     <string name="input_layout">输入框布局</string>
-    
+
     <!-- 对话框相关字符串 -->
     <string name="dialog_ok">好的</string>
     <string name="dialog_confirm">确定</string>
@@ -49,7 +49,7 @@
     <string name="artist_play_button">艺术家播放按钮</string>
     <string name="play">播放</string>
     <string name="recent_added">最近添加</string>
-    
+
     <!-- 多选相关字符串 -->
     <string name="select_none">请选择要操作的项目</string>
     <string name="select_songs">请选择要播放的歌曲</string>
@@ -72,7 +72,7 @@
     <string name="delete_failed">删除失败</string>
     <string name="delete_cancelled">删除已取消</string>
     <string name="delete_some_failed">删除某些文件失败：权限不足</string>
-    
+
     <!-- 播放器相关字符串 -->
     <string name="album_art">专辑封面</string>
     <string name="play_pause">播放/暂停</string>
@@ -80,20 +80,20 @@
     <string name="previous">上一首</string>
     <string name="shuffle">随机播放</string>
     <string name="repeat">重复播放</string>
-    
+
     <!-- 音质信息相关 -->
     <string name="song_not_found">歌曲不存在</string>
     <string name="song_corrupted">歌曲已损坏</string>
     <string name="unknown_format">未知格式</string>
     <string name="unknown_bitrate">未知码率</string>
     <string name="unknown_sample_rate">未知采样率</string>
-    
+
     <!-- 歌词相关 -->
     <string name="no_lyrics">暂无歌词</string>
     <string name="lyrics_loading">歌词加载中...</string>
     <string name="lyrics">歌词</string>
     <string name="lyrics_not_found">未找到歌词</string>
-    
+
     <!-- 专辑详情页面相关字符串 -->
     <string name="album_name">专辑名称</string>
     <string name="play_all">全部播放</string>
@@ -103,18 +103,18 @@
     <string name="other_albums_from_artist">来自该艺术家的其他专辑</string>
     <string name="other_albums_from_artist_format">来自 %s 的其他专辑</string>
     <string name="unknown_artist">Unknown Artist</string>
-    
+
     <!-- 专辑详情功能提示 -->
     <string name="tag_editor_coming_soon">标签编辑器功能开发中...</string>
     <string name="added_to_play_queue">已添加到播放队列</string>
     <string name="add_to_playlist_coming_soon">添加到播放列表功能开发中...</string>
     <string name="load_album_detail_failed">加载专辑详情失败</string>
-    
+
     <!-- 菜单项 -->
     <string name="edit_tags">编辑标签</string>
     <string name="play_next">下一首播放</string>
     <string name="add_to_playlist">添加到播放列表</string>
-    
+
     <!-- 标签编辑器 -->
     <string name="tag_editor">标签编辑器</string>
     <string name="save">保存</string>
@@ -134,4 +134,6 @@
     <string name="added_to_queue_next">已添加到播放队列下一首</string>
     <string name="create_playlist">创建播放列表</string>
     <string name="no_songs_to_add">没有歌曲可以添加</string>
+    <string name="songs_lastest">已经是最后一首歌啦</string>
+    <string name="slogan">享受音乐的乐趣</string>
 </resources>

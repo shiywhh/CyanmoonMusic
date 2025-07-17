@@ -2,10 +2,12 @@ package com.magicalstory.music.model;
 
 import org.litepal.crud.LitePalSupport;
 
+import java.io.Serializable;
+
 /**
  * 歌曲数据模型
  */
-public class Song extends LitePalSupport {
+public class Song extends LitePalSupport implements Serializable {
     private long id;
     private String title;           // 歌曲标题
     private String artist;          // 艺术家

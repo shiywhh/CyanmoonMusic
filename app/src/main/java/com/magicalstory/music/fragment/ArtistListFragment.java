@@ -2,10 +2,7 @@ package com.magicalstory.music.fragment;
 
 import static java.lang.Thread.sleep;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
@@ -18,6 +15,7 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
 import androidx.recyclerview.widget.GridLayoutManager;
 
@@ -30,7 +28,7 @@ import com.magicalstory.music.dialog.dialogUtils;
 import com.magicalstory.music.adapter.ArtistGridAdapter;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -44,6 +42,7 @@ import java.util.List;
  * 艺术家Fragment - 显示最近听过的艺术家
  * 支持长按进入多选模式
  */
+@UnstableApi
 public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
 
     // 请求代码常量
@@ -52,11 +51,20 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     private ArtistGridAdapter artistAdapter;
     private List<Artist> artistList;
     private Handler mainHandler;
-    private BroadcastReceiver musicServiceReceiver;
 
     // 多选相关
     private boolean isMultiSelectMode = false;
     private String originalTitle = "最近听过的艺术家";
+
+    private MediaControllerHelper controllerHelper;
+    private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void songChange(Song newSong) {
+            
+            // 更新当前播放歌曲的状态
+            updateCurrentPlayingSong();
+        }
+    };
 
     @Override
     protected FragmentArtistBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -93,9 +101,6 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         // 初始化RecyclerView
         initRecyclerView();
 
-        // 注册MusicService广播接收器
-        registerMusicServiceReceiver();
-
         // 设置menu选项
         setHasOptionsMenu(true);
 
@@ -104,13 +109,16 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
 
         // 加载数据
         loadArtists();
+
+        initControllerHelper();
     }
 
-    @Override
-    protected void initView() {
-        super.initView();
-        // 每次视图创建时需要执行的初始化代码
+
+    private void initControllerHelper() {
+        controllerHelper = MediaControllerHelper.getInstance();
+        controllerHelper.addPlaybackStateListener(playbackStateListener);
     }
+
 
     @Override
     protected void initListenerForPersistentView() {
@@ -164,7 +172,7 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
             MenuItem selectAll = menu.findItem(R.id.menu_select_all);
             MenuItem removeFromPlaylist = menu.findItem(R.id.menu_remove_from_playlist);
             MenuItem deleteFromDevice = menu.findItem(R.id.menu_delete_from_device);
-            
+
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
             if (selectAll != null) selectAll.setVisible(visible);
@@ -198,9 +206,8 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // 取消注册广播接收器
-        if (musicServiceReceiver != null) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(musicServiceReceiver);
+        if (controllerHelper != null) {
+            controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
     }
 
@@ -250,30 +257,6 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         });
     }
 
-    /**
-     * 注册MusicService广播接收器
-     */
-    private void registerMusicServiceReceiver() {
-        musicServiceReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (MusicService.ACTION_SONG_CHANGED.equals(action)) {
-                    // 歌曲发生变化时更新适配器
-                    updateCurrentPlayingSong();
-                } else if (MusicService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
-                    // 播放状态变化时也更新当前播放歌曲状态
-                    updateCurrentPlayingSong();
-                }
-            }
-        };
-
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(musicServiceReceiver, filter);
-    }
 
     /**
      * 初始化RecyclerView
@@ -648,7 +631,6 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                 sleep(200);
 
 
-
                 // 切换到主线程更新UI
                 mainHandler.post(() -> {
                     // 隐藏进度圈
@@ -725,7 +707,7 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         new Thread(() -> {
             try {
                 List<Song> allSongs = new ArrayList<>();
-                
+
                 // 遍历所有艺术家，获取每个艺术家的歌曲
                 for (Artist artist : artistList) {
                     List<Song> artistSongs = LitePal.where("artist = ?", artist.getArtistName())
@@ -735,20 +717,18 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                         allSongs.addAll(artistSongs);
                     }
                 }
-                
+
                 // 在主线程更新UI并播放
                 mainHandler.post(() -> {
                     if (!allSongs.isEmpty()) {
                         if (getActivity() instanceof MainActivity mainActivity) {
-                            mainActivity.setPlaylist(allSongs);
-                            mainActivity.playSong(allSongs.get(0));
-                            showSnackbar("开始播放所有艺术家歌曲，共 " + allSongs.size() + " 首");
+                            mainActivity.playFromPlaylist(allSongs, 0);
                         }
                     } else {
                         showSnackbar("没有找到可播放的歌曲");
                     }
                 });
-                
+
             } catch (Exception e) {
                 e.printStackTrace();
                 mainHandler.post(() -> {

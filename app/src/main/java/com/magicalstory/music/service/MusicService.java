@@ -2,20 +2,15 @@ package com.magicalstory.music.service;
 
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.content.IntentFilter;
 
-import android.net.Uri;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.MediaItem;
-import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -31,10 +26,10 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.utils.PlaybackStateManager;
-import com.magicalstory.music.utils.PlaylistManager;
+import com.magicalstory.music.player.PlaybackStateManager;
+import com.magicalstory.music.player.PlaylistManager;
+import com.tencent.mmkv.MMKV;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -161,7 +156,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
         playbackStateManager = new PlaybackStateManager(this);
         Log.d(TAG, "PlaybackStateManager初始化完成");
         
-        playlistManager = new PlaylistManager(this);
+        playlistManager = PlaylistManager.getInstance();
         Log.d(TAG, "PlaylistManager初始化完成");
         
         Log.d(TAG, "管理器初始化完成");
@@ -478,6 +473,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
                 break;
             case Player.STATE_READY:
                 Log.d(TAG, "播放器状态: 准备就绪");
+                player.play();
                 break;
             case Player.STATE_ENDED:
                 Log.d(TAG, "播放器状态: 播放结束");
@@ -545,7 +541,9 @@ public class MusicService extends MediaSessionService implements Player.Listener
             Player.PositionInfo newPosition, int reason) {
         Log.d(TAG, "播放位置不连续: " + reason);
         Log.d(TAG, "旧位置: " + oldPosition.positionMs + ", 新位置: " + newPosition.positionMs);
-        
+
+        MMKV.defaultMMKV().encode("playPosition", newPosition.positionMs);
+
         // 通知进度变化
         playbackStateManager.notifyPositionChanged(newPosition.positionMs);
     }
