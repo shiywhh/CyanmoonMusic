@@ -233,7 +233,6 @@
                     android:clipChildren="false"
                     android:nestedScrollingEnabled="false"
                     android:overScrollMode="never"
-                    android:paddingHorizontal="@dimen/margin_4"
                     android:scrollbars="none"
                     tools:listitem="@layout/item_song_vertical" />
 

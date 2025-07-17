@@ -2,6 +2,7 @@ package com.magicalstory.music.adapter;
 
 import android.content.Context;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,7 +28,9 @@ import java.util.List;
  * 专辑横向滑动列表适配器
  */
 public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontalAdapter.ViewHolder> {
-
+    
+    private static final String TAG = "AlbumHorizontalAdapter";
+    
     private Context context;
     private List<Album> albumList;
     private OnItemClickListener onItemClickListener;
@@ -93,9 +96,8 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
                 .find(Song.class);
 
         if (albumSongs != null && !albumSongs.isEmpty()) {
-            System.out.println("播放专辑: " + album.getAlbumName() + ", 歌曲数量: " + albumSongs.size());
-            mainActivity.setPlaylist(albumSongs);
-            mainActivity.playSong(albumSongs.get(0)); // 播放第一首歌曲
+            Log.d(TAG, "播放专辑: " + album.getAlbumName() + ", 歌曲数量: " + albumSongs.size());
+            mainActivity.playFromPlaylist(albumSongs, 0); // 播放专辑的第一首歌曲
         }
     }
 

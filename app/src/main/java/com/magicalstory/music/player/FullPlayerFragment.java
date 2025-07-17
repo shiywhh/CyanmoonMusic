@@ -1,9 +1,7 @@
 package com.magicalstory.music.player;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -12,9 +10,14 @@ import android.graphics.PorterDuff;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -23,12 +26,18 @@ import android.media.MediaMetadataRetriever;
 import android.provider.MediaStore;
 
 import java.io.File;
-
+import java.util.ArrayList;
+import java.util.List;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.MediaController;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
@@ -39,18 +48,22 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentFullPlayerBinding;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.model.LyricLine;
+import com.magicalstory.music.myView.LyricsView;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.utils.favorite.FavoriteManager;
 import com.magicalstory.music.utils.glide.BlurUtils;
 import com.magicalstory.music.utils.glide.ColorExtractor;
 import com.magicalstory.music.utils.glide.GlideUtils;
+import com.magicalstory.music.utils.lyrics.LyricsParser;
 import com.magicalstory.music.utils.text.TimeUtils;
+import com.magicalstory.music.utils.MediaControllerHelper;
 
 /**
- * 全屏播放器Fragment
+ * 全屏播放器Fragment - 使用MediaController
  */
-public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> {
+@UnstableApi
+public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> implements Player.Listener {
 
     private static final String TAG = "FullPlayerFragment";
 
@@ -60,14 +73,23 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private static final int BACKGROUND_TYPE_GRADIENT = 2;
     private static final int BACKGROUND_TYPE_BLUR = 3;
 
+    // MediaController相关
+    private MediaController mediaController;
+    private MediaControllerHelper controllerHelper;
+
     private boolean isUserSeeking = false;
     private FavoriteManager favoriteManager;
 
     // 播放模式
-    private int currentPlayMode = MusicService.PLAY_MODE_SEQUENCE;
+    private int currentPlayMode = Player.REPEAT_MODE_OFF;
 
     // 背景类型
     private int currentBackgroundType = BACKGROUND_TYPE_GRADIENT;
+
+    // 歌词相关
+    private boolean isLyricsVisible = false;
+    private List<LyricLine> currentLyrics = new ArrayList<>();
+    private long currentSongId = -1; // 记录当前歌曲ID，用于判断是否需要重新加载歌词
 
     // 当前专辑封面和提取的颜色
     private Bitmap currentAlbumBitmap;
@@ -81,36 +103,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private int whiteColor = Color.WHITE;
     private int grayColor = Color.parseColor("#E0E0E0");
 
-    private BroadcastReceiver musicReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action == null) return;
-
-            switch (action) {
-                case MusicService.ACTION_PLAY_STATE_CHANGED:
-                    int playState = intent.getIntExtra("play_state", MusicService.STATE_IDLE);
-                    updatePlayButton(playState);
-                    break;
-                case MusicService.ACTION_SONG_CHANGED:
-                    updateSongInfo();
-                    break;
-                case MusicService.ACTION_PROGRESS_UPDATED:
-                    if (!isUserSeeking) {
-                        int currentPosition = intent.getIntExtra("current_position", 0);
-                        int duration = intent.getIntExtra("duration", 0);
-                        updateProgress(currentPosition, duration);
-                    }
-                    break;
-                case MusicService.ACTION_PLAY_MODE_CHANGED:
-                    int playMode = intent.getIntExtra("play_mode", MusicService.PLAY_MODE_SEQUENCE);
-                    updatePlayModeButton(playMode);
-                    break;
-            }
-        }
-    };
-
-
+    // 进度更新相关
+    private Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable progressUpdateRunnable;
 
     @Override
     protected FragmentFullPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -124,6 +119,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
         // 初始化颜色资源
         initColors();
+
+        // 初始化歌词View
+        initLyricsView();
 
         // 设置点击事件
         setupClickListeners();
@@ -141,116 +139,687 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         defaultFavoriteColor = getResources().getColor(R.color.favorite_color);
     }
 
+    private void initLyricsView() {
+        // 设置歌词点击监听器
+        binding.lyricsView.setOnLyricClickListener((position, lyricLine) -> {
+            if (mediaController != null) {
+                // 跳转到歌词对应的播放位置
+                mediaController.seekTo(lyricLine.getStartTime());
+
+                // 如果当前是暂停状态，点击歌词后开始播放
+                if (!mediaController.isPlaying()) {
+                    mediaController.play();
+                }
+            }
+        });
+    }
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        
+        // 停止进度更新
+        if (progressUpdateRunnable != null) {
+            progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        }
+
+        // 移除Player监听器
+        if (mediaController != null) {
+            mediaController.removeListener(this);
+        }
     }
 
+    // ===========================================
+    // MediaController 设置
+    // ===========================================
 
+    /**
+     * 设置MediaController
+     */
+    public void setMediaController(@Nullable MediaController mediaController) {
+        Log.d(TAG, "设置MediaController: " + (mediaController != null ? "不为null" : "为null"));
+        
+        // 移除之前的监听器
+        if (this.mediaController != null) {
+            Log.d(TAG, "移除旧的MediaController监听器");
+            this.mediaController.removeListener(this);
+        }
+
+        this.mediaController = mediaController;
+
+        if (mediaController != null) {
+            Log.d(TAG, "MediaController可用，开始初始化");
+            
+            // 添加监听器
+            mediaController.addListener(this);
+            Log.d(TAG, "已添加播放器监听器");
+            
+            // 创建辅助类
+            controllerHelper = new MediaControllerHelper(mediaController, getContext());
+            Log.d(TAG, "已创建MediaControllerHelper");
+            
+            // 记录当前状态
+            Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
+            Log.d(TAG, "当前播放: " + mediaController.isPlaying());
+            Log.d(TAG, "当前媒体项: " + (mediaController.getCurrentMediaItem() != null ? 
+                mediaController.getCurrentMediaItem().mediaId : "null"));
+            Log.d(TAG, "播放列表大小: " + mediaController.getMediaItemCount());
+            Log.d(TAG, "当前重复模式: " + mediaController.getRepeatMode());
+            Log.d(TAG, "当前随机播放: " + mediaController.getShuffleModeEnabled());
+            
+            // 更新UI状态
+            updatePlaybackState();
+            updateCurrentSong();
+            updatePlayModeButton(mediaController.getRepeatMode());
+            
+            Log.d(TAG, "MediaController设置完成");
+        } else {
+            Log.d(TAG, "MediaController为null，重置状态");
+            controllerHelper = null;
+            updateDefaultState();
+        }
+    }
+
+    // ===========================================
+    // Player.Listener 实现
+    // ===========================================
+
+    @Override
+    public void onPlaybackStateChanged(int playbackState) {
+        Log.d(TAG, "播放状态变化: " + playbackState);
+        switch (playbackState) {
+            case Player.STATE_IDLE:
+                Log.d(TAG, "播放器状态: 空闲");
+                break;
+            case Player.STATE_BUFFERING:
+                Log.d(TAG, "播放器状态: 缓冲中");
+                break;
+            case Player.STATE_READY:
+                Log.d(TAG, "播放器状态: 准备就绪");
+                break;
+            case Player.STATE_ENDED:
+                Log.d(TAG, "播放器状态: 播放结束");
+                break;
+            default:
+                Log.d(TAG, "播放器状态: 未知状态 " + playbackState);
+                break;
+        }
+        
+        updatePlayButton(playbackState);
+        
+        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+            Log.d(TAG, "状态为准备就绪或缓冲中，开始进度更新");
+            startProgressUpdates();
+        } else {
+            Log.d(TAG, "状态不为准备就绪或缓冲中，停止进度更新");
+            stopProgressUpdates();
+        }
+    }
+
+    @Override
+    public void onIsPlayingChanged(boolean isPlaying) {
+        Log.d(TAG, "播放状态变化: " + (isPlaying ? "正在播放" : "暂停"));
+        updatePlayButton(isPlaying);
+        
+        if (isPlaying) {
+            Log.d(TAG, "开始播放，启动进度更新");
+            startProgressUpdates();
+        } else {
+            Log.d(TAG, "暂停播放，停止进度更新");
+            stopProgressUpdates();
+        }
+    }
+
+    @Override
+    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        String mediaId = mediaItem != null ? mediaItem.mediaId : "null";
+        Log.d(TAG, "媒体项切换: " + mediaId + ", 原因: " + reason);
+        
+        switch (reason) {
+            case Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT:
+                Log.d(TAG, "切换原因: 重复播放");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_AUTO:
+                Log.d(TAG, "切换原因: 自动播放下一首");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_SEEK:
+                Log.d(TAG, "切换原因: 跳转到指定位置");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED:
+                Log.d(TAG, "切换原因: 播放列表变化");
+                break;
+            default:
+                Log.d(TAG, "切换原因: 未知原因 " + reason);
+                break;
+        }
+        
+        updateCurrentSong();
+    }
+
+    @Override
+    public void onPlayerError(PlaybackException error) {
+        Log.e(TAG, "播放器错误: " + error.getMessage(), error);
+        Log.e(TAG, "错误代码: " + error.errorCode);
+        Log.e(TAG, "错误时间戳: " + error.timestampMs);
+        
+        if (error.getCause() != null) {
+            Log.e(TAG, "错误原因: " + error.getCause().getMessage());
+        }
+        
+        updateDefaultState();
+        
+        // 显示错误提示
+        String errorMessage = "播放失败: " + error.getMessage();
+        ToastUtils.showToast(context, errorMessage);
+    }
+
+    @Override
+    public void onRepeatModeChanged(int repeatMode) {
+        Log.d(TAG, "重复模式变化: " + repeatMode);
+        switch (repeatMode) {
+            case Player.REPEAT_MODE_OFF:
+                Log.d(TAG, "重复模式: 关闭");
+                break;
+            case Player.REPEAT_MODE_ONE:
+                Log.d(TAG, "重复模式: 单曲循环");
+                break;
+            case Player.REPEAT_MODE_ALL:
+                Log.d(TAG, "重复模式: 列表循环");
+                break;
+            default:
+                Log.d(TAG, "重复模式: 未知模式 " + repeatMode);
+                break;
+        }
+        currentPlayMode = repeatMode;
+        updatePlayModeButton(repeatMode);
+    }
+
+    @Override
+    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+        Log.d(TAG, "随机播放模式变化: " + (shuffleModeEnabled ? "开启" : "关闭"));
+        updateShuffleButton(shuffleModeEnabled);
+    }
+
+    // ===========================================
+    // UI 更新方法
+    // ===========================================
+
+    /**
+     * 更新播放状态
+     */
+    private void updatePlaybackState() {
+        if (mediaController == null) {
+            Log.w(TAG, "MediaController为null，无法更新播放状态");
+            return;
+        }
+        
+        Log.d(TAG, "更新播放状态");
+        Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
+        Log.d(TAG, "当前播放: " + mediaController.isPlaying());
+        
+        updatePlayButton(mediaController.isPlaying());
+        
+        if (mediaController.isPlaying()) {
+            Log.d(TAG, "正在播放，启动进度更新");
+            startProgressUpdates();
+        } else {
+            Log.d(TAG, "未在播放，停止进度更新");
+            stopProgressUpdates();
+        }
+    }
+
+    /**
+     * 更新当前歌曲信息
+     */
+    private void updateCurrentSong() {
+        if (controllerHelper == null) {
+            Log.w(TAG, "MediaControllerHelper为null，无法更新当前歌曲");
+            return;
+        }
+
+        Song currentSong = controllerHelper.getCurrentSong();
+        if (currentSong != null) {
+            Log.d(TAG, "更新当前歌曲: " + currentSong.getTitle());
+            Log.d(TAG, "歌曲艺术家: " + currentSong.getArtist());
+            Log.d(TAG, "歌曲专辑: " + currentSong.getAlbum());
+            Log.d(TAG, "歌曲路径: " + currentSong.getPath());
+            Log.d(TAG, "歌曲时长: " + currentSong.getDuration());
+            
+            // 更新歌曲信息
+            updateSongInfo(currentSong);
+            
+            // 更新收藏按钮
+            updateFavoriteButton();
+            
+            // 加载歌词
+            loadLyrics(currentSong);
+        } else {
+            Log.w(TAG, "当前歌曲为null，使用默认状态");
+            updateDefaultState();
+        }
+    }
+
+    /**
+     * 更新歌曲信息
+     */
+    private void updateSongInfo(Song song) {
+        if (song == null) return;
+        
+        // 更新歌曲标题和艺术家
+        binding.fullSongName.setText(song.getTitle());
+        binding.fullSongArtist.setText(song.getArtist());
+        
+        // 更新专辑封面
+        updateAlbumCover(song);
+        
+        // 更新时长
+        binding.txtTotalTime.setText(TimeUtils.formatDuration(song.getDuration()));
+        
+        currentSongId = song.getId();
+    }
+
+    /**
+     * 更新播放按钮
+     */
+    private void updatePlayButton(int playbackState) {
+        switch (playbackState) {
+            case Player.STATE_READY:
+                if (mediaController != null && mediaController.isPlaying()) {
+                    binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
+                } else {
+                    binding.btnPlayPause.setImageResource(R.drawable.ic_play);
+                }
+                break;
+            case Player.STATE_BUFFERING:
+                binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
+                break;
+            case Player.STATE_IDLE:
+            case Player.STATE_ENDED:
+            default:
+                binding.btnPlayPause.setImageResource(R.drawable.ic_play);
+                break;
+        }
+    }
+
+    /**
+     * 更新播放按钮（基于播放状态）
+     */
+    private void updatePlayButton(boolean isPlaying) {
+        if (isPlaying) {
+            binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
+        } else {
+            binding.btnPlayPause.setImageResource(R.drawable.ic_play);
+        }
+    }
+
+    /**
+     * 更新播放模式按钮
+     */
+    private void updatePlayModeButton(int repeatMode) {
+        currentPlayMode = repeatMode;
+        
+        switch (repeatMode) {
+            case Player.REPEAT_MODE_OFF:
+                binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
+                binding.btnRepeat.setColorFilter(defaultTextSecondaryColor);
+                break;
+            case Player.REPEAT_MODE_ONE:
+                binding.btnRepeat.setImageResource(R.drawable.ic_repeat_one);
+                binding.btnRepeat.setColorFilter(dominantColor);
+                break;
+            case Player.REPEAT_MODE_ALL:
+                binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
+                binding.btnRepeat.setColorFilter(dominantColor);
+                break;
+        }
+    }
+
+    /**
+     * 更新随机播放按钮
+     */
+    private void updateShuffleButton(boolean shuffleModeEnabled) {
+        if (shuffleModeEnabled) {
+            binding.btnShuffle.setColorFilter(dominantColor);
+        } else {
+            binding.btnShuffle.setColorFilter(defaultTextSecondaryColor);
+        }
+    }
+
+    /**
+     * 更新收藏按钮
+     */
+    private void updateFavoriteButton() {
+        if (controllerHelper == null) return;
+
+        Song currentSong = controllerHelper.getCurrentSong();
+        if (currentSong != null) {
+            boolean isFavorite = favoriteManager.isFavorite(currentSong.getId());
+            if (isFavorite) {
+                binding.btnFavorite.setImageResource(R.drawable.ic_favorite_on);
+                binding.btnFavorite.setColorFilter(defaultFavoriteColor);
+            } else {
+                binding.btnFavorite.setImageResource(R.drawable.ic_favorite_off);
+                binding.btnFavorite.setColorFilter(defaultTextSecondaryColor);
+            }
+        }
+    }
+
+    /**
+     * 更新默认状态
+     */
+    private void updateDefaultState() {
+        Log.d(TAG, "更新为默认状态");
+        binding.fullSongName.setText("暂无歌曲");
+        binding.fullSongArtist.setText("未知艺术家");
+        binding.txtCurrentTime.setText("00:00");
+        binding.txtTotalTime.setText("00:00");
+        binding.seekBarProgress.setProgress(0);
+        binding.btnPlayPause.setImageResource(R.drawable.ic_play);
+        
+        // 重置背景
+        resetBackground();
+        
+        // 停止进度更新
+        stopProgressUpdates();
+        
+        // 清空歌词
+        currentLyrics.clear();
+        if (isLyricsVisible) {
+            binding.lyricsView.updateLyrics(currentLyrics);
+        }
+        
+        currentSongId = -1;
+        Log.d(TAG, "默认状态设置完成");
+    }
+
+    // ===========================================
+    // 进度更新
+    // ===========================================
+
+    /**
+     * 开始进度更新
+     */
+    private void startProgressUpdates() {
+        if (progressUpdateRunnable == null) {
+            progressUpdateRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    updateProgressFromPlayer();
+                    progressUpdateHandler.postDelayed(this, 1000); // 每秒更新一次
+                }
+            };
+        }
+        
+        progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        progressUpdateHandler.post(progressUpdateRunnable);
+    }
+
+    /**
+     * 停止进度更新
+     */
+    private void stopProgressUpdates() {
+        if (progressUpdateRunnable != null) {
+            progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        }
+    }
+
+    /**
+     * 从播放器更新进度
+     */
+    private void updateProgressFromPlayer() {
+        if (mediaController == null || isUserSeeking) return;
+
+        try {
+            long currentPosition = mediaController.getCurrentPosition();
+            long duration = mediaController.getDuration();
+            
+            if (duration > 0) {
+                updateProgress((int) currentPosition, (int) duration);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating progress from player", e);
+        }
+    }
+
+    /**
+     * 更新进度
+     */
+    private void updateProgress(int currentPosition, int duration) {
+        if (isUserSeeking) return;
+
+        // 更新进度条
+        if (duration > 0) {
+            int progress = (int) ((currentPosition * 100L) / duration);
+            binding.seekBarProgress.setProgress(progress);
+        }
+
+        // 更新时间显示
+        binding.txtCurrentTime.setText(TimeUtils.formatDuration(currentPosition));
+        
+        // 更新歌词高亮
+        if (isLyricsVisible && !currentLyrics.isEmpty()) {
+            binding.lyricsView.updateCurrentTime((long) currentPosition);
+        }
+    }
+
+    /**
+     * 更新专辑封面
+     */
+    private void updateAlbumCover(Song song) {
+        if (song == null) return;
+        
+        // 加载专辑封面
+        GlideUtils.loadAlbumCover(context, song.getAlbumId(), binding.fullSheetCover);
+        
+        // 使用Glide加载专辑封面并提取颜色
+        Glide.with(context)
+                .asBitmap()
+                .load(GlideUtils.getAlbumCoverUri(song.getAlbumId()))
+                .into(new CustomTarget<Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                        currentAlbumBitmap = resource;
+                        
+                        // 提取颜色
+                        dominantColor = ColorExtractor.extractDominantColor(resource);
+                        darkColor = ColorExtractor.extractDarkColor(resource);
+                        
+                        // 更新背景罩层
+                        updateBackgroundOverlay();
+                        
+                        // 更新按钮颜色
+                        updateButtonColors();
+                    }
+                    
+                    @Override
+                    public void onLoadCleared(@Nullable android.graphics.drawable.Drawable placeholder) {
+                        // 清理资源
+                    }
+                });
+    }
+    
+    /**
+     * 重置背景
+     */
+    private void resetBackground() {
+        currentBackgroundType = BACKGROUND_TYPE_GRADIENT;
+        dominantColor = Color.parseColor("#3353BE");
+        darkColor = Color.parseColor("#1A237E");
+        updateBackgroundOverlay();
+    }
+    
+
+
+    // ===========================================
+    // 点击事件设置
+    // ===========================================
+
+    /**
+     * 设置点击事件
+     */
     private void setupClickListeners() {
         // 播放/暂停按钮
         binding.btnPlayPause.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                mainActivity.playOrPause();
+            Log.d(TAG, "播放/暂停按钮被点击");
+            if (mediaController != null) {
+                Log.d(TAG, "MediaController不为null，当前播放状态: " + mediaController.isPlaying());
+                Log.d(TAG, "当前播放状态: " + mediaController.getPlaybackState());
+                
+                if (mediaController.isPlaying()) {
+                    Log.d(TAG, "正在播放，执行暂停操作");
+                    mediaController.pause();
+                } else {
+                    Log.d(TAG, "未在播放，执行播放操作");
+                    Log.d(TAG, "当前媒体项: " + (mediaController.getCurrentMediaItem() != null ? 
+                        mediaController.getCurrentMediaItem().mediaId : "null"));
+                    Log.d(TAG, "播放列表大小: " + mediaController.getMediaItemCount());
+                    
+                    // 检查是否有媒体项
+                    if (mediaController.getMediaItemCount() == 0) {
+                        Log.w(TAG, "播放列表为空，无法播放");
+                        ToastUtils.showToast(context, "播放列表为空");
+                        return;
+                    }
+                    
+                    // 检查当前媒体项
+                    if (mediaController.getCurrentMediaItem() == null) {
+                        Log.w(TAG, "当前媒体项为null，尝试播放第一个媒体项");
+                        if (mediaController.getMediaItemCount() > 0) {
+                            mediaController.seekTo(0, 0);
+                        }
+                    }
+                    
+                    mediaController.play();
+                    Log.d(TAG, "播放命令已发送");
+                }
+            } else {
+                Log.e(TAG, "MediaController为null，无法执行播放操作");
+                ToastUtils.showToast(context, "播放器未准备好");
             }
         });
 
         // 上一首按钮
         binding.btnPrevious.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                mainActivity.previous();
+            Log.d(TAG, "上一首按钮被点击");
+            if (mediaController != null) {
+                Log.d(TAG, "执行上一首操作");
+                mediaController.seekToPrevious();
+            } else {
+                Log.e(TAG, "MediaController为null，无法执行上一首操作");
             }
         });
 
         // 下一首按钮
         binding.btnNext.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                mainActivity.next();
+            Log.d(TAG, "下一首按钮被点击");
+            if (mediaController != null) {
+                Log.d(TAG, "执行下一首操作");
+                mediaController.seekToNext();
+            } else {
+                Log.e(TAG, "MediaController为null，无法执行下一首操作");
             }
         });
 
         // 随机播放按钮
         binding.btnShuffle.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                // 切换随机播放模式
-                if (currentPlayMode == MusicService.PLAY_MODE_RANDOM) {
-                    // 如果当前是随机播放，切换回顺序播放
-                    mainActivity.setPlayMode(MusicService.PLAY_MODE_SEQUENCE);
-                } else {
-                    // 否则切换到随机播放
-                    mainActivity.setPlayMode(MusicService.PLAY_MODE_RANDOM);
-                }
+            Log.d(TAG, "随机播放按钮被点击");
+            if (mediaController != null) {
+                boolean currentShuffle = mediaController.getShuffleModeEnabled();
+                Log.d(TAG, "当前随机播放状态: " + currentShuffle + "，切换为: " + !currentShuffle);
+                mediaController.setShuffleModeEnabled(!currentShuffle);
+            } else {
+                Log.e(TAG, "MediaController为null，无法切换随机播放");
             }
         });
 
         // 循环播放按钮
         binding.btnRepeat.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                // 循环播放模式：顺序播放 -> 单曲循环 -> 列表循环 -> 顺序播放
-                switch (currentPlayMode) {
-                    case MusicService.PLAY_MODE_SEQUENCE:
-                        currentPlayMode = MusicService.PLAY_MODE_SINGLE;
+            Log.d(TAG, "循环播放按钮被点击");
+            if (mediaController != null) {
+                int currentRepeatMode = mediaController.getRepeatMode();
+                Log.d(TAG, "当前循环播放模式: " + currentRepeatMode);
+                switch (currentRepeatMode) {
+                    case Player.REPEAT_MODE_OFF:
+                        Log.d(TAG, "切换到单曲循环");
+                        mediaController.setRepeatMode(Player.REPEAT_MODE_ONE);
                         break;
-                    case MusicService.PLAY_MODE_SINGLE:
-                        currentPlayMode = MusicService.PLAY_MODE_LOOP;
+                    case Player.REPEAT_MODE_ONE:
+                        Log.d(TAG, "切换到列表循环");
+                        mediaController.setRepeatMode(Player.REPEAT_MODE_ALL);
                         break;
-                    case MusicService.PLAY_MODE_LOOP:
-                        currentPlayMode = MusicService.PLAY_MODE_SEQUENCE;
+                    case Player.REPEAT_MODE_ALL:
+                        Log.d(TAG, "切换到关闭循环");
+                        mediaController.setRepeatMode(Player.REPEAT_MODE_OFF);
                         break;
                 }
-                mainActivity.setPlayMode(currentPlayMode);
+            } else {
+                Log.e(TAG, "MediaController为null，无法切换循环播放");
             }
         });
 
         // 收藏按钮
         binding.btnFavorite.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                Song currentSong = mainActivity.getCurrentSong();
-                if (currentSong != null) {
-                    boolean success = favoriteManager.toggleFavorite(currentSong.getId());
-                    if (success) {
-                        updateFavoriteButton();
-                    } else {
-                        ToastUtils.showToast(context, "操作失败");
-                    }
+            Log.d(TAG, "收藏按钮被点击");
+            if (controllerHelper == null) {
+                Log.e(TAG, "MediaControllerHelper为null，无法操作收藏");
+                return;
+            }
+
+            Song currentSong = controllerHelper.getCurrentSong();
+            if (currentSong != null) {
+                Log.d(TAG, "当前歌曲: " + currentSong.getTitle());
+                boolean success = favoriteManager.toggleFavorite(currentSong.getId());
+                Log.d(TAG, "切换收藏状态结果: " + success);
+                if (success) {
+                    updateFavoriteButton();
+                } else {
+                    Log.e(TAG, "切换收藏状态失败");
+                    ToastUtils.showToast(context, "操作失败");
                 }
+            } else {
+                Log.w(TAG, "当前歌曲为null，无法操作收藏");
             }
         });
 
         // 歌词按钮
         binding.btnLyrics.setOnClickListener(v -> {
-            // 暂时只显示提示
-
+            Log.d(TAG, "歌词按钮被点击，当前歌词显示状态: " + isLyricsVisible);
+            toggleLyrics();
         });
 
         // 睡眠模式按钮
         binding.btnSleepMode.setOnClickListener(v -> {
+            Log.d(TAG, "睡眠模式按钮被点击");
             // 暂时只显示提示
-
+            ToastUtils.showToast(context, "睡眠模式功能开发中");
         });
 
         // 播放列表按钮
         binding.btnPlaylist.setOnClickListener(v -> {
+            Log.d(TAG, "播放列表按钮被点击");
             // 暂时只显示提示
-
+            ToastUtils.showToast(context, "播放列表功能开发中");
         });
 
         // 更多按钮
         binding.btnMore.setOnClickListener(v -> {
+            Log.d(TAG, "更多按钮被点击");
             // 暂时只显示提示
-
+            ToastUtils.showToast(context, "更多功能开发中");
         });
 
         // 专辑封面点击事件
         binding.albumCoverFrame.setOnClickListener(v -> {
-            // 切换背景类型
-            switchBackgroundType();
+            Log.d(TAG, "专辑封面被点击，当前歌词显示状态: " + isLyricsVisible);
+            if (isLyricsVisible) {
+                Log.d(TAG, "歌词已显示，切换背景类型");
+                // 如果歌词已显示，切换背景类型
+                switchBackgroundType();
+            } else {
+                Log.d(TAG, "歌词未显示，显示歌词");
+                // 如果歌词未显示，显示歌词
+                toggleLyrics();
+            }
         });
     }
 
@@ -263,11 +832,146 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     }
 
     /**
+     * 切换歌词显示/隐藏
+     */
+    private void toggleLyrics() {
+        isLyricsVisible = !isLyricsVisible;
+        updateLyricsVisibility();
+        updateLyricsButton();
+    }
+
+    /**
+     * 更新歌词显示状态
+     */
+    private void updateLyricsVisibility() {
+        if (isLyricsVisible) {
+            showLyrics();
+        } else {
+            hideLyrics();
+        }
+    }
+
+    /**
+     * 显示歌词
+     */
+    private void showLyrics() {
+        // 加载动画
+        Animation fadeInAnimation = AnimationUtils.loadAnimation(context, R.anim.fade_in);
+        Animation fadeOutAnimation = AnimationUtils.loadAnimation(context, R.anim.fade_out);
+        fadeInAnimation.setDuration(100);
+        fadeOutAnimation.setDuration(100);
+
+        // 设置动画监听器
+        fadeOutAnimation.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                // 淡出动画结束后，隐藏封面和信息，显示歌词
+                binding.albumCoverFrame.setVisibility(View.INVISIBLE);
+                binding.songInfoLayout.setVisibility(View.INVISIBLE);
+                binding.lyricsView.setVisibility(View.VISIBLE);
+                binding.lyricsView.startAnimation(fadeInAnimation);
+                
+                // 检查是否需要加载歌词
+                binding.lyricsView.post(() -> {
+                    if (controllerHelper != null) {
+                        Song currentSong = controllerHelper.getCurrentSong();
+                        if (currentSong != null && currentSong.getId() != currentSongId) {
+                            // 如果是新歌曲，需要重新加载歌词
+                            loadLyrics(currentSong);
+                        }
+                        // 如果是同一首歌，直接显示歌词，不需要重新加载
+                    }
+                });
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+
+        // 开始淡出动画
+        binding.albumCoverFrame.startAnimation(fadeOutAnimation);
+        binding.songInfoLayout.startAnimation(fadeOutAnimation);
+    }
+
+    /**
+     * 隐藏歌词
+     */
+    private void hideLyrics() {
+        // 加载动画
+        Animation fadeInAnimation = AnimationUtils.loadAnimation(context, R.anim.fade_in);
+        Animation fadeOutAnimation = AnimationUtils.loadAnimation(context, R.anim.fade_out);
+        fadeInAnimation.setDuration(100);
+        fadeOutAnimation.setDuration(100);
+        // 设置动画监听器
+        fadeOutAnimation.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                // 淡出动画结束后，隐藏歌词，显示封面和信息
+                binding.lyricsView.setVisibility(View.GONE);
+                binding.albumCoverFrame.setVisibility(View.VISIBLE);
+                binding.songInfoLayout.setVisibility(View.VISIBLE);
+                binding.albumCoverFrame.startAnimation(fadeInAnimation);
+                binding.songInfoLayout.startAnimation(fadeInAnimation);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+
+        // 开始淡出动画
+        binding.lyricsView.startAnimation(fadeOutAnimation);
+    }
+
+    /**
+     * 更新歌词按钮状态
+     */
+    private void updateLyricsButton() {
+        if (isLyricsVisible) {
+            binding.btnLyrics.setImageResource(R.drawable.ic_lyrics_on);
+        } else {
+            binding.btnLyrics.setImageResource(R.drawable.ic_lyrics_off);
+        }
+    }
+
+    /**
+     * 加载歌词
+     */
+    private void loadLyrics(Song song) {
+        if (controllerHelper == null) return;
+
+        // 从歌曲文件解析歌词
+        List<LyricLine> lyrics = LyricsParser.parseLyricsFromSong(context, song.getPath());
+
+        // 如果没有找到歌词，显示"暂无歌词"
+        if (lyrics.isEmpty()) {
+            lyrics.add(new LyricLine(0, getString(R.string.no_lyrics)));
+        }
+
+        currentLyrics.clear();
+        currentLyrics.addAll(lyrics);
+        binding.lyricsView.setLyrics(currentLyrics);
+
+        // 更新当前播放位置的歌词
+        long currentPosition = controllerHelper.getCurrentPosition();
+        binding.lyricsView.updateCurrentPosition(currentPosition);
+
+        // 打印调试信息
+        System.out.println("歌词加载完成，共 " + lyrics.size() + " 行");
+    }
+
+
+    /**
      * 更新背景罩层
      */
     private void updateBackgroundOverlay() {
         if (!(getActivity() instanceof MainActivity)) return;
-        
+
         MainActivity mainActivity = (MainActivity) getActivity();
         Song currentSong = mainActivity.getCurrentSong();
         if (currentSong == null) {
@@ -402,7 +1106,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.btnNext.setColorFilter(buttonNormalColor);
 
         // 更新随机播放按钮
-        if (currentPlayMode == MusicService.PLAY_MODE_RANDOM) {
+        if (mediaController != null && mediaController.getShuffleModeEnabled()) {
             binding.btnShuffle.setColorFilter(buttonActiveColor);
             binding.btnShuffle.setAlpha(1.0f); // 随机播放开启时设置正常透明度
         } else {
@@ -411,7 +1115,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         }
 
         // 更新循环播放按钮
-        if (currentPlayMode == MusicService.PLAY_MODE_SINGLE || currentPlayMode == MusicService.PLAY_MODE_LOOP) {
+        if (currentPlayMode == Player.REPEAT_MODE_ONE || currentPlayMode == Player.REPEAT_MODE_ALL) {
             binding.btnRepeat.setColorFilter(buttonActiveColor);
             binding.btnRepeat.setAlpha(1.0f); // 循环播放开启时设置正常透明度
         } else {
@@ -420,9 +1124,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         }
 
         // 更新收藏按钮
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            Song currentSong = mainActivity.getCurrentSong();
+        if (controllerHelper != null) {
+            Song currentSong = controllerHelper.getCurrentSong();
             if (currentSong != null && favoriteManager.isFavorite(currentSong.getId())) {
                 binding.btnFavorite.setColorFilter(isDefault ? defaultFavoriteColor : Color.parseColor("#FF6B9D"));
             } else {
@@ -516,12 +1219,11 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.seekBarProgress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && getActivity() instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) getActivity();
-                    int duration = mainActivity.getDuration();
+                if (fromUser && mediaController != null) {
+                    long duration = mediaController.getDuration();
                     if (duration > 0) {
-                        int position = (int) ((float) progress / 100 * duration);
-                        binding.txtCurrentTime.setText(TimeUtils.formatTime(position));
+                        long position = (long) ((float) progress / 100 * duration);
+                        mediaController.seekTo(position);
                     }
                 }
             }
@@ -534,14 +1236,6 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 isUserSeeking = false;
-                if (getActivity() instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) getActivity();
-                    int duration = mainActivity.getDuration();
-                    if (duration > 0) {
-                        int position = (int) ((float) seekBar.getProgress() / 100 * duration);
-                        mainActivity.seekTo(position);
-                    }
-                }
             }
         });
     }
@@ -549,339 +1243,29 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     @Override
     public void onStart() {
         super.onStart();
-        registerMusicReceiver();
+        // 注册MediaController监听器
+        if (mediaController != null) {
+            mediaController.addListener(this);
+        }
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        unregisterMusicReceiver();
-    }
-
-    private void registerMusicReceiver() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PROGRESS_UPDATED);
-        filter.addAction(MusicService.ACTION_PLAY_MODE_CHANGED);
-        LocalBroadcastManager.getInstance(context).registerReceiver(musicReceiver, filter);
-    }
-
-    private void unregisterMusicReceiver() {
-        LocalBroadcastManager.getInstance(context).unregisterReceiver(musicReceiver);
-    }
-
-    private void updateUI() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            updateSongInfo();
-            updatePlayButton(mainActivity.getPlayState());
-            updatePlayModeButton(mainActivity.getPlayMode());
-            updateProgress(mainActivity.getCurrentPosition(), mainActivity.getDuration());
-            updateFavoriteButton();
+        // 移除MediaController监听器
+        if (mediaController != null) {
+            mediaController.removeListener(this);
         }
-    }
-
-    private void updateSongInfo() {
-        if (!(getActivity() instanceof MainActivity)) return;
-        
-        MainActivity mainActivity = (MainActivity) getActivity();
-        Song currentSong = mainActivity.getCurrentSong();
-        if (currentSong != null) {
-            binding.fullSongName.setText(currentSong.getTitle());
-            binding.fullSongArtist.setText(currentSong.getArtist());
-
-            // 加载封面并提取颜色
-            loadAlbumCoverAndExtractColors(currentSong);
-
-            // 更新时长
-            binding.txtTotalTime.setText(TimeUtils.formatTime(currentSong.getDuration()));
-
-            // 更新收藏状态
-            updateFavoriteButton();
-
-            // 更新音质信息（这里可以从歌曲信息中获取）
-            updateQualityInfo(currentSong);
-        } else {
-            updateDefaultState();
-        }
-    }
-
-    /**
-     * 加载专辑封面并提取颜色
-     */
-    private void loadAlbumCoverAndExtractColors(Song song) {
-        // 加载专辑封面
-        GlideUtils.loadAlbumCover(context, song.getAlbumId(), binding.fullSheetCover);
-
-        // 使用Glide加载专辑封面并提取颜色
-        Glide.with(context)
-                .asBitmap()
-                .load(GlideUtils.getAlbumCoverUri(song.getAlbumId()))
-                .into(new CustomTarget<Bitmap>() {
-                    @Override
-                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                        currentAlbumBitmap = resource;
-
-                        // 提取颜色
-                        dominantColor = ColorExtractor.extractDominantColor(resource);
-                        darkColor = ColorExtractor.extractDarkColor(resource);
-
-                        // 更新背景罩层
-                        updateBackgroundOverlay();
-                    }
-
-                    @Override
-                    public void onLoadCleared(@Nullable android.graphics.drawable.Drawable placeholder) {
-                        // 清理资源
-                    }
-                });
-    }
-
-    private void updatePlayButton(int playState) {
-        switch (playState) {
-            case MusicService.STATE_PLAYING:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
-                break;
-            case MusicService.STATE_PAUSED:
-            case MusicService.STATE_STOPPED:
-            case MusicService.STATE_IDLE:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-                break;
-            case MusicService.STATE_PREPARING:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_pause);
-                // 可以显示加载动画
-                break;
-            case MusicService.STATE_ERROR:
-                binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-                break;
-        }
-    }
-
-    private void updatePlayModeButton(int playMode) {
-        currentPlayMode = playMode;
-        switch (playMode) {
-            case MusicService.PLAY_MODE_SEQUENCE:
-                binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
-                binding.btnRepeat.setAlpha(0.5f); // 未开启时设置较低透明度
-                break;
-            case MusicService.PLAY_MODE_SINGLE:
-                binding.btnRepeat.setImageResource(R.drawable.ic_repeat_one);
-                binding.btnRepeat.setAlpha(1.0f); // 开启时设置正常透明度
-                break;
-            case MusicService.PLAY_MODE_LOOP:
-                binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
-                binding.btnRepeat.setAlpha(1.0f); // 开启时设置正常透明度
-                break;
-            case MusicService.PLAY_MODE_RANDOM:
-                binding.btnRepeat.setImageResource(R.drawable.ic_repeat);
-                binding.btnRepeat.setAlpha(0.5f); // 随机播放时重复播放按钮设置较低透明度
-                break;
-        }
-        
-        // 更新随机播放按钮的透明度
-        if (playMode == MusicService.PLAY_MODE_RANDOM) {
-            binding.btnShuffle.setAlpha(1.0f); // 随机播放开启时设置正常透明度
-        } else {
-            binding.btnShuffle.setAlpha(0.5f); // 随机播放未开启时设置较低透明度
-        }
-        
-        // 更新按钮颜色
-        updateButtonColors();
-    }
-
-    private void updateFavoriteButton() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            Song currentSong = mainActivity.getCurrentSong();
-            if (currentSong != null) {
-                boolean isFavorite = favoriteManager.isFavorite(currentSong.getId());
-                if (isFavorite) {
-                    binding.btnFavorite.setImageResource(R.drawable.ic_favorite_on);
-                } else {
-                    binding.btnFavorite.setImageResource(R.drawable.ic_favorite_off);
-                }
-                // 更新按钮颜色
-                updateButtonColors();
-            }
-        }
-    }
-
-    private void updateProgress(int currentPosition, int duration) {
-        if (duration > 0) {
-            int progress = (int) ((float) currentPosition / duration * 100);
-            binding.seekBarProgress.setProgress(progress);
-        }
-
-        binding.txtCurrentTime.setText(TimeUtils.formatTime(currentPosition));
-        binding.txtTotalTime.setText(TimeUtils.formatTime(duration));
-    }
-
-    private void updateQualityInfo(Song song) {
-        if (song == null) {
-            binding.txtFormat.setText(getString(R.string.unknown_format));
-            binding.txtBitrate.setText(getString(R.string.unknown_bitrate));
-            binding.txtSampleRate.setText(getString(R.string.unknown_sample_rate));
-            return;
-        }
-
-        // 检查歌曲文件是否存在
-        String songPath = song.getPath();
-        if (songPath == null || songPath.isEmpty()) {
-            binding.txtFormat.setText(getString(R.string.song_not_found));
-            binding.txtBitrate.setText("");
-            binding.txtSampleRate.setText("");
-            return;
-        }
-
-        File songFile = new File(songPath);
-        if (!songFile.exists()) {
-            binding.txtFormat.setText(getString(R.string.song_not_found));
-            binding.txtBitrate.setText("");
-            binding.txtSampleRate.setText("");
-            return;
-        }
-
-        // 尝试获取音质信息
-        try {
-            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-            retriever.setDataSource(songPath);
-
-            // 获取文件格式
-            String mimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
-            String format = getFormatFromMimeType(mimeType);
-
-            // 获取比特率
-            String bitrateStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE);
-            String bitrate = formatBitrate(bitrateStr);
-
-            // 获取采样率
-            String sampleRateStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE);
-            String sampleRate = formatSampleRate(sampleRateStr);
-
-            // 设置显示
-            binding.txtFormat.setText(format);
-            binding.txtBitrate.setText(bitrate);
-            binding.txtSampleRate.setText(sampleRate);
-
-            retriever.release();
-
-        } catch (Exception e) {
-            // 如果获取音质信息失败，可能是文件损坏
-            binding.txtFormat.setText(getString(R.string.song_corrupted));
-            binding.txtBitrate.setText("");
-            binding.txtSampleRate.setText("");
-        }
-    }
-
-    /**
-     * 从MIME类型获取格式名称
-     */
-    private String getFormatFromMimeType(String mimeType) {
-        if (mimeType == null) return getString(R.string.unknown_format);
-
-        switch (mimeType.toLowerCase()) {
-            case "audio/mp3":
-            case "audio/mpeg":
-                return "MP3";
-            case "audio/x-wav":
-                return "WAV";
-            case "audio/flac":
-                return "FLAC";
-            case "audio/mp4":
-            case "audio/aac":
-                return "AAC";
-            case "audio/ogg":
-                return "OGG";
-            case "audio/wav":
-                return "WAV";
-            case "audio/x-ms-wma":
-                return "WMA";
-            case "audio/3gpp":
-                return "3GP";
-            case "audio/amr":
-                return "AMR";
-            default:
-                return getString(R.string.unknown_format);
-        }
-    }
-
-    /**
-     * 格式化比特率显示
-     */
-    private String formatBitrate(String bitrateStr) {
-        if (bitrateStr == null || bitrateStr.isEmpty()) {
-            return getString(R.string.unknown_bitrate);
-        }
-
-        try {
-            long bitrate = Long.parseLong(bitrateStr);
-            if (bitrate > 0) {
-                // 转换为kb/s
-                long kbps = bitrate / 1000;
-                return kbps + " kb/s";
-            }
-        } catch (NumberFormatException e) {
-            // 忽略错误
-        }
-
-        return getString(R.string.unknown_bitrate);
-    }
-
-    /**
-     * 格式化采样率显示
-     */
-    private String formatSampleRate(String sampleRateStr) {
-        if (sampleRateStr == null || sampleRateStr.isEmpty()) {
-            return getString(R.string.unknown_sample_rate);
-        }
-
-        try {
-            long sampleRate = Long.parseLong(sampleRateStr);
-            if (sampleRate > 0) {
-                // 转换为kHz
-                if (sampleRate >= 1000) {
-                    double kHz = sampleRate / 1000.0;
-                    return String.format("%.1f kHz", kHz);
-                } else {
-                    return sampleRate + " Hz";
-                }
-            }
-        } catch (NumberFormatException e) {
-            // 忽略错误
-        }
-
-        return getString(R.string.unknown_sample_rate);
-    }
-
-    private void updateDefaultState() {
-        binding.fullSongName.setText("未播放");
-        binding.fullSongArtist.setText("选择歌曲开始播放");
-        binding.btnPlayPause.setImageResource(R.drawable.ic_play);
-        binding.fullSheetCover.setImageResource(R.drawable.place_holder_album);
-        binding.txtCurrentTime.setText("0:00");
-        binding.txtTotalTime.setText("0:00");
-        binding.seekBarProgress.setProgress(0);
-
-        // 重置收藏按钮
-        binding.btnFavorite.setImageResource(R.drawable.ic_favorite_off);
-        binding.btnFavorite.setColorFilter(getResources().getColor(R.color.text_secondary));
-
-        // 重置音质信息
-        updateQualityInfo(null);
-
-        // 重置背景
-        currentBackgroundType = BACKGROUND_TYPE_GRADIENT;
-        updateBackgroundOverlay();
     }
 
     /**
      * 开始播放歌曲
      */
     public void playSong(Song song) {
+        // 这个方法应该通过MainActivity调用，不应该直接在Fragment中创建MediaItem
+        // 委托给MainActivity处理
         if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.playSong(song);
+            ((MainActivity) getActivity()).playSong(song);
         }
     }
 
@@ -889,9 +1273,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 设置播放列表
      */
     public void setPlaylist(java.util.List<Song> songs) {
+        // 委托给MainActivity处理
         if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.setPlaylist(songs);
+            ((MainActivity) getActivity()).setPlaylist(songs);
         }
     }
 
@@ -899,9 +1283,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 获取当前播放状态
      */
     public boolean isPlaying() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            return mainActivity.isPlaying();
+        if (mediaController != null) {
+            return mediaController.isPlaying();
         }
         return false;
     }
@@ -910,9 +1293,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 获取当前播放的歌曲
      */
     public Song getCurrentSong() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            return mainActivity.getCurrentSong();
+        if (controllerHelper != null) {
+            return controllerHelper.getCurrentSong();
         }
         return null;
     }
@@ -921,9 +1303,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 设置播放模式
      */
     public void setPlayMode(int playMode) {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.setPlayMode(playMode);
+        if (mediaController != null) {
+            mediaController.setRepeatMode(playMode);
         }
     }
 
@@ -931,11 +1312,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
      * 获取播放模式
      */
     public int getPlayMode() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            return mainActivity.getPlayMode();
+        if (mediaController != null) {
+            return mediaController.getRepeatMode();
         }
-        return MusicService.PLAY_MODE_SEQUENCE;
+        return Player.REPEAT_MODE_OFF;
     }
 
     @Override

@@ -104,9 +104,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
                 // 播放歌曲
                 if (context instanceof MainActivity mainActivity) {
-                    mainActivity.setPlaylist(songList);
-                    System.out.println("songList.size() = " + songList.size());
-                    mainActivity.playSong(song);
+                    mainActivity.playFromPlaylist(songList, position);
                 }
             });
         } else if (holder instanceof ViewHolder) {
@@ -128,9 +126,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
                 // 播放歌曲
                 if (context instanceof MainActivity mainActivity) {
-                    System.out.println("songList.size() = " + songList.size());
-                    mainActivity.setPlaylist(songList);
-                    mainActivity.playSong(song);
+                    mainActivity.playFromPlaylist(songList, position);
                 }
             });
         }

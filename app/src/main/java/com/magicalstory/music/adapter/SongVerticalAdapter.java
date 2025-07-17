@@ -10,6 +10,7 @@ import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.magicalstory.music.MainActivity;
@@ -25,6 +26,7 @@ import java.util.List;
  * 歌曲垂直列表适配器
  * 用于显示歌曲的垂直列表
  */
+@UnstableApi
 public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapter.ViewHolder> {
 
     private Context context;
@@ -224,12 +226,10 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
                 if (onItemClickListener != null) {
                     onItemClickListener.onItemClick(song, position);
                 }
-
-                // 播放歌曲
-                if (context instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) context;
-                    mainActivity.setPlaylist(songList);
-                    mainActivity.playSong(song);
+                System.out.println("点击播放音乐");
+                // 播放歌曲 - 优化后的播放逻辑
+                if (context instanceof MainActivity mainActivity) {
+                    mainActivity.playFromPlaylist(songList, position);
                 }
             }
         });
@@ -318,7 +318,7 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
     public void updateData(List<Song> newSongList) {
         this.songList = newSongList;
         // 重置首次加载标志，允许重新执行动画
-        
+
         notifyDataSetChanged();
     }
 

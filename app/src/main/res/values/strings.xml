@@ -88,6 +88,12 @@
     <string name="unknown_bitrate">未知码率</string>
     <string name="unknown_sample_rate">未知采样率</string>
     
+    <!-- 歌词相关 -->
+    <string name="no_lyrics">暂无歌词</string>
+    <string name="lyrics_loading">歌词加载中...</string>
+    <string name="lyrics">歌词</string>
+    <string name="lyrics_not_found">未找到歌词</string>
+    
     <!-- 专辑详情页面相关字符串 -->
     <string name="album_name">专辑名称</string>
     <string name="play_all">全部播放</string>

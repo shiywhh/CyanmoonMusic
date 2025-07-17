@@ -1,1348 +1,647 @@
 package com.magicalstory.music.service;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.os.Binder;
-import android.os.Build;
-import android.os.Handler;
+
+import android.net.Uri;
+import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Looper;
 import android.util.Log;
-import android.widget.RemoteViews;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.app.NotificationCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.ForwardingPlayer;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.session.MediaSession;
+import androidx.media3.session.MediaSessionService;
+import androidx.media3.session.SessionCommand;
+import androidx.media3.session.SessionCommands;
+import androidx.media3.session.SessionError;
+import androidx.media3.session.SessionResult;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.magicalstory.music.MainActivity;
-import com.magicalstory.music.R;
-import com.magicalstory.music.model.PlayHistory;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.utils.glide.GlideUtils;
+import com.magicalstory.music.utils.PlaybackStateManager;
+import com.magicalstory.music.utils.PlaylistManager;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * 音乐播放服务
+ * 音乐播放服务 - 完全按照Google Media3框架最佳实践实现
+ * 
+ * 该服务继承自MediaSessionService，遵循以下原则：
+ * 1. 使用MediaSession处理播放控制
+ * 2. 使用ExoPlayer作为底层播放器
+ * 3. 支持媒体控制通知
+ * 4. 正确处理音频焦点
+ * 5. 支持后台播放
  */
-public class MusicService extends Service implements MediaPlayer.OnPreparedListener,
-        MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener {
-
+@UnstableApi
+public class MusicService extends MediaSessionService implements Player.Listener {
+    
     private static final String TAG = "MusicService";
-    private static final String CHANNEL_ID = "music_channel";
-    private static final int NOTIFICATION_ID = 1001;
-
-    // 播放状态
-    public static final int STATE_IDLE = 0;
-    public static final int STATE_PREPARING = 1;
-    public static final int STATE_PLAYING = 2;
-    public static final int STATE_PAUSED = 3;
-    public static final int STATE_STOPPED = 4;
-    public static final int STATE_ERROR = 5;
-
-    // 播放模式
-    public static final int PLAY_MODE_SEQUENCE = 0;  // 顺序播放
-    public static final int PLAY_MODE_LOOP = 1;      // 列表循环
-    public static final int PLAY_MODE_SINGLE = 2;    // 单曲循环
-    public static final int PLAY_MODE_RANDOM = 3;    // 随机播放
-
-    // 广播Action
-    public static final String ACTION_PLAY_STATE_CHANGED = "com.magicalstory.music.PLAY_STATE_CHANGED";
-    public static final String ACTION_SONG_CHANGED = "com.magicalstory.music.SONG_CHANGED";
-    public static final String ACTION_PLAY_MODE_CHANGED = "com.magicalstory.music.PLAY_MODE_CHANGED";
-    public static final String ACTION_PROGRESS_UPDATED = "com.magicalstory.music.PROGRESS_UPDATED";
-
-    // 通知Action
-    public static final String ACTION_PLAY_PAUSE = "com.magicalstory.music.PLAY_PAUSE";
-    public static final String ACTION_PREVIOUS = "com.magicalstory.music.PREVIOUS";
-    public static final String ACTION_NEXT = "com.magicalstory.music.NEXT";
-    public static final String ACTION_STOP = "com.magicalstory.music.STOP";
-
-    private volatile MediaPlayer mediaPlayer;
-    private List<Song> playlist;
-    private volatile Song currentSong;
-    private volatile int currentIndex = -1;
-    private volatile int playState = STATE_IDLE;
-    private int playMode = PLAY_MODE_SEQUENCE;
-    private boolean isShuffleEnabled = false;
-    private List<Integer> shuffleList;
-    private Random random;
-
-    private NotificationManager notificationManager;
-    private Handler mainHandler;
-    private Handler progressHandler;
-    private Runnable progressRunnable;
-    private AudioManager audioManager;
-    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
-
-    private volatile long playStartTime;
-    private volatile long totalPlayTime;
-
-    // 后台任务执行器
-    private ExecutorService backgroundExecutor;
-    private ExecutorService mediaPlayerExecutor;
-
-    // ANR保护
-    private static final int MAX_HANDLER_EXECUTION_TIME = 3000; // 3秒
-    private Handler anrWatchdog;
-    private Future<?> currentPlayTask;
-
-    // Binder for activity communication
-    private final IBinder binder = new MusicBinder();
-
-    public class MusicBinder extends Binder {
-        public MusicService getService() {
-            return MusicService.this;
-        }
-    }
-
+    
+    // 广播常量
+    public static final String ACTION_SONG_CHANGED = "com.magicalstory.music.ACTION_SONG_CHANGED";
+    public static final String ACTION_PLAY_STATE_CHANGED = "com.magicalstory.music.ACTION_PLAY_STATE_CHANGED";
+    
+    // 自定义播放控制命令
+    private static final String CUSTOM_COMMAND_TOGGLE_SHUFFLE = "TOGGLE_SHUFFLE";
+    private static final String CUSTOM_COMMAND_TOGGLE_REPEAT = "TOGGLE_REPEAT";
+    private static final String CUSTOM_COMMAND_SET_PLAYLIST = "SET_PLAYLIST";
+    private static final String CUSTOM_COMMAND_PLAY_SONG_AT_INDEX = "PLAY_SONG_AT_INDEX";
+    
+    // 播放器和媒体会话
+    private ExoPlayer player;
+    private MediaSession mediaSession;
+    private CustomPlayerWrapper playerWrapper;
+    
+    // 播放状态管理
+    private PlaybackStateManager playbackStateManager;
+    private PlaylistManager playlistManager;
+    
+    // 音频焦点管理已由Media3的AudioFocusManager处理，移除自定义处理
+    
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "Service created");
-
-        initializeService();
-        createNotificationChannel();
-        setupProgressHandler();
-        setupAudioFocus();
-        registerNotificationReceiver();
-
-        // 立即启动前台服务以确保服务在后台运行
-        showDefaultNotification();
+        Log.d(TAG, "MusicService开始创建");
+        
+        Log.d(TAG, "1. 初始化播放器");
+        initializePlayer();
+        
+        Log.d(TAG, "2. 初始化媒体会话");
+        initializeMediaSession();
+        
+        Log.d(TAG, "3. 初始化管理器");
+        initializeManagers();
+        
+        Log.d(TAG, "MusicService创建完成");
     }
-
-    private void initializeService() {
-        playlist = new ArrayList<>();
-        random = new Random();
-        shuffleList = new ArrayList<>();
-        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-        mainHandler = new Handler(Looper.getMainLooper());
-        backgroundExecutor = Executors.newCachedThreadPool();
-        mediaPlayerExecutor = Executors.newSingleThreadExecutor();
-
-        // 初始化ANR保护
-        anrWatchdog = new Handler(Looper.getMainLooper());
+    
+    /**
+     * 初始化播放器
+     */
+    private void initializePlayer() {
+        Log.d(TAG, "开始初始化播放器");
+        
+        // 创建音频属性
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .build();
+        
+        Log.d(TAG, "音频属性创建完成");
+        
+        // 创建ExoPlayer
+        player = new ExoPlayer.Builder(this)
+                .setAudioAttributes(audioAttributes, true)
+                .setHandleAudioBecomingNoisy(true)
+                .build();
+        
+        Log.d(TAG, "ExoPlayer创建完成");
+        
+        // 添加播放器监听器
+        player.addListener(this);
+        Log.d(TAG, "播放器监听器添加完成");
+        
+        // 创建自定义播放器包装器
+        playerWrapper = new CustomPlayerWrapper(player);
+        Log.d(TAG, "自定义播放器包装器创建完成");
+        
+        Log.d(TAG, "播放器初始化完成");
     }
+    
 
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Music Player",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("Music playback notifications");
-            channel.setShowBadge(false);
-            notificationManager.createNotificationChannel(channel);
-        }
+    
+    /**
+     * 初始化媒体会话
+     */
+    private void initializeMediaSession() {
+        Log.d(TAG, "开始初始化媒体会话");
+        
+        // 创建用于启动Activity的PendingIntent
+        PendingIntent sessionActivity = PendingIntent.getActivity(
+                this,
+                0,
+                new Intent(this, MainActivity.class),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
+        
+        Log.d(TAG, "PendingIntent创建完成");
+        
+        // 创建MediaSession
+        mediaSession = new MediaSession.Builder(this, playerWrapper)
+                .setCallback(new MediaSessionCallback())
+                .setSessionActivity(sessionActivity)
+                .build();
+        
+        Log.d(TAG, "MediaSession创建完成");
+        Log.d(TAG, "媒体会话初始化完成");
     }
-
-    private void setupProgressHandler() {
-        progressHandler = new Handler(Looper.getMainLooper());
-        progressRunnable = new Runnable() {
-            private int lastBroadcastPosition = -1;
-
-            @Override
-            public void run() {
-                try {
-                    // 检查播放状态，只在播放时更新进度
-                    if (playState == STATE_PLAYING && mediaPlayer != null) {
-                        // 在后台线程中获取位置和时长，避免阻塞主线程
-                        backgroundExecutor.execute(() -> {
-                            try {
-                                int currentPosition = getCurrentPosition();
-                                int duration = getDuration();
-
-                                // 避免频繁广播，只在位置有显著变化时发送
-                                if (currentPosition >= 0 && duration > 0 &&
-                                        Math.abs(currentPosition - lastBroadcastPosition) > 500) { // 每500ms发送一次
-
-                                    Intent intent = new Intent(ACTION_PROGRESS_UPDATED);
-                                    intent.putExtra("current_position", currentPosition);
-                                    intent.putExtra("duration", duration);
-                                    LocalBroadcastManager.getInstance(MusicService.this).sendBroadcast(intent);
-
-                                    lastBroadcastPosition = currentPosition;
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "Error getting position/duration in background", e);
-                            }
-                        });
-
-                        // 每秒更新一次
-                        progressHandler.postDelayed(this, 1000);
-                    } else {
-                        // 如果不是播放状态，停止进度更新
-                        Log.d(TAG, "Stopping progress updates, playState: " + playState);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error updating progress", e);
-                    // 发生错误时停止进度更新
-                    stopProgressUpdates();
-                }
-            }
-        };
+    
+    /**
+     * 初始化管理器
+     */
+    private void initializeManagers() {
+        Log.d(TAG, "开始初始化管理器");
+        
+        playbackStateManager = new PlaybackStateManager(this);
+        Log.d(TAG, "PlaybackStateManager初始化完成");
+        
+        playlistManager = new PlaylistManager(this);
+        Log.d(TAG, "PlaylistManager初始化完成");
+        
+        Log.d(TAG, "管理器初始化完成");
     }
-
-    private void setupAudioFocus() {
-        audioFocusChangeListener = focusChange -> {
-            mainHandler.post(() -> {
-                try {
-                    switch (focusChange) {
-                        case AudioManager.AUDIOFOCUS_LOSS:
-                            // 永久失去焦点，暂停播放
-                            pause();
-                            break;
-                        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                            // 暂时失去焦点，暂停播放
-                            pause();
-                            break;
-                        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                            // 降低音量
-                            if (mediaPlayer != null) {
-                                mediaPlayer.setVolume(0.3f, 0.3f);
-                            }
-                            break;
-                        case AudioManager.AUDIOFOCUS_GAIN:
-                            // 重新获得焦点，恢复播放
-                            if (mediaPlayer != null) {
-                                mediaPlayer.setVolume(1.0f, 1.0f);
-                            }
-                            break;
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error handling audio focus change", e);
-                }
-            });
-        };
-    }
-
-    private void registerNotificationReceiver() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(ACTION_PLAY_PAUSE);
-        filter.addAction(ACTION_PREVIOUS);
-        filter.addAction(ACTION_NEXT);
-        filter.addAction(ACTION_STOP);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(notificationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(notificationReceiver, filter);
-        }
-    }
-
-    private final BroadcastReceiver notificationReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action == null) return;
-
-            mainHandler.post(() -> {
-                try {
-                    switch (action) {
-                        case ACTION_PLAY_PAUSE:
-                            if (isPlaying()) {
-                                pause();
-                            } else {
-                                play();
-                            }
-                            break;
-                        case ACTION_PREVIOUS:
-                            playPrevious();
-                            break;
-                        case ACTION_NEXT:
-                            playNext();
-                            break;
-                        case ACTION_STOP:
-                            stop();
-                            break;
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error handling notification action", e);
-                }
-            });
-        }
-    };
-
-    @Nullable
+    
     @Override
-    public IBinder onBind(Intent intent) {
-        return binder;
+    public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+        return mediaSession;
     }
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "Service started with START_STICKY");
-        // 确保显示前台通知
-        if (currentSong == null) {
-            showDefaultNotification();
-        } else {
-            updateNotification();
-        }
-        return START_STICKY; // 服务被杀死后会重新创建
-    }
-
-    // 播放控制方法
-    public void play() {
-        // 避免在主线程中进行重复的任务提交
-        if (mainHandler.getLooper().getThread() == Thread.currentThread()) {
-            // 如果已经在主线程中，直接执行
-            playInternal();
-        } else {
-            // 在后台线程中，通过Handler切换到主线程
-            mainHandler.post(this::playInternal);
-        }
-    }
-
-    private void playInternal() {
-        try {
-            // 避免重复播放
-            if (playState == STATE_PLAYING || playState == STATE_PREPARING) {
-                Log.d(TAG, "Already playing or preparing, ignoring play request");
-                return;
-            }
-
-            if (currentSong == null) {
-                if (!playlist.isEmpty()) {
-                    playSong(0);
-                }
-                return;
-            }
-
-            if (mediaPlayer == null) {
-                // 在后台线程中初始化MediaPlayer
-                backgroundExecutor.execute(() -> {
-                    initializeMediaPlayer();
-                    mainHandler.post(() -> {
-                        try {
-                            if (playState == STATE_PAUSED) {
-                                resumePlayback();
-                            } else if (playState == STATE_IDLE || playState == STATE_STOPPED) {
-                                playSong(currentIndex);
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error in delayed play", e);
-                            playState = STATE_ERROR;
-                            sendPlayStateChangedBroadcast();
-                        }
-                    });
-                });
-                return;
-            }
-
-            if (playState == STATE_PAUSED) {
-                resumePlayback();
-            } else if (playState == STATE_IDLE || playState == STATE_STOPPED) {
-                playSong(currentIndex);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in play()", e);
-            playState = STATE_ERROR;
-            sendPlayStateChangedBroadcast();
-        }
-    }
-
-    private void resumePlayback() {
-        try {
-            if (requestAudioFocus()) {
-                mediaPlayer.start();
-                playState = STATE_PLAYING;
-                playStartTime = System.currentTimeMillis();
-                startProgressUpdates();
-                updateNotification();
-                sendPlayStateChangedBroadcast();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error resuming playback", e);
-            playState = STATE_ERROR;
-            sendPlayStateChangedBroadcast();
-        }
-    }
-
-    public void pause() {
-        // 避免在主线程中进行重复的任务提交
-        if (mainHandler.getLooper().getThread() == Thread.currentThread()) {
-            pauseInternal();
-        } else {
-            mainHandler.post(this::pauseInternal);
-        }
-    }
-
-    private void pauseInternal() {
-        try {
-            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-                mediaPlayer.pause();
-                playState = STATE_PAUSED;
-
-                // 在后台线程中更新播放时间和记录
-                backgroundExecutor.execute(() -> {
-                    updatePlayTime();
-                    // 主线程操作
-                    mainHandler.post(() -> {
-                        stopProgressUpdates();
-                        updateNotification(); // 保持前台服务，只更新通知
-                        sendPlayStateChangedBroadcast();
-                        abandonAudioFocus();
-                    });
-                });
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in pause()", e);
-        }
-    }
-
-    public void stop() {
-        // 避免在主线程中进行重复的任务提交
-        if (mainHandler.getLooper().getThread() == Thread.currentThread()) {
-            stopInternal();
-        } else {
-            mainHandler.post(this::stopInternal);
-        }
-    }
-
-    private void stopInternal() {
-        try {
-            if (mediaPlayer != null) {
-                if (mediaPlayer.isPlaying()) {
-                    mediaPlayer.stop();
-                }
-
-                // 在后台线程中处理耗时操作
-                backgroundExecutor.execute(() -> {
-                    updatePlayTime();
-                    recordPlayHistory();
-
-                    // 主线程操作
-                    mainHandler.post(() -> {
-                        playState = STATE_STOPPED;
-                        stopProgressUpdates();
-                        updateNotification();
-                        sendPlayStateChangedBroadcast();
-                        abandonAudioFocus();
-                    });
-                });
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in stop()", e);
-        }
-    }
-
-    /**
-     * 停止音乐播放但保持服务运行
-     */
-    public void stopPlayback() {
-        mainHandler.post(() -> {
-            try {
-                // 取消当前的播放任务
-                if (currentPlayTask != null && !currentPlayTask.isDone()) {
-                    currentPlayTask.cancel(true);
-                }
-
-                if (mediaPlayer != null) {
-                    if (mediaPlayer.isPlaying()) {
-                        mediaPlayer.stop();
-                    }
-                    mediaPlayer.reset();
-                }
-
-                updatePlayTime();
-                recordPlayHistory();
-
-                currentSong = null;
-                currentIndex = -1;
-                playState = STATE_STOPPED;
-
-                stopProgressUpdates();
-                showDefaultNotification(); // 显示默认通知而不是停止前台服务
-                sendPlayStateChangedBroadcast();
-                sendSongChangedBroadcast();
-                abandonAudioFocus();
-            } catch (Exception e) {
-                Log.e(TAG, "Error in stopPlayback()", e);
-            }
-        });
-    }
-
-    public void seekTo(int position) {
-        // 参数验证
-        if (position < 0) {
-            Log.w(TAG, "Invalid seek position: " + position);
-            return;
-        }
-
-        mainHandler.post(() -> {
-            try {
-                if (mediaPlayer != null && playState != STATE_IDLE &&
-                        playState != STATE_ERROR && playState != STATE_PREPARING) {
-
-                    int duration = mediaPlayer.getDuration();
-                    if (duration > 0) {
-                        // 确保position不超过歌曲长度
-                        int safePosition = Math.min(position, duration);
-
-                        synchronized (this) {
-                            mediaPlayer.seekTo(safePosition);
-                        }
-
-                        // 在后台线程中更新播放历史进度
-                        if (currentSong != null) {
-                            final double progress = (double) safePosition / duration;
-                            backgroundExecutor.execute(() -> {
-                                updatePlayHistoryProgress(progress);
-                            });
-                        }
-
-                        Log.d(TAG, "Seeked to position: " + safePosition);
-                    } else {
-                        Log.w(TAG, "Cannot seek: invalid duration " + duration);
-                    }
-                } else {
-                    Log.w(TAG, "Cannot seek: mediaPlayer is null or invalid state " + playState);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error in seekTo()", e);
-            }
-        });
-    }
-
-    public void playSong(int index) {
-        if (index < 0 || index >= playlist.size()) return;
-
-        // 立即在主线程中更新状态，避免重复调用
-        if (playState == STATE_PREPARING && currentIndex == index) {
-            Log.d(TAG, "Already preparing song at index: " + index);
-            return;
-        }
-
-        // 取消之前的播放任务并停止当前播放
-        cancelCurrentPlayTask();
-        stopCurrentPlayback();
-
-        // 立即更新状态，防止重复调用
-        playState = STATE_PREPARING;
-        currentIndex = index;
-        Song songToPlay = playlist.get(index);
-
-        // 立即发送状态变更广播
-        sendPlayStateChangedBroadcast();
-
-        // 在后台线程中进行耗时操作
-        currentPlayTask = mediaPlayerExecutor.submit(() -> {
-            try {
-                // 检查任务是否已被取消
-                if (Thread.currentThread().isInterrupted()) {
-                    Log.d(TAG, "Play task was cancelled");
-                    return;
-                }
-
-                // 保存上一首歌曲的播放记录
-                if (currentSong != null && currentSong.getId() != songToPlay.getId()) {
-                    recordPlayHistory();
-                }
-
-
-                // 检查文件是否存在 - 在后台线程中进行
-                if (songToPlay == null || songToPlay.getPath() == null) {
-                    Log.e(TAG, "Current song or path is null");
-                    mainHandler.post(() -> {
-                        if (currentIndex == index) { // 确保还是当前要播放的歌曲
-                            playState = STATE_ERROR;
-                            sendPlayStateChangedBroadcast();
-                        }
-                    });
-                    return;
-                }
-
-                File songFile = new File(songToPlay.getPath());
-                if (!songFile.exists()) {
-                    Log.e(TAG, "Song file does not exist: " + songToPlay.getPath());
-                    mainHandler.post(() -> {
-                        if (currentIndex == index) { // 确保还是当前要播放的歌曲
-                            playState = STATE_ERROR;
-                            sendPlayStateChangedBroadcast();
-                            // 自动播放下一首
-                            playNext();
-                        }
-                    });
-                    return;
-                }
-
-                // 再次检查任务是否已被取消
-                if (Thread.currentThread().isInterrupted()) {
-                    Log.d(TAG, "Play task was cancelled after file check");
-                    return;
-                }
-
-                // 在主线程中更新当前歌曲并初始化MediaPlayer
-                mainHandler.post(() -> {
-                    try {
-                        // 确保还是当前要播放的歌曲
-                        if (currentIndex != index) {
-                            Log.d(TAG, "Song index changed, abandoning play task");
-                            return;
-                        }
-
-                        currentSong = songToPlay;
-                        playStartTime = System.currentTimeMillis();
-                        totalPlayTime = 0;
-
-                        // 初始化MediaPlayer
-                        initializeMediaPlayerForNewSong();
-
-                        // 在后台线程中设置数据源
-                        mediaPlayerExecutor.submit(() -> {
-                            try {
-                                // 再次检查任务是否已被取消
-                                if (Thread.currentThread().isInterrupted() ||
-                                        currentSong == null || currentSong.getId() != songToPlay.getId()) {
-                                    Log.d(TAG, "Play task cancelled during data source setup");
-                                    return;
-                                }
-
-                                synchronized (this) {
-                                    if (mediaPlayer != null) {
-                                        mediaPlayer.setDataSource(currentSong.getPath());
-                                        mediaPlayer.prepareAsync();
-                                    }
-                                }
-
-                                mainHandler.post(() -> {
-                                    if (currentSong != null && currentSong.getId() == songToPlay.getId()) {
-                                        sendSongChangedBroadcast();
-                                    }
-                                });
-                            } catch (IOException e) {
-                                Log.e(TAG, "Error setting data source", e);
-                                mainHandler.post(() -> {
-                                    if (currentSong != null && currentSong.getId() == songToPlay.getId()) {
-                                        playState = STATE_ERROR;
-                                        sendPlayStateChangedBroadcast();
-                                        // 自动播放下一首
-                                        playNext();
-                                    }
-                                });
-                            } catch (Exception e) {
-                                Log.e(TAG, "Unexpected error preparing media player", e);
-                                mainHandler.post(() -> {
-                                    if (currentSong != null && currentSong.getId() == songToPlay.getId()) {
-                                        playState = STATE_ERROR;
-                                        sendPlayStateChangedBroadcast();
-                                    }
-                                });
-                            }
-                        });
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in playSong main thread", e);
-                        if (currentIndex == index) {
-                            playState = STATE_ERROR;
-                            sendPlayStateChangedBroadcast();
-                        }
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Error in playSong background thread", e);
-                mainHandler.post(() -> {
-                    if (currentIndex == index) {
-                        playState = STATE_ERROR;
-                        sendPlayStateChangedBroadcast();
-                    }
-                });
-            }
-        });
-    }
-
-    public void playSong(Song song) {
-        if (song == null) return;
-
-        int index = playlist.indexOf(song);
-        if (index >= 0) {
-            playSong(index);
-        } else {
-            // 如果歌曲不在当前播放列表中，创建新的播放列表
-            playlist.clear();
-            playlist.add(song);
-            updateShuffleList();
-            playSong(0);
-        }
-    }
-
-    public void playNext() {
-        // 使用Handler确保在主线程中执行，避免并发问题
-        mainHandler.post(() -> {
-            try {
-                if (playlist.isEmpty()) return;
-
-                int nextIndex = getNextIndex();
-                if (nextIndex >= 0) {
-                    playSong(nextIndex);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error in playNext", e);
-            }
-        });
-    }
-
-    public void playPrevious() {
-        // 使用Handler确保在主线程中执行，避免并发问题
-        mainHandler.post(() -> {
-            try {
-                if (playlist.isEmpty()) return;
-
-                int prevIndex = getPreviousIndex();
-                if (prevIndex >= 0) {
-                    playSong(prevIndex);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error in playPrevious", e);
-            }
-        });
-    }
-
-    // 播放列表管理
-    public void setPlaylist(List<Song> songs) {
-        playlist.clear();
-        if (songs != null) {
-            playlist.addAll(songs);
-        }
-        updateShuffleList();
-    }
-
-    public void addToPlaylist(Song song) {
-        if (song != null) {
-            playlist.add(song);
-            updateShuffleList();
-        }
-    }
-
-    public void removeFromPlaylist(int index) {
-        if (index >= 0 && index < playlist.size()) {
-            playlist.remove(index);
-            if (index == currentIndex) {
-                if (playlist.isEmpty()) {
-                    stop();
-                    currentSong = null;
-                    currentIndex = -1;
-                } else {
-                    currentIndex = Math.min(currentIndex, playlist.size() - 1);
-                    playSong(currentIndex);
-                }
-            } else if (index < currentIndex) {
-                currentIndex--;
-            }
-            updateShuffleList();
-        }
-    }
-
-    public void clearPlaylist() {
-        stop();
-        playlist.clear();
-        currentSong = null;
-        currentIndex = -1;
-        updateShuffleList();
-    }
-
-    // 播放模式管理
-    public void setPlayMode(int mode) {
-        playMode = mode;
-        if (mode == PLAY_MODE_RANDOM) {
-            isShuffleEnabled = true;
-            updateShuffleList();
-        } else {
-            isShuffleEnabled = false;
-        }
-        sendPlayModeChangedBroadcast();
-    }
-
-    private void updateShuffleList() {
-        shuffleList.clear();
-        for (int i = 0; i < playlist.size(); i++) {
-            shuffleList.add(i);
-        }
-        Collections.shuffle(shuffleList, random);
-    }
-
-    private int getNextIndex() {
-        if (playlist.isEmpty()) return -1;
-
-        switch (playMode) {
-            case PLAY_MODE_SEQUENCE:
-                return (currentIndex + 1) % playlist.size();
-            case PLAY_MODE_LOOP:
-                return (currentIndex + 1) % playlist.size();
-            case PLAY_MODE_SINGLE:
-                return currentIndex;
-            case PLAY_MODE_RANDOM:
-                if (shuffleList.isEmpty()) {
-                    updateShuffleList();
-                }
-                int currentShuffleIndex = shuffleList.indexOf(currentIndex);
-                return shuffleList.get((currentShuffleIndex + 1) % shuffleList.size());
-            default:
-                return (currentIndex + 1) % playlist.size();
-        }
-    }
-
-    private int getPreviousIndex() {
-        if (playlist.isEmpty()) return -1;
-
-        switch (playMode) {
-            case PLAY_MODE_SEQUENCE:
-                return currentIndex > 0 ? currentIndex - 1 : playlist.size() - 1;
-            case PLAY_MODE_LOOP:
-                return currentIndex > 0 ? currentIndex - 1 : playlist.size() - 1;
-            case PLAY_MODE_SINGLE:
-                return currentIndex;
-            case PLAY_MODE_RANDOM:
-                if (shuffleList.isEmpty()) {
-                    updateShuffleList();
-                }
-                int currentShuffleIndex = shuffleList.indexOf(currentIndex);
-                return shuffleList.get(currentShuffleIndex > 0 ? currentShuffleIndex - 1 : shuffleList.size() - 1);
-            default:
-                return currentIndex > 0 ? currentIndex - 1 : playlist.size() - 1;
-        }
-    }
-
-    // MediaPlayer回调 - 这些回调已经在主线程中执行
-    @Override
-    public void onPrepared(MediaPlayer mp) {
-        // 在后台线程中记录播放历史
-        backgroundExecutor.execute(this::recordPlayHistory);
-        try {
-            if (requestAudioFocus()) {
-                mp.start();
-                playState = STATE_PLAYING;
-                startProgressUpdates();
-                updateNotification();
-                sendPlayStateChangedBroadcast();
-            } else {
-                Log.w(TAG, "Failed to request audio focus");
-                playState = STATE_ERROR;
-                sendPlayStateChangedBroadcast();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error starting media player", e);
-            playState = STATE_ERROR;
-            sendPlayStateChangedBroadcast();
-        }
-    }
-
-    @Override
-    public void onCompletion(MediaPlayer mp) {
-        try {
-            Log.d(TAG, "Song completed, recording history and playing next");
-
-
-            // 延迟一点时间再播放下一首，避免太快的连续切换
-            mainHandler.postDelayed(() -> {
-                try {
-                    if (playMode == PLAY_MODE_SINGLE) {
-                        // 单曲循环
-                        playSong(currentIndex);
-                    } else {
-                        // 播放下一首
-                        playNext();
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error playing next song after completion", e);
-                    playState = STATE_ERROR;
-                    sendPlayStateChangedBroadcast();
-                }
-            }, 100); // 延迟100ms
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error in onCompletion", e);
-            playState = STATE_ERROR;
-            sendPlayStateChangedBroadcast();
-        }
-    }
-
-    @Override
-    public boolean onError(MediaPlayer mp, int what, int extra) {
-        Log.e(TAG, "MediaPlayer error: what=" + what + ", extra=" + extra);
-        playState = STATE_ERROR;
-        sendPlayStateChangedBroadcast();
-        return true;
-    }
-
-    // 辅助方法
-    private void initializeMediaPlayer() {
-        try {
-            // 确保在后台线程中创建MediaPlayer
-            if (mediaPlayer != null) {
-                try {
-                    mediaPlayer.release();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error releasing previous media player", e);
-                }
-            }
-
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setOnPreparedListener(this);
-            mediaPlayer.setOnCompletionListener(this);
-            mediaPlayer.setOnErrorListener(this);
-            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-
-            // 设置异步模式，避免阻塞主线程
-            mediaPlayer.setLooping(false);
-
-            Log.d(TAG, "MediaPlayer initialized successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "Error initializing media player", e);
-            mediaPlayer = null;
-        }
-    }
-
-    /**
-     * 取消当前播放任务
-     */
-    private void cancelCurrentPlayTask() {
-        if (currentPlayTask != null && !currentPlayTask.isDone()) {
-            Log.d(TAG, "Cancelling current play task");
-            currentPlayTask.cancel(true);
-            currentPlayTask = null;
-        }
-    }
-
-    /**
-     * 停止当前播放但不记录历史
-     */
-    private void stopCurrentPlayback() {
-        try {
-            if (mediaPlayer != null) {
-                if (mediaPlayer.isPlaying()) {
-                    mediaPlayer.stop();
-                }
-                mediaPlayer.reset();
-            }
-            stopProgressUpdates();
-            abandonAudioFocus();
-        } catch (Exception e) {
-            Log.e(TAG, "Error stopping current playback", e);
-        }
-    }
-
-    /**
-     * 为新歌曲初始化MediaPlayer
-     */
-    private void initializeMediaPlayerForNewSong() {
-        try {
-            if (mediaPlayer != null) {
-                try {
-                    if (mediaPlayer.isPlaying()) {
-                        mediaPlayer.stop();
-                    }
-                    mediaPlayer.reset();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error resetting media player", e);
-                    // 如果reset失败，创建新的MediaPlayer
-                    try {
-                        mediaPlayer.release();
-                    } catch (Exception ex) {
-                        Log.e(TAG, "Error releasing media player", ex);
-                    }
-                    mediaPlayer = null;
-                }
-            }
-
-            if (mediaPlayer == null) {
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setOnPreparedListener(this);
-                mediaPlayer.setOnCompletionListener(this);
-                mediaPlayer.setOnErrorListener(this);
-                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                mediaPlayer.setLooping(false);
-            }
-
-            Log.d(TAG, "MediaPlayer initialized for new song");
-        } catch (Exception e) {
-            Log.e(TAG, "Error initializing media player for new song", e);
-            mediaPlayer = null;
-        }
-    }
-
-    private boolean requestAudioFocus() {
-        try {
-            int result = audioManager.requestAudioFocus(
-                    audioFocusChangeListener,
-                    AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN
-            );
-            return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        } catch (Exception e) {
-            Log.e(TAG, "Error requesting audio focus", e);
-            return false;
-        }
-    }
-
-    private void abandonAudioFocus() {
-        try {
-            audioManager.abandonAudioFocus(audioFocusChangeListener);
-        } catch (Exception e) {
-            Log.e(TAG, "Error abandoning audio focus", e);
-        }
-    }
-
-    private void startProgressUpdates() {
-        progressHandler.removeCallbacks(progressRunnable);
-        progressHandler.post(progressRunnable);
-    }
-
-    private void stopProgressUpdates() {
-        progressHandler.removeCallbacks(progressRunnable);
-    }
-
-    private void updatePlayTime() {
-        if (playStartTime > 0) {
-            totalPlayTime += System.currentTimeMillis() - playStartTime;
-            playStartTime = 0;
-        }
-    }
-
-
-    private void recordPlayHistory() {
-        if (currentSong != null && backgroundExecutor != null) {
-            updatePlayTime();
-            final long songId = currentSong.getId();
-            final long playTime = totalPlayTime;
-            final boolean isCompleted = mediaPlayer != null &&
-                    mediaPlayer.getCurrentPosition() >= mediaPlayer.getDuration() * 0.8;
-            final double progress = mediaPlayer != null ?
-                    (double) mediaPlayer.getCurrentPosition() / mediaPlayer.getDuration() : 0.0;
-            final long albumId = currentSong.getAlbumId();
-            final long artistId = currentSong.getArtistId();
-
-            // 在后台线程中处理数据库操作
-            backgroundExecutor.execute(() -> {
-                try {
-                    PlayHistory.recordPlay(songId, playTime, isCompleted, progress);
-
-                    // 更新Song、Album和Artist的lastplayed字段
-                    updateSongAlbumAndArtistLastPlayedAsync(songId, albumId, artistId);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error recording play history", e);
-                }
-            });
-        }
-    }
-
-    /**
-     * 更新Song、Album和Artist的lastplayed字段（异步版本）
-     */
-    private void updateSongAlbumAndArtistLastPlayedAsync(long songId, long albumId, long artistId) {
-        long currentTime = System.currentTimeMillis();
-        System.out.println("开始更新时间 = " + currentTime);
-        // 更新Song的lastplayed字段
-        try {
-            com.magicalstory.music.model.Song song = org.litepal.LitePal.find(com.magicalstory.music.model.Song.class, songId);
-            if (song != null) {
-                song.setLastplayed(currentTime);
-                song.saveThrows();
-                System.out.println("歌曲修改时间成功 = " + currentTime);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating song lastplayed: " + e.getMessage(), e);
-        }
-
-        // 更新Album的lastplayed字段
-        try {
-            com.magicalstory.music.model.Album album = org.litepal.LitePal.where("albumId = ?",
-                    String.valueOf(albumId)).findFirst(com.magicalstory.music.model.Album.class);
-            if (album != null) {
-                album.setLastplayed(currentTime);
-                album.saveThrows();
-                System.out.println("专辑修改时间成功 = " + currentTime);
-
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating album lastplayed: " + e.getMessage(), e);
-        }
-
-        // 更新Artist的lastplayed字段
-        try {
-            com.magicalstory.music.model.Artist artist = org.litepal.LitePal.where("artistId = ?",
-                    String.valueOf(artistId)).findFirst(com.magicalstory.music.model.Artist.class);
-            if (artist != null) {
-                artist.setLastplayed(currentTime);
-                artist.saveThrows();
-                System.out.println("歌手修改时间成功 = " + currentTime);
-
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating artist lastplayed: " + e.getMessage(), e);
-        }
-    }
-
-    private void updatePlayHistoryProgress(double progress) {
-        if (currentSong != null && backgroundExecutor != null) {
-            final long songId = currentSong.getId();
-            final double finalProgress = progress;
-
-            // 在后台线程中处理数据库操作
-            backgroundExecutor.execute(() -> {
-                try {
-                    PlayHistory existingHistory = org.litepal.LitePal.where("songId = ?",
-                            String.valueOf(songId)).findFirst(PlayHistory.class);
-                    if (existingHistory != null) {
-                        existingHistory.updatePlayProgress(finalProgress);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error updating play history progress", e);
-                }
-            });
-        }
-    }
-
-    // 通知管理
-    private void updateNotification() {
-        backgroundExecutor.execute(() -> {
-            try {
-                if (currentSong == null) {
-                    // 如果没有歌曲，显示默认通知
-                    mainHandler.post(() -> showDefaultNotification());
-                    return;
-                }
-
-                Intent intent = new Intent(this, MainActivity.class);
-                PendingIntent pendingIntent = PendingIntent.getActivity(
-                        this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                        .setSmallIcon(R.drawable.ic_music_note)
-                        .setContentTitle(currentSong.getTitle())
-                        .setContentText(currentSong.getArtist())
-                        .setSubText(currentSong.getAlbum())
-                        .setContentIntent(pendingIntent)
-                        .setOngoing(playState == STATE_PLAYING)
-                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                        .setPriority(NotificationCompat.PRIORITY_LOW)
-                        .setOnlyAlertOnce(true)
-                        .addAction(R.drawable.ic_skip_previous, "Previous",
-                                createNotificationAction(ACTION_PREVIOUS))
-                        .addAction(playState == STATE_PLAYING ? R.drawable.ic_pause : R.drawable.ic_play,
-                                playState == STATE_PLAYING ? "Pause" : "Play",
-                                createNotificationAction(ACTION_PLAY_PAUSE))
-                        .addAction(R.drawable.ic_skip_next, "Next",
-                                createNotificationAction(ACTION_NEXT));
-
-                // 添加Media Style支持
-                androidx.media.app.NotificationCompat.MediaStyle mediaStyle =
-                        new androidx.media.app.NotificationCompat.MediaStyle()
-                                .setShowActionsInCompactView(0, 1, 2); // 显示所有三个按钮
-
-                builder.setStyle(mediaStyle);
-
-                Notification notification = builder.build();
-
-                mainHandler.post(() -> {
-                    try {
-                        startForeground(NOTIFICATION_ID, notification);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error starting foreground", e);
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Error updating notification", e);
-            }
-        });
-    }
-
-    private void showDefaultNotification() {
-        try {
-            Intent intent = new Intent(this, MainActivity.class);
-            PendingIntent pendingIntent = PendingIntent.getActivity(
-                    this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_music_note)
-                    .setContentTitle("音乐播放器")
-                    .setContentText("点击打开音乐播放器")
-                    .setContentIntent(pendingIntent)
-                    .setOngoing(false)
-                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .setOnlyAlertOnce(true);
-
-            Notification notification = builder.build();
-            startForeground(NOTIFICATION_ID, notification);
-        } catch (Exception e) {
-            Log.e(TAG, "Error showing default notification", e);
-        }
-    }
-
-    private PendingIntent createNotificationAction(String action) {
-        Intent intent = new Intent(action);
-        return PendingIntent.getBroadcast(this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-    }
-
-    // 广播发送
-    private void sendPlayStateChangedBroadcast() {
-        try {
-            Intent intent = new Intent(ACTION_PLAY_STATE_CHANGED);
-            intent.putExtra("play_state", playState);
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error sending play state broadcast", e);
-        }
-    }
-
-    private void sendSongChangedBroadcast() {
-        try {
-            Intent intent = new Intent(ACTION_SONG_CHANGED);
-            intent.putExtra("song_id", currentSong != null ? currentSong.getId() : -1);
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error sending song changed broadcast", e);
-        }
-    }
-
-    private void sendPlayModeChangedBroadcast() {
-        try {
-            Intent intent = new Intent(ACTION_PLAY_MODE_CHANGED);
-            intent.putExtra("play_mode", playMode);
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error sending play mode broadcast", e);
-        }
-    }
-
-    // Getter方法
-    public boolean isPlaying() {
-        return playState == STATE_PLAYING;
-    }
-
-    public boolean isPaused() {
-        return playState == STATE_PAUSED;
-    }
-
-    public Song getCurrentSong() {
-        return currentSong;
-    }
-
-    public int getCurrentPosition() {
-        try {
-            synchronized (this) {
-                if (mediaPlayer != null && playState != STATE_IDLE &&
-                        playState != STATE_ERROR && playState != STATE_PREPARING) {
-                    return mediaPlayer.getCurrentPosition();
-                }
-            }
-            return 0;
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting current position", e);
-            return 0;
-        }
-    }
-
-    public int getDuration() {
-        try {
-            synchronized (this) {
-                if (mediaPlayer != null && playState != STATE_IDLE &&
-                        playState != STATE_ERROR && playState != STATE_PREPARING) {
-                    return mediaPlayer.getDuration();
-                }
-            }
-            return 0;
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting duration", e);
-            return 0;
-        }
-    }
-
-    public int getPlayState() {
-        return playState;
-    }
-
-    public int getPlayMode() {
-        return playMode;
-    }
-
-    public List<Song> getPlaylist() {
-        return new ArrayList<>(playlist);
-    }
-
-    public int getCurrentIndex() {
-        return currentIndex;
-    }
-
-    /**
-     * 关闭音乐服务
-     */
-    public void shutdown() {
-        stop();
-        stopSelf();
-    }
-
+    
     @Override
     public void onDestroy() {
-        super.onDestroy();
-        Log.d(TAG, "Service destroyed");
-
-        try {
-            recordPlayHistory();
-            stopProgressUpdates();
-
-            // 取消所有正在进行的任务
-            if (currentPlayTask != null && !currentPlayTask.isDone()) {
-                currentPlayTask.cancel(true);
-            }
-
-            if (mediaPlayer != null) {
-                if (mediaPlayer.isPlaying()) {
-                    mediaPlayer.stop();
-                }
-                mediaPlayer.release();
-                mediaPlayer = null;
-            }
-
-            abandonAudioFocus();
-
-            try {
-                unregisterReceiver(notificationReceiver);
-            } catch (Exception e) {
-                Log.e(TAG, "Error unregistering receiver", e);
-            }
-
-            // 关闭后台任务执行器
-            if (backgroundExecutor != null) {
-                backgroundExecutor.shutdown();
-                backgroundExecutor = null;
-            }
-
-            if (mediaPlayerExecutor != null) {
-                mediaPlayerExecutor.shutdown();
-                mediaPlayerExecutor = null;
-            }
-
-            // 清理ANR watchdog
-            if (anrWatchdog != null) {
-                anrWatchdog.removeCallbacksAndMessages(null);
-                anrWatchdog = null;
-            }
-
-            // 停止前台服务
-            stopForeground(true);
-        } catch (Exception e) {
-            Log.e(TAG, "Error in onDestroy", e);
+        Log.d(TAG, "MusicService开始销毁");
+        
+        // 释放资源
+        if (mediaSession != null) {
+            Log.d(TAG, "释放MediaSession");
+            mediaSession.release();
+            mediaSession = null;
         }
+        
+        if (player != null) {
+            Log.d(TAG, "释放播放器");
+            player.removeListener(this);
+            player.release();
+            player = null;
+        }
+        
+
+        
+        super.onDestroy();
+        Log.d(TAG, "MusicService销毁完成");
+    }
+    
+    // ===========================================
+    // MediaSession回调处理
+    // ===========================================
+    
+    /**
+     * MediaSession回调类，处理播放控制逻辑
+     */
+    private class MediaSessionCallback implements MediaSession.Callback {
+        
+        @Override
+        public MediaSession.ConnectionResult onConnect(MediaSession session, 
+                MediaSession.ControllerInfo controller) {
+            
+            // 构建可用的会话命令
+            SessionCommands.Builder availableCommands = new SessionCommands.Builder();
+            
+            // 添加自定义命令
+            availableCommands.add(new SessionCommand(CUSTOM_COMMAND_TOGGLE_SHUFFLE, Bundle.EMPTY));
+            availableCommands.add(new SessionCommand(CUSTOM_COMMAND_TOGGLE_REPEAT, Bundle.EMPTY));
+            availableCommands.add(new SessionCommand(CUSTOM_COMMAND_SET_PLAYLIST, Bundle.EMPTY));
+            availableCommands.add(new SessionCommand(CUSTOM_COMMAND_PLAY_SONG_AT_INDEX, Bundle.EMPTY));
+            
+            return MediaSession.ConnectionResult.accept(
+                    availableCommands.build(),
+                    MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+            );
+        }
+        
+        @Override
+        public ListenableFuture<SessionResult> onCustomCommand(
+                MediaSession session,
+                MediaSession.ControllerInfo controller,
+                SessionCommand customCommand,
+                Bundle args) {
+            
+            switch (customCommand.customAction) {
+                case CUSTOM_COMMAND_TOGGLE_SHUFFLE:
+                    return handleToggleShuffle();
+                    
+                case CUSTOM_COMMAND_TOGGLE_REPEAT:
+                    return handleToggleRepeat();
+                    
+                case CUSTOM_COMMAND_SET_PLAYLIST:
+                    return handleSetPlaylist(args);
+                    
+                case CUSTOM_COMMAND_PLAY_SONG_AT_INDEX:
+                    return handlePlaySongAtIndex(args);
+                    
+                default:
+                    return Futures.immediateFuture(
+                            new SessionResult(SessionError.ERROR_NOT_SUPPORTED)
+                    );
+            }
+        }
+        
+        @Override
+        public ListenableFuture<List<MediaItem>> onAddMediaItems(
+                MediaSession session,
+                MediaSession.ControllerInfo controller,
+                List<MediaItem> mediaItems) {
+            
+            // 处理添加媒体项到播放列表
+            List<MediaItem> updatedMediaItems = playlistManager.addMediaItems(mediaItems);
+            return Futures.immediateFuture(updatedMediaItems);
+        }
+        
+        @Override
+        public ListenableFuture<androidx.media3.session.MediaSession.MediaItemsWithStartPosition> onSetMediaItems(
+                MediaSession session,
+                MediaSession.ControllerInfo controller,
+                List<MediaItem> mediaItems,
+                int startIndex,
+                long startPositionMs) {
+            
+            try {
+                long time = System.currentTimeMillis();
+
+                // 处理设置播放列表
+                List<MediaItem> updatedMediaItems = playlistManager.setMediaItems(mediaItems);
+                
+                if (updatedMediaItems.isEmpty()) {
+                    Log.w(TAG, "没有有效的MediaItem，返回空列表");
+                    return Futures.immediateFuture(new androidx.media3.session.MediaSession.MediaItemsWithStartPosition(
+                            new ArrayList<>(), 0, 0));
+                }
+                
+                // 验证所有MediaItem都有有效的URI
+                for (MediaItem item : updatedMediaItems) {
+                    if (item.localConfiguration == null || item.localConfiguration.uri == null) {
+                        Log.e(TAG, "MediaItem没有有效的URI: " + item.mediaId);
+                    }
+                }
+                
+                // 确保startIndex在有效范围内
+                int finalStartIndex = Math.min(startIndex, updatedMediaItems.size() - 1);
+                
+                // 设置到播放器
+                player.setMediaItems(updatedMediaItems, finalStartIndex, startPositionMs);
+                
+                return Futures.immediateFuture(new androidx.media3.session.MediaSession.MediaItemsWithStartPosition(
+                        updatedMediaItems, finalStartIndex, startPositionMs));
+            } catch (Exception e) {
+                Log.e(TAG, "设置MediaItems时发生错误", e);
+                // 返回空列表避免崩溃
+                List<MediaItem> emptyList = new ArrayList<>();
+                return Futures.immediateFuture(new androidx.media3.session.MediaSession.MediaItemsWithStartPosition(
+                        emptyList, 0, 0));
+            }
+        }
+        
+        public ListenableFuture<SessionResult> onPlay(
+                MediaSession session,
+                MediaSession.ControllerInfo controller) {
+            
+            Log.d(TAG, "收到播放命令 - onPlay");
+            Log.d(TAG, "当前播放器状态: " + player.getPlaybackState());
+            Log.d(TAG, "当前播放: " + player.isPlaying());
+            Log.d(TAG, "当前媒体项: " + (player.getCurrentMediaItem() != null ? 
+                player.getCurrentMediaItem().mediaId : "null"));
+            Log.d(TAG, "播放列表大小: " + player.getMediaItemCount());
+            
+            // 音频焦点由Media3的AudioFocusManager自动处理
+            Log.d(TAG, "开始播放");
+            player.setPlayWhenReady(true);
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+        
+        public ListenableFuture<SessionResult> onPause(
+                MediaSession session,
+                MediaSession.ControllerInfo controller) {
+            
+            Log.d(TAG, "收到暂停命令 - onPause");
+            Log.d(TAG, "当前播放器状态: " + player.getPlaybackState());
+            Log.d(TAG, "当前播放: " + player.isPlaying());
+            
+            player.setPlayWhenReady(false);
+            Log.d(TAG, "暂停命令执行完成");
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+        
+        public ListenableFuture<SessionResult> onStop(
+                MediaSession session,
+                MediaSession.ControllerInfo controller) {
+            
+            Log.d(TAG, "收到停止命令 - onStop");
+            Log.d(TAG, "当前播放器状态: " + player.getPlaybackState());
+            Log.d(TAG, "当前播放: " + player.isPlaying());
+            
+            player.stop();
+            // 音频焦点由Media3的AudioFocusManager自动处理
+            Log.d(TAG, "停止命令执行完成");
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+        
+        public ListenableFuture<SessionResult> onSeekTo(
+                MediaSession session,
+                MediaSession.ControllerInfo controller,
+                long positionMs) {
+            
+            Log.d(TAG, "onSeekTo called: " + positionMs);
+            player.seekTo(positionMs);
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+        
+        public ListenableFuture<SessionResult> onSkipToNext(
+                MediaSession session,
+                MediaSession.ControllerInfo controller) {
+            
+            Log.d(TAG, "onSkipToNext called");
+            player.seekToNext();
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+        
+        public ListenableFuture<SessionResult> onSkipToPrevious(
+                MediaSession session,
+                MediaSession.ControllerInfo controller) {
+            
+            Log.d(TAG, "onSkipToPrevious called");
+            player.seekToPrevious();
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        }
+    }
+    
+    // ===========================================
+    // 自定义命令处理
+    // ===========================================
+    
+    /**
+     * 处理切换随机播放
+     */
+    private ListenableFuture<SessionResult> handleToggleShuffle() {
+        boolean shuffleEnabled = !player.getShuffleModeEnabled();
+        player.setShuffleModeEnabled(shuffleEnabled);
+        
+        Log.d(TAG, "Shuffle mode: " + shuffleEnabled);
+        
+        // 通知播放状态变化
+        playbackStateManager.notifyShuffleChanged(shuffleEnabled);
+        
+        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+    }
+    
+    /**
+     * 处理切换重复播放
+     */
+    private ListenableFuture<SessionResult> handleToggleRepeat() {
+        @Player.RepeatMode int currentMode = player.getRepeatMode();
+        @Player.RepeatMode int newMode;
+        
+        switch (currentMode) {
+            case Player.REPEAT_MODE_OFF:
+                newMode = Player.REPEAT_MODE_ALL;
+                break;
+            case Player.REPEAT_MODE_ALL:
+                newMode = Player.REPEAT_MODE_ONE;
+                break;
+            case Player.REPEAT_MODE_ONE:
+            default:
+                newMode = Player.REPEAT_MODE_OFF;
+                break;
+        }
+        
+        player.setRepeatMode(newMode);
+        
+        Log.d(TAG, "Repeat mode: " + newMode);
+        
+        // 通知播放状态变化
+        playbackStateManager.notifyRepeatModeChanged(newMode);
+        
+        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+    }
+    
+    /**
+     * 处理设置播放列表
+     */
+    private ListenableFuture<SessionResult> handleSetPlaylist(Bundle args) {
+        // 这里可以从args中获取播放列表数据
+        // 由于Bundle无法传递复杂对象，可以通过其他方式传递播放列表
+        
+        Log.d(TAG, "Set playlist requested");
+        
+        return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+    }
+    
+    /**
+     * 处理播放指定索引的歌曲
+     */
+    private ListenableFuture<SessionResult> handlePlaySongAtIndex(Bundle args) {
+        int index = args.getInt("index", 0);
+        
+        if (index >= 0 && index < player.getMediaItemCount()) {
+            player.seekTo(index, 0);
+            player.setPlayWhenReady(true);
+            
+            Log.d(TAG, "Playing song at index: " + index);
+            
+            return Futures.immediateFuture(new SessionResult(SessionResult.RESULT_SUCCESS));
+        } else {
+            Log.w(TAG, "Invalid song index: " + index);
+            return Futures.immediateFuture(new SessionResult(SessionError.ERROR_BAD_VALUE));
+        }
+    }
+    
+
+    
+    // ===========================================
+    // Player.Listener 回调
+    // ===========================================
+    
+    @Override
+    public void onPlaybackStateChanged(int playbackState) {
+        Log.d(TAG, "播放状态变化: " + playbackState);
+        
+        switch (playbackState) {
+            case Player.STATE_IDLE:
+                Log.d(TAG, "播放器状态: 空闲");
+                break;
+            case Player.STATE_BUFFERING:
+                Log.d(TAG, "播放器状态: 缓冲中");
+                break;
+            case Player.STATE_READY:
+                Log.d(TAG, "播放器状态: 准备就绪");
+                break;
+            case Player.STATE_ENDED:
+                Log.d(TAG, "播放器状态: 播放结束");
+                break;
+            default:
+                Log.d(TAG, "播放器状态: 未知状态 " + playbackState);
+                break;
+        }
+        
+        // 通知播放状态变化
+        playbackStateManager.notifyPlaybackStateChanged(playbackState);
+    }
+    
+    @Override
+    public void onIsPlayingChanged(boolean isPlaying) {
+        Log.d(TAG, "播放状态变化: " + (isPlaying ? "正在播放" : "暂停"));
+        
+        // 通知播放状态变化
+        playbackStateManager.notifyIsPlayingChanged(isPlaying);
+    }
+    
+    @Override
+    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        String mediaId = mediaItem != null ? mediaItem.mediaId : "null";
+        Log.d(TAG, "媒体项切换: " + mediaId + ", 原因: " + reason);
+        
+        switch (reason) {
+            case Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT:
+                Log.d(TAG, "切换原因: 重复播放");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_AUTO:
+                Log.d(TAG, "切换原因: 自动播放下一首");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_SEEK:
+                Log.d(TAG, "切换原因: 跳转到指定位置");
+                break;
+            case Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED:
+                Log.d(TAG, "切换原因: 播放列表变化");
+                break;
+            default:
+                Log.d(TAG, "切换原因: 未知原因 " + reason);
+                break;
+        }
+        
+        // 通知当前歌曲变化
+        playbackStateManager.notifyCurrentMediaItemChanged(mediaItem);
+    }
+    
+    @Override
+    public void onPlayerError(PlaybackException error) {
+        Log.e(TAG, "播放器错误: " + error.getMessage(), error);
+        Log.e(TAG, "错误代码: " + error.errorCode);
+        Log.e(TAG, "错误时间戳: " + error.timestampMs);
+        
+        if (error.getCause() != null) {
+            Log.e(TAG, "错误原因: " + error.getCause().getMessage());
+        }
+        
+        // 通知播放错误
+        playbackStateManager.notifyPlayerError(error);
+    }
+    
+    @Override
+    public void onPositionDiscontinuity(Player.PositionInfo oldPosition, 
+            Player.PositionInfo newPosition, int reason) {
+        Log.d(TAG, "播放位置不连续: " + reason);
+        Log.d(TAG, "旧位置: " + oldPosition.positionMs + ", 新位置: " + newPosition.positionMs);
+        
+        // 通知进度变化
+        playbackStateManager.notifyPositionChanged(newPosition.positionMs);
+    }
+    
+    // ===========================================
+    // 自定义播放器包装器
+    // ===========================================
+    
+    /**
+     * 自定义播放器包装器，用于扩展ExoPlayer的功能
+     */
+    private class CustomPlayerWrapper extends ForwardingPlayer {
+        
+        public CustomPlayerWrapper(Player player) {
+            super(player);
+            Log.d(TAG, "CustomPlayerWrapper创建完成");
+        }
+        
+        @Override
+        public void play() {
+            Log.d(TAG, "CustomPlayerWrapper.play() 被调用");
+            // 音频焦点由Media3的AudioFocusManager自动处理
+            Log.d(TAG, "调用父类play()");
+            super.play();
+        }
+        
+        @Override
+        public void pause() {
+            Log.d(TAG, "CustomPlayerWrapper.pause() 被调用");
+            super.pause();
+            // 音频焦点由Media3的AudioFocusManager自动处理
+        }
+        
+        @Override
+        public void stop() {
+            Log.d(TAG, "CustomPlayerWrapper.stop() 被调用");
+            super.stop();
+            // 音频焦点由Media3的AudioFocusManager自动处理
+        }
+    }
+    
+    // ===========================================
+    // 公共API方法 (供外部调用)
+    // ===========================================
+    
+    /**
+     * 设置播放列表
+     */
+    public void setPlaylist(List<Song> songs) {
+        if (songs == null || songs.isEmpty()) {
+            Log.w(TAG, "Empty playlist provided");
+            return;
+        }
+        
+        List<MediaItem> mediaItems = playlistManager.createMediaItems(songs);
+        long time = System.currentTimeMillis();
+        player.setMediaItems(mediaItems);
+        long time2 = System.currentTimeMillis();
+        Log.d(TAG, "设置播放列表耗时: " + (time2 - time) + "ms");
+        Log.d(TAG, "Playlist set with " + songs.size() + " songs");
+    }
+    
+    /**
+     * 播放指定歌曲
+     */
+    public void playSong(Song song) {
+        if (song == null) {
+            Log.w(TAG, "Null song provided");
+            return;
+        }
+        
+        MediaItem mediaItem = playlistManager.createMediaItem(song);
+        player.setMediaItem(mediaItem);
+        player.prepare();
+        player.play();
+        
+        Log.d(TAG, "Playing song: " + song.getTitle());
+    }
+    
+    /**
+     * 获取当前播放的歌曲
+     */
+    @Nullable
+    public Song getCurrentSong() {
+        MediaItem currentMediaItem = player.getCurrentMediaItem();
+        if (currentMediaItem != null) {
+            return playlistManager.getSongFromMediaItem(currentMediaItem);
+        }
+        return null;
+    }
+    
+    /**
+     * 获取MediaSession
+     */
+    @Nullable
+    public MediaSession getMediaSession() {
+        return mediaSession;
     }
 } 

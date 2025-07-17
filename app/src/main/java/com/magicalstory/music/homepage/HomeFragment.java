@@ -23,6 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.navigation.Navigation;
 
 import com.magicalstory.music.R;
@@ -30,6 +31,7 @@ import com.google.android.material.search.SearchView;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentHomeBinding;
+import com.magicalstory.music.dialog.dialogUtils;
 import com.magicalstory.music.service.MusicScanService;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.adapter.SongHorizontalAdapter;
@@ -82,10 +84,14 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private final BroadcastReceiver scanCompleteReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            android.util.Log.d("HomeFragment", "收到广播: " + intent.getAction());
             if (MusicScanService.ACTION_SCAN_COMPLETE.equals(intent.getAction())) {
+                dialogUtils.getInstance().dismissProgressDialog();
                 int scanCount = intent.getIntExtra(MusicScanService.EXTRA_SCAN_COUNT, 0);
+                android.util.Log.d("HomeFragment", "扫描完成广播，新增歌曲数量: " + scanCount);
                 ToastUtils.showToast(getContext(), "扫描完成，新增 " + scanCount + " 首歌曲");
-                checkMusicPermissionAndUpdateUI();
+                // 扫描完成后重新加载歌曲并显示布局
+                reloadMusicDataAndShowLayout();
             }
         }
     };
@@ -145,13 +151,12 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         mainHandler = new Handler(Looper.getMainLooper());
         executorService = Executors.newCachedThreadPool();
 
-        // 注册广播接收器
-        IntentFilter filter = new IntentFilter(MusicScanService.ACTION_SCAN_COMPLETE);
-        ContextCompat.registerReceiver(context, scanCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-
         // 绑定服务
         Intent serviceIntent = new Intent(getContext(), MusicScanService.class);
         context.bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+
+        // 注册广播接收器
+        registerScanCompleteReceiver();
 
         // 现在线程池和Handler已经初始化，可以检查权限并更新UI
         checkMusicPermissionAndUpdateUI();
@@ -162,7 +167,14 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         super.initListenerForPersistentView();
 
         // 扫描按钮点击事件
-        binding.buttonScan.setOnClickListener(v -> requestMusicPermissionAndScan());
+        binding.buttonScan.setOnClickListener(v -> {
+            requestMusicPermissionAndScan();
+            // 测试广播接收器（仅用于调试）
+            // testBroadcastReceiver();
+        });
+
+        // 添加一个测试按钮（仅用于调试）
+        // binding.buttonScan.setOnClickListener(v -> testBroadcastReceiver());
 
         // 最近添加的歌曲标题点击事件
         binding.itemHeaderSongsLastestAdded.setOnClickListener(v -> {
@@ -290,8 +302,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                         ToastUtils.showToast(getContext(), "需要存储权限才能扫描音乐文件");
                     }
 
-                    // 更新UI
-                    checkMusicPermissionAndUpdateUI();
+                    // 权限授予后重新加载歌曲并显示布局
+                    reloadMusicDataAndShowLayout();
                 }
         );
     }
@@ -407,19 +419,67 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
      * 开始音乐扫描
      */
     private void startMusicScan() {
+        dialogUtils.getInstance().showProgressDialog(context, "正在扫描本地音乐");
         if (serviceBound && musicScanService != null) {
             if (!musicScanService.isScanning()) {
-                ToastUtils.showToast(getContext(), "开始扫描音乐文件...");
                 musicScanService.startMusicScan();
-            } else {
-                ToastUtils.showToast(getContext(), "正在扫描中，请稍候...");
             }
         } else {
             // 服务未绑定，直接启动服务
             Intent serviceIntent = new Intent(getContext(), MusicScanService.class);
             getContext().startService(serviceIntent);
-            ToastUtils.showToast(getContext(), "开始扫描音乐文件...");
         }
+    }
+
+    /**
+     * 重新加载歌曲数据并显示布局
+     */
+    private void reloadMusicDataAndShowLayout() {
+        // 显示loading状态
+        binding.progressBar.setVisibility(View.VISIBLE);
+        binding.contentLayout.setVisibility(View.INVISIBLE);
+        binding.layoutEmpty.setVisibility(View.GONE);
+
+        // 在后台线程中重新加载数据
+        if (executorService == null) {
+            executorService = Executors.newCachedThreadPool();
+        }
+
+        executorService.execute(() -> {
+            try {
+                // 检查数据库中是否有音乐数据
+                boolean hasMusicData = LitePal.count("song") > 0;
+
+                // 回到主线程更新UI
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        if (hasMusicData) {
+                            // 有音乐数据，隐藏空布局，加载音乐数据
+                            binding.layoutEmpty.setVisibility(View.GONE);
+                            loadMusicData();
+                        } else {
+                            // 没有音乐数据，显示空布局，隐藏其他列表
+                            binding.layoutEmpty.setVisibility(View.VISIBLE);
+                            hideAllMusicLists();
+                            // 隐藏loading状态
+                            binding.progressBar.setVisibility(View.GONE);
+                            binding.contentLayout.setVisibility(View.VISIBLE);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                android.util.Log.e("HomeFragment", "Error reloading music data: " + e.getMessage(), e);
+                // 发生错误时，回到主线程显示空布局
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        binding.layoutEmpty.setVisibility(View.VISIBLE);
+                        hideAllMusicLists();
+                        binding.progressBar.setVisibility(View.GONE);
+                        binding.contentLayout.setVisibility(View.VISIBLE);
+                    });
+                }
+            }
+        });
     }
 
     /**
@@ -515,11 +575,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 // 加载最近听过的艺术家（按lastplayed倒序排列，取前10个）
                 List<Artist> recentArtists = LitePal.order("lastplayed desc").limit(10).find(Artist.class);
 
-                // 为歌手设置回退封面
                 if (recentArtists != null && !recentArtists.isEmpty()) {
                     int artistCoverCount = CoverFallbackUtils.setArtistsFallbackCover(recentArtists);
                     if (artistCoverCount > 0) {
-                        android.util.Log.d("HomeFragment", "为 " + artistCoverCount + " 个歌手设置了回退封面");
+                        android.util.Log.d("HomeFragment", "为 " + artistCoverCount + " 个艺术家设置了回退封面");
                     }
                 }
 
@@ -563,11 +622,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                             if (recentArtists != null && !recentArtists.isEmpty()) {
                                 recentArtistsAdapter.updateData(recentArtists);
                                 binding.layoutRecentArtists.setVisibility(View.VISIBLE);
-
-                                // 获取艺术家封面
-                                for (Artist artist : recentArtists) {
-                                    fetchArtistCover(artist);
-                                }
                             } else {
                                 binding.layoutRecentArtists.setVisibility(View.GONE);
                             }
@@ -712,130 +766,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         });
     }
 
-    /**
-     * 获取艺术家封面
-     */
-    private void fetchArtistCover(Artist artist) {
-        // 如果已经尝试过获取封面，则不再重复获取
-        if (artist.isCoverFetched()) {
-            return;
-        }
-
-        if (executorService == null) {
-            executorService = Executors.newCachedThreadPool();
-        }
-        if (mainHandler == null) {
-            mainHandler = new Handler(Looper.getMainLooper());
-        }
-
-        executorService.execute(() -> {
-            try {
-                String artistName = artist.getArtistName();
-                String url = "https://music.163.com/api/search/get/web?s=" +
-                        java.net.URLEncoder.encode(artistName, "UTF-8") + "&type=100";
-
-                Response response = NetUtils.getInstance().getDataSynFromNet(url);
-                if (response != null && response.isSuccessful()) {
-                    String jsonResponse = response.body().string();
-                    parseAndSaveArtistCover(artist, jsonResponse);
-                } else {
-                    // 获取失败，尝试使用回退封面
-                    if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
-                        // 成功设置了回退封面，通知UI更新
-                        mainHandler.post(() -> {
-                            if (recentArtistsAdapter != null) {
-                                recentArtistsAdapter.notifyDataSetChanged();
-                            }
-                        });
-                    } else {
-                        // 回退封面也没有，标记为已尝试过
-                        artist.setCoverFetched(true);
-                        artist.save();
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                // 异常情况下尝试使用回退封面
-                if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
-                    // 成功设置了回退封面，通知UI更新
-                    mainHandler.post(() -> {
-                        if (recentArtistsAdapter != null) {
-                            recentArtistsAdapter.notifyDataSetChanged();
-                        }
-                    });
-                } else {
-                    // 回退封面也没有，标记为已尝试过
-                    artist.setCoverFetched(true);
-                    artist.save();
-                }
-            }
-        });
-    }
-
-    /**
-     * 解析并保存艺术家封面
-     */
-    private void parseAndSaveArtistCover(Artist artist, String jsonResponse) {
-        try {
-            JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
-            if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200 && jsonObject.has("result")) {
-                JsonObject result = jsonObject.getAsJsonObject("result");
-                if (result.has("artists")) {
-                    JsonArray artists = result.getAsJsonArray("artists");
-                    if (artists.size() > 0) {
-                        JsonObject artistInfo = artists.get(0).getAsJsonObject();
-                        if (artistInfo.has("picUrl")) {
-                            String picUrl = artistInfo.get("picUrl").getAsString();
-                            if (picUrl != null && !picUrl.isEmpty()) {
-                                // 更新数据库
-                                artist.setCoverUrl(picUrl);
-                                artist.setCoverFetched(true);
-                                artist.save();
-
-                                // 回到主线程更新UI
-                                mainHandler.post(() -> {
-                                    if (recentArtistsAdapter != null) {
-                                        recentArtistsAdapter.notifyDataSetChanged();
-                                    }
-                                });
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-            // 如果没有获取到封面，尝试使用回退封面
-            if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
-                // 成功设置了回退封面，通知UI更新
-                mainHandler.post(() -> {
-                    if (recentArtistsAdapter != null) {
-                        recentArtistsAdapter.notifyDataSetChanged();
-                    }
-                });
-            } else {
-                // 回退封面也没有，标记为已尝试过
-                artist.setCoverFetched(true);
-                artist.save();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            // 异常情况下尝试使用回退封面
-            if (CoverFallbackUtils.setArtistFallbackCover(artist)) {
-                // 成功设置了回退封面，通知UI更新
-                mainHandler.post(() -> {
-                    if (recentArtistsAdapter != null) {
-                        recentArtistsAdapter.notifyDataSetChanged();
-                    }
-                });
-            } else {
-                // 回退封面也没有，标记为已尝试过
-                artist.setCoverFetched(true);
-                artist.save();
-            }
-        }
-    }
-
-
     @Override
     public void onResume() {
         super.onResume();
@@ -847,8 +777,13 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         super.onDestroy();
 
         // 注销广播接收器
-        if (scanCompleteReceiver != null) {
-            getContext().unregisterReceiver(scanCompleteReceiver);
+        try {
+            if (scanCompleteReceiver != null && getContext() != null) {
+                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(scanCompleteReceiver);
+                android.util.Log.d("HomeFragment", "广播接收器注销成功");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("HomeFragment", "注销广播接收器失败: " + e.getMessage(), e);
         }
 
         // 解绑服务
@@ -881,5 +816,28 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     @Override
     public boolean autoHideBottomNavigation() {
         return false;
+    }
+
+    /**
+     * 注册扫描完成广播接收器
+     */
+    private void registerScanCompleteReceiver() {
+        try {
+            IntentFilter filter = new IntentFilter(MusicScanService.ACTION_SCAN_COMPLETE);
+            LocalBroadcastManager.getInstance(getContext()).registerReceiver(scanCompleteReceiver, filter);
+            android.util.Log.d("HomeFragment", "扫描完成广播接收器注册成功");
+        } catch (Exception e) {
+            android.util.Log.e("HomeFragment", "注册扫描完成广播接收器失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 测试广播接收器（仅用于调试）
+     */
+    private void testBroadcastReceiver() {
+        android.util.Log.d("HomeFragment", "测试广播接收器");
+        Intent testIntent = new Intent(MusicScanService.ACTION_SCAN_COMPLETE);
+        testIntent.putExtra(MusicScanService.EXTRA_SCAN_COUNT, 5);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(testIntent);
     }
 }

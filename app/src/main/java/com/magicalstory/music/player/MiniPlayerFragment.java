@@ -1,13 +1,10 @@
 package com.magicalstory.music.player;
 
 import android.animation.ObjectAnimator;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,7 +14,11 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.MediaController;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.PagerSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
@@ -28,7 +29,7 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentMiniPlayerBinding;
 import com.magicalstory.music.model.Song;
-import com.magicalstory.music.service.MusicService;
+import com.magicalstory.music.utils.MediaControllerHelper;
 import com.magicalstory.music.utils.glide.GlideUtils;
 import com.magicalstory.music.utils.text.TimeUtils;
 
@@ -36,12 +37,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Mini播放器Fragment
+ * Mini播放器Fragment - 使用MediaController
  */
-public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> {
+@UnstableApi
+public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> implements Player.Listener {
 
     private static final String TAG = "MiniPlayerFragment";
     private static final int PLAY_DELAY_MS = 300; // 延迟播放时间（毫秒）
+
+    // MediaController相关
+    private MediaController mediaController;
+    private MediaControllerHelper controllerHelper;
 
     // RecyclerView 相关
     private MiniPlayerAdapter miniPlayerAdapter;
@@ -60,31 +66,9 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     private Handler playDelayHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingPlayRunnable;
 
-    private BroadcastReceiver musicReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action == null) return;
-
-            switch (action) {
-                case MusicService.ACTION_PLAY_STATE_CHANGED:
-                    int playState = intent.getIntExtra("play_state", MusicService.STATE_IDLE);
-                    updatePlayButton(playState);
-                    updateProgressBarVisibility(playState);
-                    break;
-                case MusicService.ACTION_SONG_CHANGED:
-                    updateSongInfo();
-                    break;
-                case MusicService.ACTION_PROGRESS_UPDATED:
-                    // 更新进度条
-                    int currentPosition = intent.getIntExtra("current_position", 0);
-                    int duration = intent.getIntExtra("duration", 1);
-                    int progress = (int) (((float) currentPosition / duration) * 100);
-                    updateProgress(progress);
-                    break;
-            }
-        }
-    };
+    // 进度更新相关
+    private Handler progressUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable progressUpdateRunnable;
 
     @Override
     protected FragmentMiniPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -103,9 +87,12 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
 
         // 设置点击事件
         binding.miniPlayPause.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
-                mainActivity.playOrPause();
+            if (mediaController != null) {
+                if (mediaController.isPlaying()) {
+                    mediaController.pause();
+                } else {
+                    mediaController.play();
+                }
             }
         });
 
@@ -122,89 +109,196 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             playDelayHandler.removeCallbacks(pendingPlayRunnable);
         }
 
+        // 清理进度更新任务
+        if (progressUpdateRunnable != null) {
+            progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        }
+
         // 清理进度条动画
         if (progressAnimator != null && progressAnimator.isRunning()) {
             progressAnimator.cancel();
         }
+
+        // 移除Player监听器
+        if (mediaController != null) {
+            mediaController.removeListener(this);
+        }
+    }
+
+    // ===========================================
+    // MediaController 设置
+    // ===========================================
+
+    /**
+     * 设置MediaController
+     */
+    public void setMediaController(@Nullable MediaController mediaController) {
+        // 移除之前的监听器
+        if (this.mediaController != null) {
+            this.mediaController.removeListener(this);
+        }
+
+        this.mediaController = mediaController;
+
+        if (mediaController != null) {
+            // 添加监听器
+            mediaController.addListener(this);
+            
+            // 创建辅助类
+            controllerHelper = new MediaControllerHelper(mediaController, getContext());
+            
+            // 更新UI状态
+            updatePlaybackState();
+            updateCurrentSong();
+            
+            Log.d(TAG, "MediaController set successfully");
+        } else {
+            controllerHelper = null;
+            updateDefaultState();
+            Log.d(TAG, "MediaController removed");
+        }
+    }
+
+    // ===========================================
+    // Player.Listener 实现
+    // ===========================================
+
+    @Override
+    public void onPlaybackStateChanged(int playbackState) {
+        Log.d(TAG, "Playback state changed: " + playbackState);
+        updatePlayButton(playbackState);
+        updateProgressBarVisibility(playbackState);
+        
+        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+            startProgressUpdates();
+        } else {
+            stopProgressUpdates();
+        }
     }
 
     @Override
-    public void onStart() {
-        super.onStart();
-        registerMusicReceiver();
+    public void onIsPlayingChanged(boolean isPlaying) {
+        Log.d(TAG, "Is playing changed: " + isPlaying);
+        updatePlayButton(isPlaying);
+        
+        if (isPlaying) {
+            startProgressUpdates();
+        } else {
+            stopProgressUpdates();
+        }
     }
 
     @Override
-    public void onStop() {
-        super.onStop();
-        unregisterMusicReceiver();
+    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        Log.d(TAG, "Media item transition: " + (mediaItem != null ? mediaItem.mediaId : "null"));
+        updateCurrentSong();
+        resetProgress();
     }
 
-    private void registerMusicReceiver() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(MusicService.ACTION_PLAY_STATE_CHANGED);
-        filter.addAction(MusicService.ACTION_SONG_CHANGED);
-        filter.addAction(MusicService.ACTION_PROGRESS_UPDATED);
-        LocalBroadcastManager.getInstance(context).registerReceiver(musicReceiver, filter);
+    @Override
+    public void onPlayerError(PlaybackException error) {
+        Log.e(TAG, "Player error: " + error.getMessage(), error);
+        updateDefaultState();
     }
 
-    private void unregisterMusicReceiver() {
-        LocalBroadcastManager.getInstance(context).unregisterReceiver(musicReceiver);
+    @Override
+    public void onRepeatModeChanged(int repeatMode) {
+        Log.d(TAG, "Repeat mode changed: " + repeatMode);
     }
 
+    @Override
+    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+        Log.d(TAG, "Shuffle mode changed: " + shuffleModeEnabled);
+    }
 
-    private void updateSongInfo() {
-        if (!(getActivity() instanceof MainActivity)) return;
+    // ===========================================
+    // UI 更新方法
+    // ===========================================
 
-        MainActivity mainActivity = (MainActivity) getActivity();
-        Song currentSong = mainActivity.getCurrentSong();
+    /**
+     * 更新播放状态
+     */
+    private void updatePlaybackState() {
+        if (mediaController == null) return;
+        
+        updatePlayButton(mediaController.isPlaying());
+        updateProgressBarVisibility(mediaController.getPlaybackState());
+        
+        if (mediaController.isPlaying()) {
+            startProgressUpdates();
+        } else {
+            stopProgressUpdates();
+        }
+    }
 
-        if (currentSong != null) {
+    /**
+     * 更新当前歌曲信息
+     */
+    private void updateCurrentSong() {
+        if (controllerHelper == null) return;
+
+        Song currentSong = controllerHelper.getCurrentSong();
+        List<Song> currentPlaylist = controllerHelper.getPlaylist();
+
+        if (currentSong != null && !currentPlaylist.isEmpty()) {
             // 更新播放列表
-            List<Song> currentPlaylist = mainActivity.getPlaylist();
-            if (currentPlaylist != null && !currentPlaylist.isEmpty()) {
-                updatePlaylist(currentPlaylist);
+            updatePlaylist(currentPlaylist);
 
-                // 找到当前歌曲在播放列表中的位置
-                int position = currentPlaylist.indexOf(currentSong);
-                System.out.println("position = " + position);
-                System.out.println("currentPosition = " + currentPosition);
-                if (position != -1 && position != currentPosition) {
-                    currentPosition = position;
+            // 找到当前歌曲在播放列表中的位置
+            int position = currentPlaylist.indexOf(currentSong);
+            if (position != -1 && position != currentPosition) {
+                currentPosition = position;
 
-                    miniPlayerAdapter.setCurrentPosition(position);
-                    binding.miniPlayerContainer.post(() -> {
-                        scrollToPosition(position);
-                    });
+                miniPlayerAdapter.setCurrentPosition(position);
+                binding.miniPlayerContainer.post(() -> {
+                    scrollToPosition(position);
+                });
 
-                    // 歌曲切换时立即重置进度条
-                    resetProgress();
-                }
+                // 歌曲切换时立即重置进度条
+                resetProgress();
             }
         } else {
             updateDefaultState();
         }
     }
 
-    private void updatePlayButton(int playState) {
-        switch (playState) {
-            case MusicService.STATE_PLAYING:
+    /**
+     * 更新播放按钮
+     */
+    private void updatePlayButton(int playbackState) {
+        switch (playbackState) {
+            case Player.STATE_READY:
+                if (mediaController != null && mediaController.isPlaying()) {
+                    binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
+                } else {
+                    binding.miniPlayPause.setImageResource(R.drawable.ic_play);
+                }
+                break;
+            case Player.STATE_BUFFERING:
                 binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
                 break;
-            case MusicService.STATE_PAUSED:
-            case MusicService.STATE_STOPPED:
-            case MusicService.STATE_IDLE:
-                binding.miniPlayPause.setImageResource(R.drawable.ic_play);
-                break;
-            case MusicService.STATE_PREPARING:
-                binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
-                break;
-            case MusicService.STATE_ERROR:
+            case Player.STATE_IDLE:
+            case Player.STATE_ENDED:
+            default:
                 binding.miniPlayPause.setImageResource(R.drawable.ic_play);
                 break;
         }
     }
 
+    /**
+     * 更新播放按钮（基于播放状态）
+     */
+    private void updatePlayButton(boolean isPlaying) {
+        if (isPlaying) {
+            binding.miniPlayPause.setImageResource(R.drawable.ic_pause);
+        } else {
+            binding.miniPlayPause.setImageResource(R.drawable.ic_play);
+        }
+    }
+
+    /**
+     * 更新默认状态
+     */
     private void updateDefaultState() {
         binding.miniPlayPause.setImageResource(R.drawable.ic_play);
 
@@ -220,6 +314,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             resetProgress();
         }
 
+        stopProgressUpdates();
         currentPosition = 0;
     }
 
@@ -277,45 +372,94 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
     /**
      * 更新进度条可见性
      */
-    private void updateProgressBarVisibility(int playState) {
+    private void updateProgressBarVisibility(int playbackState) {
         if (progressBar == null) return;
 
-        switch (playState) {
-            case MusicService.STATE_PLAYING:
-            case MusicService.STATE_PAUSED:
+        switch (playbackState) {
+            case Player.STATE_READY:
+            case Player.STATE_BUFFERING:
                 progressBar.setVisibility(View.VISIBLE);
                 break;
-            case MusicService.STATE_STOPPED:
-            case MusicService.STATE_IDLE:
-            case MusicService.STATE_ERROR:
+            case Player.STATE_IDLE:
+            case Player.STATE_ENDED:
+            default:
                 progressBar.setVisibility(View.GONE);
                 resetProgress();
                 break;
-            case MusicService.STATE_PREPARING:
-                progressBar.setVisibility(View.VISIBLE);
-                break;
         }
     }
+
+    // ===========================================
+    // 进度更新
+    // ===========================================
+
+    /**
+     * 开始进度更新
+     */
+    private void startProgressUpdates() {
+        if (progressUpdateRunnable == null) {
+            progressUpdateRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    updateProgressFromPlayer();
+                    progressUpdateHandler.postDelayed(this, 1000); // 每秒更新一次
+                }
+            };
+        }
+        
+        progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        progressUpdateHandler.post(progressUpdateRunnable);
+    }
+
+    /**
+     * 停止进度更新
+     */
+    private void stopProgressUpdates() {
+        if (progressUpdateRunnable != null) {
+            progressUpdateHandler.removeCallbacks(progressUpdateRunnable);
+        }
+    }
+
+    /**
+     * 从播放器更新进度
+     */
+    private void updateProgressFromPlayer() {
+        if (mediaController == null) return;
+
+        try {
+            long currentPosition = mediaController.getCurrentPosition();
+            long duration = mediaController.getDuration();
+            
+            if (duration > 0) {
+                int progress = (int) (((float) currentPosition / duration) * 100);
+                updateProgress(progress);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating progress from player", e);
+        }
+    }
+
+    // ===========================================
+    // 公共方法
+    // ===========================================
 
     /**
      * 开始播放歌曲
      */
     public void playSong(Song song) {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.playSong(song);
+        if (controllerHelper != null) {
+            controllerHelper.playSong(song);
         }
     }
 
     /**
      * 设置播放列表
      */
-    public void setPlaylist(java.util.List<Song> songs) {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.setPlaylist(songs);
+    public void setPlaylist(List<Song> songs) {
+        if (controllerHelper != null) {
+            controllerHelper.setPlaylist(songs);
         }
-
+        
         // 更新本地播放列表
         updatePlaylist(songs);
     }
@@ -324,22 +468,14 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
      * 获取当前播放状态
      */
     public boolean isPlaying() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            return mainActivity.isPlaying();
-        }
-        return false;
+        return mediaController != null && mediaController.isPlaying();
     }
 
     /**
      * 获取当前播放的歌曲
      */
     public Song getCurrentSong() {
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            return mainActivity.getCurrentSong();
-        }
-        return null;
+        return controllerHelper != null ? controllerHelper.getCurrentSong() : null;
     }
 
     @Override
@@ -400,9 +536,8 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
                             if (position < playlist.size()) {
                                 Song newSong = playlist.get(position);
                                 pendingPlayRunnable = () -> {
-                                    if (getActivity() instanceof MainActivity) {
-                                        MainActivity mainActivity = (MainActivity) getActivity();
-                                        mainActivity.playSong(newSong);
+                                    if (controllerHelper != null) {
+                                        controllerHelper.playSong(newSong);
                                     }
                                     isUserScrolling = false;
                                 };
@@ -421,9 +556,8 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
      * 用户通过滑动切换歌曲时的回调
      */
     private void onSongChangedByUser(Song song, int position) {
-        if (!isUserScrolling && getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            mainActivity.playSong(song);
+        if (!isUserScrolling && controllerHelper != null) {
+            controllerHelper.playSong(song);
         }
     }
 

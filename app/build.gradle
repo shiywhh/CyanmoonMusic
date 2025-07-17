@@ -40,6 +40,7 @@ android {
 }
 
 dependencies {
+    implementation 'com.github.Adonai:jaudiotagger:2.3.14'
     implementation libs.immersionbar
     implementation libs.playpauseview
     implementation libs.palette
@@ -50,6 +51,12 @@ dependencies {
     implementation libs.core
     debugImplementation libs.glance
     implementation libs.mmkv.static
+
+    // Media3 dependencies
+    implementation 'androidx.media3:media3-exoplayer:1.7.1'
+    implementation 'androidx.media3:media3-common:1.7.1'
+    implementation 'androidx.media3:media3-session:1.7.1'
+    implementation 'androidx.media3:media3-ui:1.7.1'
 
     implementation libs.appcompat
     implementation libs.material

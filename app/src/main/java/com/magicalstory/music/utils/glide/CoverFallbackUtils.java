@@ -98,8 +98,8 @@ public class CoverFallbackUtils {
             for (Album album : artistAlbums) {
                 if (!TextUtils.isEmpty(album.getAlbumArt())) {
                     artist.setCoverUrl(album.getAlbumArt());
-                    artist.setCoverFetched(true);
-                    artist.save();
+                    artist.setCoverFetched(false);
+                    //artist.save();
                     return true;
                 }
             }
