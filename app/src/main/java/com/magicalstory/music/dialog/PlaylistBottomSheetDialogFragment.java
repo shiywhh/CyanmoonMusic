@@ -299,8 +299,7 @@ public class PlaylistBottomSheetDialogFragment extends BottomSheetDialogFragment
             dismiss();
             
             // 通知MainActivity停止播放
-            if (getActivity() instanceof MainActivity) {
-                MainActivity mainActivity = (MainActivity) getActivity();
+            if (getActivity() instanceof MainActivity mainActivity) {
                 mainActivity.stopMusicPlayback();
             }
         } else {

@@ -134,6 +134,13 @@
             app:exitAnim="@anim/fade_out"
             app:popEnterAnim="@anim/fade_in_pop"
             app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_artist_detail_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
     </fragment>
 
     <fragment

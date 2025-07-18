@@ -6,24 +6,24 @@
         android:id="@+id/action_edit_tags"
         android:title="@string/edit_tags"
         android:icon="@drawable/ic_more_ver"
-        app:showAsAction="never" />
+        android:showAsAction="never" />
 
     <item
         android:id="@+id/action_shuffle_play"
         android:title="@string/shuffle_play"
         android:icon="@drawable/ic_shuffle"
-        app:showAsAction="never" />
+        android:showAsAction="never" />
 
     <item
         android:id="@+id/action_play_next"
         android:title="@string/play_next"
         android:icon="@drawable/ic_skip_next"
-        app:showAsAction="never" />
+        android:showAsAction="never" />
 
     <item
         android:id="@+id/action_add_to_playlist"
         android:title="@string/add_to_playlist"
         android:icon="@drawable/ic_playlist_play"
-        app:showAsAction="never" />
+        android:showAsAction="never" />
 
 </menu> 

@@ -822,7 +822,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         // 注销广播接收器
         try {
-            if (scanCompleteReceiver != null && getContext() != null) {
+            if (getContext() != null) {
                 LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(scanCompleteReceiver);
                 android.util.Log.d("HomeFragment", "广播接收器注销成功");
             }

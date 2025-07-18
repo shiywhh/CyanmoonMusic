@@ -1,13 +1,17 @@
 package com.magicalstory.music;
 
 import android.animation.ValueAnimator;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Configuration;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 
 import androidx.core.splashscreen.SplashScreen;
@@ -23,6 +27,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
 import androidx.navigation.NavController;
+import androidx.navigation.NavOptions;
 import androidx.navigation.ui.NavigationUI;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -40,6 +45,7 @@ import com.magicalstory.music.player.FullPlayerFragment;
 import com.magicalstory.music.player.PlaylistManager;
 import com.magicalstory.music.service.MusicService;
 import com.magicalstory.music.player.MediaControllerHelper;
+import com.magicalstory.music.utils.app.ToastUtils;
 import com.tencent.mmkv.MMKV;
 
 import java.lang.reflect.Type;
@@ -59,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
     // 广播常量
-    public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";
+    public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";;
 
     private ActivityMainBinding binding;
     private BottomSheetBehavior<View> bottomSheetBehavior;
@@ -113,11 +119,6 @@ public class MainActivity extends AppCompatActivity {
 
         // 设置SplashScreen保持显示的条件
         splashScreen.setKeepOnScreenCondition(() -> {
-            // 检查应用是否准备就绪
-            // 可以在这里添加更多初始化检查，比如：
-            // - 数据加载完成
-            // - 网络连接检查
-            // - 权限检查等
             return !isAppReady;
         });
 
@@ -440,14 +441,22 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    /**
-     * 重写onBackPressed方法以支持API 33以下的设备
-     */
+
     @Override
-    public void onBackPressed() {
-        if (!handleBackPress()) {
-            super.onBackPressed();
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+
+            if (!handleBackPress()) {
+                Intent home = new Intent(Intent.ACTION_MAIN);
+                home.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                home.addCategory(Intent.CATEGORY_HOME);
+                startActivity(home);
+
+            }
+            return true;
         }
+
+        return super.onKeyDown(keyCode, event);
     }
 
     /**
@@ -775,6 +784,50 @@ public class MainActivity extends AppCompatActivity {
         if (mediaController != null) {
             MediaController.releaseFuture(controllerFuture);
             mediaController = null;
+        }
+    }
+
+
+    /**
+     * 跳转到艺术家详情页面
+     * 使用通用的导航方式，适用于从任何页面跳转
+     */
+    public void navigateToArtistDetail(String artistName) {
+        try {
+            // 获取NavHostFragment
+            androidx.fragment.app.Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+            if (navHostFragment != null) {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+                // 从NavHostFragment获取NavController
+                NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+
+                // 使用通用的导航方式
+                Bundle bundle = new Bundle();
+                bundle.putString("artist_name", artistName);
+
+                binding.bottomNavigation.postDelayed(() -> {
+                    try {
+                        // 方法1：使用NavOptions添加动画效果，直接导航到目的地（推荐方式）
+                        NavOptions navOptions = new NavOptions.Builder()
+                                .setEnterAnim(R.anim.fade_in)
+                                .setExitAnim(R.anim.fade_out)
+                                .setPopEnterAnim(R.anim.fade_in_pop)
+                                .setPopExitAnim(R.anim.fade_out_pop)
+                                .build();
+                        navController.navigate(R.id.nav_artist_detail, bundle, navOptions);
+                        Log.d(TAG, "成功跳转到艺术家详情页面: " + artistName);
+                    } catch (Exception e) {
+                        Log.e(TAG, "直接导航失败，尝试备用方案", e);
+                       ToastUtils.showToast(this, "跳转失败");
+
+                    }
+                }, 500);
+            } else {
+                Log.e(TAG, "NavHostFragment为null，无法执行导航");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "跳转到艺术家详情页面失败", e);
         }
     }
 

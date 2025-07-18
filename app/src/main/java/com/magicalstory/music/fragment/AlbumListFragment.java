@@ -31,6 +31,7 @@ import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
+import com.magicalstory.music.utils.app.ToastUtils;
 import com.google.android.material.snackbar.Snackbar;
 
 
@@ -101,12 +102,15 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         // 初始化RecyclerView
         initRecyclerView();
 
-
         // 设置menu选项
         setHasOptionsMenu(true);
 
         // 设置返回键监听
         setupBackKeyListener();
+
+        // 初始化toolbar菜单
+        binding.toolbar.inflateMenu(R.menu.menu_songs_list);
+        setNormalMenuItemsVisible(binding.toolbar.getMenu(), true);
 
         // 加载数据
         loadAlbums();
@@ -128,6 +132,9 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
             }
         });
 
+        // 设置toolbar菜单处理
+        binding.toolbar.setOnMenuItemClickListener(item -> onOptionsItemSelected(item));
+
         // 设置FAB点击事件 - 播放所有专辑的歌曲
         binding.fab.setOnClickListener(v -> {
             playAllAlbumSongs();
@@ -140,28 +147,53 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         if (isMultiSelectMode) {
             menu.clear();
             inflater.inflate(R.menu.menu_multiselect, menu);
+            // 设置菜单项为可见状态
+            setMenuItemsVisible(menu, true);
+        } else {
+            // 非多选模式下显示随机播放、下一首播放、添加到播放列表菜单
+            menu.clear();
+            inflater.inflate(R.menu.menu_songs_list, menu);
+            // 设置菜单项为可见状态
+            setNormalMenuItemsVisible(menu, true);
         }
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
-        if (itemId == R.id.menu_play_next) {
-            playNext();
-            return true;
-        } else if (itemId == R.id.menu_add_to_playlist) {
-            addToPlaylist();
-            return true;
-        } else if (itemId == R.id.menu_select_all) {
-            selectAll();
-            return true;
-        } else if (itemId == R.id.menu_remove_from_playlist) {
-            removeFromPlaylist();
-            return true;
-        } else if (itemId == R.id.menu_delete_from_device) {
-            deleteFromDevice();
-            return true;
+        
+        if (isMultiSelectMode) {
+            // 多选模式下的菜单处理
+            if (itemId == R.id.menu_play_next) {
+                playNext();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist) {
+                addToPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_select_all) {
+                selectAll();
+                return true;
+            } else if (itemId == R.id.menu_remove_from_playlist) {
+                removeFromPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_delete_from_device) {
+                deleteFromDevice();
+                return true;
+            }
+        } else {
+            // 普通模式下的菜单处理
+            if (itemId == R.id.action_shuffle_play) {
+                shufflePlay();
+                return true;
+            } else if (itemId == R.id.action_play_next) {
+                addToPlayNext();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist) {
+                addToPlaylistNormal();
+                return true;
+            }
         }
+        
         return super.onOptionsItemSelected(item);
     }
 
@@ -277,8 +309,47 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         // 隐藏FAB
         binding.fab.hide();
 
+        // 设置toolbar菜单
+        binding.toolbar.getMenu().clear();
+        binding.toolbar.inflateMenu(R.menu.menu_multiselect);
+        setMenuItemsVisible(binding.toolbar.getMenu(), true);
+
         // 刷新菜单
         requireActivity().invalidateOptionsMenu();
+    }
+
+    /**
+     * 设置多选模式菜单项的可见性
+     */
+    private void setMenuItemsVisible(Menu menu, boolean visible) {
+        if (menu != null) {
+            MenuItem playNext = menu.findItem(R.id.menu_play_next);
+            MenuItem addToPlaylist = menu.findItem(R.id.menu_add_to_playlist);
+            MenuItem selectAll = menu.findItem(R.id.menu_select_all);
+            MenuItem removeFromPlaylist = menu.findItem(R.id.menu_remove_from_playlist);
+            MenuItem deleteFromDevice = menu.findItem(R.id.menu_delete_from_device);
+
+            if (playNext != null) playNext.setVisible(visible);
+            if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (selectAll != null) selectAll.setVisible(visible);
+            if (removeFromPlaylist != null) removeFromPlaylist.setVisible(visible);
+            if (deleteFromDevice != null) deleteFromDevice.setVisible(visible);
+        }
+    }
+
+    /**
+     * 设置普通模式菜单项的可见性
+     */
+    private void setNormalMenuItemsVisible(Menu menu, boolean visible) {
+        if (menu != null) {
+            MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
+            MenuItem playNext = menu.findItem(R.id.action_play_next);
+            MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+
+            if (shufflePlay != null) shufflePlay.setVisible(visible);
+            if (playNext != null) playNext.setVisible(visible);
+            if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+        }
     }
 
     /**
@@ -292,6 +363,11 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
         // 恢复原来的标题
         binding.toolbar.setTitle(originalTitle);
+
+        // 清空toolbar菜单并重新设置普通模式菜单
+        binding.toolbar.getMenu().clear();
+        binding.toolbar.inflateMenu(R.menu.menu_songs_list);
+        setNormalMenuItemsVisible(binding.toolbar.getMenu(), true);
 
         // 显示FAB
         binding.fab.show();
@@ -661,6 +737,155 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
             albumAdapter.updateData(albumList);
         }
         loadAlbums();
+    }
+
+    /**
+     * 随机播放（普通模式）
+     */
+    private void shufflePlay() {
+        if (albumList == null || albumList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_albums_to_play));
+            return;
+        }
+
+        // 在后台线程查询所有专辑的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+
+                // 遍历所有专辑，获取每个专辑的歌曲
+                for (Album album : albumList) {
+                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
+                            String.valueOf(album.getAlbumId()), album.getArtist())
+                            .order("track asc")
+                            .find(Song.class);
+                    if (albumSongs != null) {
+                        allSongs.addAll(albumSongs);
+                    }
+                }
+
+                // 在主线程更新UI并播放
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        if (getActivity() instanceof MainActivity mainActivity) {
+                            // 随机打乱歌曲顺序
+                            java.util.Collections.shuffle(allSongs);
+                            mainActivity.playFromPlaylist(allSongs, 0);
+                        }
+                    } else {
+                        ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_play));
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    ToastUtils.showToast(getContext(), "播放失败：" + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * 添加到播放队列的下一首位置（普通模式）
+     */
+    private void addToPlayNext() {
+        if (albumList == null || albumList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_albums_to_add));
+            return;
+        }
+
+        // 在后台线程查询所有专辑的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+
+                // 遍历所有专辑，获取每个专辑的歌曲
+                for (Album album : albumList) {
+                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
+                            String.valueOf(album.getAlbumId()), album.getArtist())
+                            .order("track asc")
+                            .find(Song.class);
+                    if (albumSongs != null) {
+                        allSongs.addAll(albumSongs);
+                    }
+                }
+
+                // 在主线程更新UI并添加到播放队列
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        // 获取MediaControllerHelper实例
+                        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+                        if (controllerHelper != null) {
+                            // 添加歌曲到下一首播放位置
+                            controllerHelper.addSongsToPlayNext(allSongs);
+                            ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+                        } else {
+                            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+                        }
+                    } else {
+                        ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    ToastUtils.showToast(getContext(), "添加失败：" + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * 添加到播放列表（普通模式）
+     */
+    private void addToPlaylistNormal() {
+        if (albumList == null || albumList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_albums_to_add));
+            return;
+        }
+
+        // 在后台线程查询所有专辑的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+
+                // 遍历所有专辑，获取每个专辑的歌曲
+                for (Album album : albumList) {
+                    List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
+                            String.valueOf(album.getAlbumId()), album.getArtist())
+                            .order("track asc")
+                            .find(Song.class);
+                    if (albumSongs != null) {
+                        allSongs.addAll(albumSongs);
+                    }
+                }
+
+                // 在主线程更新UI并添加到播放列表
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        // 获取MediaControllerHelper实例
+                        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+                        if (controllerHelper != null) {
+                            // 添加歌曲到播放列表末尾
+                            controllerHelper.addSongsToPlaylist(allSongs);
+                            ToastUtils.showToast(getContext(), getString(R.string.added_to_playlist));
+                        } else {
+                            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+                        }
+                    } else {
+                        ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    ToastUtils.showToast(getContext(), "添加失败：" + e.getMessage());
+                });
+            }
+        }).start();
     }
 
     /**

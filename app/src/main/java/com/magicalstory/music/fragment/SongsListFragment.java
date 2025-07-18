@@ -30,10 +30,12 @@ import com.magicalstory.music.adapter.SongVerticalAdapter;
 import com.magicalstory.music.model.Song;
 import com.google.android.material.snackbar.Snackbar;
 import com.magicalstory.music.player.MediaControllerHelper;
+import com.magicalstory.music.utils.app.ToastUtils;
 
 import org.litepal.LitePal;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -132,6 +134,10 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         // 设置返回键监听
         setupBackKeyListener();
 
+        // 初始化toolbar菜单
+        binding.toolbar.inflateMenu(R.menu.menu_songs_list);
+        setNormalMenuItemsVisible(binding.toolbar.getMenu(), true);
+
         // 加载数据
         loadSongsByType();
 
@@ -174,11 +180,17 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             inflater.inflate(R.menu.menu_multiselect, menu);
             // 设置菜单项为可见状态
             setMenuItemsVisible(menu, true);
+        } else {
+            // 非多选模式下显示随机播放、下一首播放、添加到播放列表菜单
+            menu.clear();
+            inflater.inflate(R.menu.menu_songs_list, menu);
+            // 设置菜单项为可见状态
+            setNormalMenuItemsVisible(menu, true);
         }
     }
 
     /**
-     * 设置菜单项的可见性
+     * 设置多选模式菜单项的可见性
      */
     private void setMenuItemsVisible(Menu menu, boolean visible) {
         if (menu != null) {
@@ -196,25 +208,57 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         }
     }
 
+    /**
+     * 设置普通模式菜单项的可见性
+     */
+    private void setNormalMenuItemsVisible(Menu menu, boolean visible) {
+        if (menu != null) {
+            MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
+            MenuItem playNext = menu.findItem(R.id.action_play_next);
+            MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+
+            if (shufflePlay != null) shufflePlay.setVisible(visible);
+            if (playNext != null) playNext.setVisible(visible);
+            if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+        }
+    }
+
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
-        if (itemId == R.id.menu_play_next) {
-            playNext();
-            return true;
-        } else if (itemId == R.id.menu_add_to_playlist) {
-            addToPlaylist();
-            return true;
-        } else if (itemId == R.id.menu_select_all) {
-            selectAll();
-            return true;
-        } else if (itemId == R.id.menu_remove_from_playlist) {
-            removeFromPlaylist();
-            return true;
-        } else if (itemId == R.id.menu_delete_from_device) {
-            deleteFromDevice();
-            return true;
+        
+        if (isMultiSelectMode) {
+            // 多选模式下的菜单处理
+            if (itemId == R.id.menu_play_next) {
+                playNext();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist) {
+                addToPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_select_all) {
+                selectAll();
+                return true;
+            } else if (itemId == R.id.menu_remove_from_playlist) {
+                removeFromPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_delete_from_device) {
+                deleteFromDevice();
+                return true;
+            }
+        } else {
+            // 普通模式下的菜单处理
+            if (itemId == R.id.action_shuffle_play) {
+                shufflePlay();
+                return true;
+            } else if (itemId == R.id.action_play_next) {
+                addToPlayNext();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist) {
+                addToPlaylistNormal();
+                return true;
+            }
         }
+        
         return super.onOptionsItemSelected(item);
     }
 
@@ -388,8 +432,10 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         // 恢复原来的标题
         binding.toolbar.setTitle(originalTitle);
 
-        // 清空toolbar菜单
+        // 清空toolbar菜单并重新设置普通模式菜单
         binding.toolbar.getMenu().clear();
+        binding.toolbar.inflateMenu(R.menu.menu_songs_list);
+        setNormalMenuItemsVisible(binding.toolbar.getMenu(), true);
 
         // 显示FAB
         binding.fab.show();
@@ -414,7 +460,63 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     }
 
     /**
-     * 下一首播放
+     * 随机播放（普通模式）
+     */
+    private void shufflePlay() {
+        if (songList == null || songList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_play));
+            return;
+        }
+
+        if (getActivity() instanceof MainActivity mainActivity) {
+            List<Song> shuffledSongs = new ArrayList<>(songList);
+            Collections.shuffle(shuffledSongs);
+            mainActivity.playFromPlaylist(shuffledSongs, 0);
+        }
+    }
+
+    /**
+     * 添加到播放队列的下一首位置（普通模式）
+     */
+    private void addToPlayNext() {
+        if (songList == null || songList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+            return;
+        }
+
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加歌曲到下一首播放位置
+            controllerHelper.addSongsToPlayNext(songList);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+        }
+    }
+
+    /**
+     * 添加到播放列表（普通模式）
+     */
+    private void addToPlaylistNormal() {
+        if (songList == null || songList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+            return;
+        }
+
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加歌曲到播放列表末尾
+            controllerHelper.addSongsToPlaylist(songList);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_playlist));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+        }
+    }
+
+    /**
+     * 下一首播放（多选模式）
      */
     private void playNext() {
         List<Song> selectedSongs = songAdapter.getSelectedSongs();
@@ -423,18 +525,21 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             return;
         }
 
-        // 实现添加到播放队列下一首的功能
-        if (context instanceof MainActivity) {
-            // 暂时使用Snackbar提示，后续可以扩展MusicService来支持添加到播放队列
-            showSnackbar(getString(R.string.added_to_queue, selectedSongs.size()));
-            // TODO: 后续需要在MusicService中添加addToPlayQueue方法
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加选中的歌曲到下一首播放位置
+            controllerHelper.addSongsToPlayNext(selectedSongs);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
         }
 
         exitMultiSelectMode();
     }
 
     /**
-     * 添加到播放列表
+     * 添加到播放列表（多选模式）
      */
     private void addToPlaylist() {
         List<Song> selectedSongs = songAdapter.getSelectedSongs();
@@ -443,17 +548,14 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             return;
         }
 
-        // 实现添加到播放列表的功能
-        if (context instanceof MainActivity mainActivity) {
-            // 将选中的歌曲添加到当前播放列表
-            java.util.List<Song> currentPlaylist = new java.util.ArrayList<>();
-            if (mainActivity.getCurrentSong() != null) {
-                // 获取当前播放列表，这里暂时使用songList作为当前播放列表
-                currentPlaylist.addAll(songList);
-            }
-            currentPlaylist.addAll(selectedSongs);
-            mainActivity.setPlaylist(currentPlaylist);
-            showSnackbar(getString(R.string.added_to_playlist, selectedSongs.size()));
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加选中的歌曲到播放列表末尾
+            controllerHelper.addSongsToPlaylist(selectedSongs);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_playlist));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
         }
 
         exitMultiSelectMode();
@@ -479,10 +581,24 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             return;
         }
 
-        // 实现从播放列表移除的功能
-        // 暂时使用Snackbar提示，实际功能需要MusicService支持
-        showSnackbar(getString(R.string.removed_from_playlist, selectedSongs.size()));
-        // TODO: 后续需要在MusicService中添加removeFromPlayQueue方法
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 从播放列表中移除选中的歌曲
+            List<Song> currentPlaylist = controllerHelper.getPlaylist();
+            for (Song selectedSong : selectedSongs) {
+                for (int i = 0; i < currentPlaylist.size(); i++) {
+                    if (currentPlaylist.get(i).getId() == selectedSong.getId()) {
+                        controllerHelper.removeFromPlaylist(i);
+                        break;
+                    }
+                }
+            }
+            ToastUtils.showToast(getContext(), getString(R.string.removed_from_playlist, selectedSongs.size()));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+        }
+
         exitMultiSelectMode();
     }
 

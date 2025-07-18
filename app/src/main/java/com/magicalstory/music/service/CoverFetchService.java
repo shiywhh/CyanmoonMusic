@@ -183,7 +183,7 @@ public class CoverFetchService extends IntentService {
         int apiRequestCount = 0;
 
         long time_start = System.currentTimeMillis();
-        String singerName = RawTextReader.getRawText(this, R.raw.singer_name);
+        String singerName = RawTextReader.getRawText(this, R.raw.singer_name).replace(".","");
         long time_end = System.currentTimeMillis();
         System.out.println("读取耗时 = " + (time_end - time_start));
         for (Artist artist : artists) {

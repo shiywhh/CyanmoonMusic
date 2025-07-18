@@ -1,10 +1,12 @@
 package com.magicalstory.music.player;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -25,6 +27,8 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.navigation.Navigation;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 
 import com.bumptech.glide.Glide;
@@ -764,6 +768,25 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 Log.d(TAG, "歌词未显示，显示歌词");
                 // 如果歌词未显示，显示歌词
                 toggleLyrics();
+            }
+        });
+
+        // 歌手名字点击事件
+        binding.fullSongArtist.setOnClickListener(v -> {
+            Log.d(TAG, "歌手名字被点击");
+            if (controllerHelper != null) {
+                Song currentSong = controllerHelper.getCurrentSong();
+                if (currentSong != null && currentSong.getArtist() != null && !currentSong.getArtist().isEmpty()) {
+                    if (getActivity() instanceof MainActivity mainActivity) {
+                        mainActivity.navigateToArtistDetail(currentSong.getArtist());
+                    }
+                } else {
+                    Log.w(TAG, "当前歌曲或歌手信息为空，无法跳转");
+                    ToastUtils.showToast(context, "无法获取歌手信息");
+                }
+            } else {
+                Log.e(TAG, "MediaControllerHelper为null，无法获取当前歌曲信息");
+                ToastUtils.showToast(context, "播放器未准备好");
             }
         });
     }

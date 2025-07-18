@@ -2,39 +2,34 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- 溢出菜单 -->
+    <item
+        android:id="@+id/menu_select_all"
+        android:title="全选"
+        android:visible="false"
+        android:showAsAction="never" />
+
     <!-- 下一首播放 -->
     <item
         android:id="@+id/menu_play_next"
         android:icon="@drawable/ic_skip_next"
         android:title="下一首播放"
         android:visible="false"
-        app:showAsAction="always" />
+        android:showAsAction="always" />
 
     <!-- 添加到播放列表 -->
     <item
         android:id="@+id/menu_add_to_playlist"
         android:icon="@drawable/ic_queue_music"
+        android:showAsAction="ifRoom"
         android:title="添加到播放列表"
-        android:visible="false"
-        app:showAsAction="always" />
+        android:visible="false" />
 
-    <!-- 溢出菜单 -->
-    <item
-        android:id="@+id/menu_select_all"
-        android:title="全选"
-        android:visible="false"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/menu_remove_from_playlist"
-        android:title="从播放列表移除"
-        android:visible="false"
-        app:showAsAction="never" />
 
     <item
         android:id="@+id/menu_delete_from_device"
         android:title="从设备上删除"
         android:visible="false"
-        app:showAsAction="never" />
+        android:showAsAction="never" />
 
 </menu> 

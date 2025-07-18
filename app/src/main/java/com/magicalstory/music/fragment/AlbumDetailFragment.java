@@ -8,7 +8,11 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -69,6 +73,11 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     // 颜色相关
     private int primaryColor = Color.parseColor("#6200EE");
     private int onPrimaryColor = Color.WHITE;
+    
+    // 多选相关
+    private boolean isMultiSelectMode = false;
+    private String originalTitle;
+    
     private MediaControllerHelper controllerHelper;
     private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
         @Override
@@ -126,6 +135,9 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         // 设置menu选项
         setHasOptionsMenu(true);
 
+        // 设置返回键监听
+        setupBackKeyListener();
+
         // 初始化RecyclerView
         initRecyclerViews();
 
@@ -148,22 +160,37 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         binding.toolbar.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
 
-            if (itemId == R.id.action_edit_tags) {
-                // 打开标签编辑器
-                openTagEditor();
-                return true;
-            } else if (itemId == R.id.action_shuffle_play) {
-                // 随机播放
-                binding.btnShufflePlay.performClick();
-                return true;
-            } else if (itemId == R.id.action_play_next) {
-                // 下一首播放
-                addToPlayNext();
-                return true;
-            } else if (itemId == R.id.action_add_to_playlist) {
-                // 添加到播放列表
-                addToPlaylist();
-                return true;
+            if (isMultiSelectMode) {
+                // 多选模式下的菜单处理
+                if (itemId == R.id.menu_play_next) {
+                    playNext();
+                    return true;
+                } else if (itemId == R.id.menu_add_to_playlist) {
+                    addToPlaylistMultiSelect();
+                    return true;
+                } else if (itemId == R.id.menu_select_all) {
+                    selectAll();
+                    return true;
+                }
+            } else {
+                // 普通模式下的菜单处理
+                if (itemId == R.id.action_edit_tags) {
+                    // 打开标签编辑器
+                    openTagEditor();
+                    return true;
+                } else if (itemId == R.id.action_shuffle_play) {
+                    // 随机播放
+                    binding.btnShufflePlay.performClick();
+                    return true;
+                } else if (itemId == R.id.action_play_next) {
+                    // 下一首播放
+                    addToPlayNext();
+                    return true;
+                } else if (itemId == R.id.action_add_to_playlist) {
+                    // 添加到播放列表
+                    addToPlaylist();
+                    return true;
+                }
             }
 
             return false;
@@ -171,7 +198,11 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
 
         // 返回按钮
         binding.toolbar.setNavigationOnClickListener(v -> {
-            Navigation.findNavController(requireView()).popBackStack();
+            if (isMultiSelectMode) {
+                exitMultiSelectMode();
+            } else {
+                Navigation.findNavController(requireView()).popBackStack();
+            }
         });
 
         int albumTitleY = DensityUtil.getScreenHeightAndWeight(context)[0];
@@ -239,6 +270,55 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         });
     }
 
+    @Override
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        if (isMultiSelectMode) {
+            menu.clear();
+            inflater.inflate(R.menu.menu_multiselect, menu);
+            // 设置菜单项为可见状态
+            setMenuItemsVisible(menu, true);
+        } else {
+            // 非多选模式下显示编辑标签、随机播放、下一首播放、添加到播放列表菜单
+            menu.clear();
+            inflater.inflate(R.menu.menu_album_detail, menu);
+            // 设置菜单项为可见状态
+            setNormalMenuItemsVisible(menu, true);
+        }
+    }
+
+    /**
+     * 设置多选模式菜单项的可见性
+     */
+    private void setMenuItemsVisible(Menu menu, boolean visible) {
+        if (menu != null) {
+            MenuItem playNext = menu.findItem(R.id.menu_play_next);
+            MenuItem addToPlaylist = menu.findItem(R.id.menu_add_to_playlist);
+            MenuItem selectAll = menu.findItem(R.id.menu_select_all);
+
+            if (playNext != null) playNext.setVisible(visible);
+            if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (selectAll != null) selectAll.setVisible(visible);
+        }
+    }
+
+    /**
+     * 设置普通模式菜单项的可见性
+     */
+    private void setNormalMenuItemsVisible(Menu menu, boolean visible) {
+        if (menu != null) {
+            MenuItem editTags = menu.findItem(R.id.action_edit_tags);
+            MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
+            MenuItem playNext = menu.findItem(R.id.action_play_next);
+            MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+
+            if (editTags != null) editTags.setVisible(visible);
+            if (shufflePlay != null) shufflePlay.setVisible(visible);
+            if (playNext != null) playNext.setVisible(visible);
+            if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+        }
+    }
+
     /**
      * 初始化RecyclerView
      */
@@ -246,6 +326,32 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         // 歌曲列表
         binding.rvSongs.setLayoutManager(new LinearLayoutManager(getContext()));
         songAdapter = new SongVerticalAdapter(getContext(), new ArrayList<>());
+        
+        // 设置歌曲适配器的监听器
+        songAdapter.setOnItemClickListener((song, position) -> {
+            if (isMultiSelectMode) {
+                songAdapter.toggleSelection(song);
+                updateSelectionCount();
+            } else {
+                // 普通模式：播放歌曲
+                if (getActivity() instanceof MainActivity mainActivity) {
+                    mainActivity.playFromPlaylist(albumSongs, position);
+                }
+            }
+        });
+
+        songAdapter.setOnItemLongClickListener((song, position) -> {
+            if (!isMultiSelectMode) {
+                enterMultiSelectMode(song);
+            }
+        });
+
+        songAdapter.setOnSelectionChangedListener(selectedCount -> {
+            if (isMultiSelectMode) {
+                updateSelectionCount();
+            }
+        });
+
         binding.rvSongs.setAdapter(songAdapter);
 
         // 其他专辑列表
@@ -273,6 +379,141 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         controllerHelper.addPlaybackStateListener(playbackStateListener);
     }
 
+    /**
+     * 进入多选模式
+     */
+    private void enterMultiSelectMode(Song initialSong) {
+        isMultiSelectMode = true;
+        originalTitle = binding.toolbar.getTitle().toString();
+
+        // 设置适配器为多选模式
+        songAdapter.setMultiSelectMode(true);
+
+        // 选中初始歌曲
+        if (initialSong != null) {
+            songAdapter.toggleSelection(initialSong);
+        }
+
+        // 更新UI
+        updateSelectionCount();
+
+        // 设置toolbar菜单
+        binding.toolbar.getMenu().clear();
+        binding.toolbar.inflateMenu(R.menu.menu_multiselect);
+        setMenuItemsVisible(binding.toolbar.getMenu(), true);
+
+        // 刷新菜单
+        requireActivity().invalidateOptionsMenu();
+    }
+
+    /**
+     * 退出多选模式
+     */
+    private void exitMultiSelectMode() {
+        isMultiSelectMode = false;
+
+        // 设置适配器为普通模式
+        songAdapter.setMultiSelectMode(false);
+
+        // 恢复原来的标题
+        binding.toolbar.setTitle(originalTitle);
+
+        // 清空toolbar菜单并重新设置普通模式菜单
+        binding.toolbar.getMenu().clear();
+        binding.toolbar.inflateMenu(R.menu.menu_album_detail);
+        setNormalMenuItemsVisible(binding.toolbar.getMenu(), true);
+
+        // 刷新菜单
+        requireActivity().invalidateOptionsMenu();
+    }
+
+    /**
+     * 更新选中数量显示
+     */
+    private void updateSelectionCount() {
+        if (songAdapter != null && isMultiSelectMode) {
+            int selectedCount = songAdapter.getSelectedCount();
+            // 如果没有选中任何项，自动退出多选模式
+            if (selectedCount == 0) {
+                exitMultiSelectMode();
+                return;
+            }
+            binding.toolbar.setTitle(getString(R.string.selected_count_songs, selectedCount));
+        }
+    }
+
+    /**
+     * 下一首播放（多选模式）
+     */
+    private void playNext() {
+        List<Song> selectedSongs = songAdapter.getSelectedSongs();
+        if (selectedSongs.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.select_songs));
+            return;
+        }
+
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加选中的歌曲到下一首播放位置
+            controllerHelper.addSongsToPlayNext(selectedSongs);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+        }
+
+        exitMultiSelectMode();
+    }
+
+    /**
+     * 添加到播放列表（多选模式）
+     */
+    private void addToPlaylistMultiSelect() {
+        List<Song> selectedSongs = songAdapter.getSelectedSongs();
+        if (selectedSongs.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.select_songs));
+            return;
+        }
+
+        // 获取MediaControllerHelper实例
+        MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+        if (controllerHelper != null) {
+            // 添加选中的歌曲到播放列表末尾
+            controllerHelper.addSongsToPlaylist(selectedSongs);
+            ToastUtils.showToast(getContext(), getString(R.string.added_to_playlist));
+        } else {
+            ToastUtils.showToast(getContext(), "播放控制器未初始化");
+        }
+
+        exitMultiSelectMode();
+    }
+
+    /**
+     * 全选
+     */
+    private void selectAll() {
+        if (songAdapter != null) {
+            songAdapter.selectAll();
+            updateSelectionCount();
+        }
+    }
+
+    /**
+     * 设置返回键监听
+     */
+    private void setupBackKeyListener() {
+        requireView().setFocusableInTouchMode(true);
+        requireView().requestFocus();
+        requireView().setOnKeyListener((v, keyCode, event) -> {
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                if (isMultiSelectMode) {
+                    exitMultiSelectMode();
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
 
     /**
      * 加载专辑详情
