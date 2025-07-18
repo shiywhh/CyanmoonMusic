@@ -139,4 +139,7 @@
     <string name="no_songs_to_add">没有歌曲可以添加</string>
     <string name="songs_lastest">已经是最后一首歌啦</string>
     <string name="slogan">享受音乐的乐趣</string>
+    <string name="button_start">开始</string>
+    <string name="button_stop">停止</string>
+    <string name="button_finish">完成</string>
 </resources>

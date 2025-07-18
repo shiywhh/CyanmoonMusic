@@ -34,6 +34,12 @@ import com.bumptech.glide.request.transition.Transition;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.dialog.PlaylistBottomSheetDialogFragment;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.slider.Slider;
+
+import androidx.appcompat.app.AlertDialog;
+
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentFullPlayerBinding;
 import com.magicalstory.music.model.Song;
@@ -81,7 +87,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
             Log.d(TAG, "FullPlayerFragment收到媒体项切换: " + (mediaItem != null ? mediaItem.mediaId : "null"));
             updateCurrentSong();
-            
+
 
         }
 
@@ -175,6 +181,13 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     // 播放列表底部弹出窗口相关
     private PlaylistBottomSheetDialogFragment playlistBottomSheet;
 
+    // 睡眠定时器相关
+    private boolean isSleepTimerActive = false;
+    private long sleepTimerRemainingTime = 0; // 剩余时间（毫秒）
+    private final Handler sleepTimerHandler = new Handler(Looper.getMainLooper());
+    private Runnable sleepTimerRunnable;
+    private Runnable sleepTimerUpdateRunnable;
+
     @Override
     protected FragmentFullPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
         return FragmentFullPlayerBinding.inflate(inflater, container, false);
@@ -235,6 +248,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         if (playButtonUpdateRunnable != null) {
             playButtonUpdateHandler.removeCallbacks(playButtonUpdateRunnable);
         }
+
+        // 停止睡眠定时器
+        stopSleepTimer();
 
         // 移除播放状态监听器
         if (controllerHelper != null) {
@@ -715,8 +731,13 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 睡眠模式按钮
         binding.btnSleepMode.setOnClickListener(v -> {
             Log.d(TAG, "睡眠模式按钮被点击");
-            // 暂时只显示提示
-            ToastUtils.showToast(context, "睡眠模式功能开发中");
+            showSleepTimerDialog();
+        });
+
+        // 睡眠定时器倒计时文本点击事件
+        binding.titleSleep.setOnClickListener(v -> {
+            Log.d(TAG, "睡眠定时器倒计时被点击");
+            showSleepTimerDialog();
         });
 
         // 播放列表按钮
@@ -1074,6 +1095,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         binding.btnSleepMode.setColorFilter(buttonNormalColor);
         binding.btnPlaylist.setColorFilter(buttonNormalColor);
         binding.btnMore.setColorFilter(buttonNormalColor);
+
+        // 更新睡眠定时器显示（包括颜色）
+        updateSleepTimerDisplay();
     }
 
     /**
@@ -1233,7 +1257,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 创建播放列表底部弹出窗口Fragment
         playlistBottomSheet = PlaylistBottomSheetDialogFragment.newInstance();
         playlistBottomSheet.setMediaControllerHelper(controllerHelper);
-        
+
         // 设置播放列表操作监听器
         playlistBottomSheet.setOnPlaylistActionListener(new PlaylistBottomSheetDialogFragment.OnPlaylistActionListener() {
             @Override
@@ -1261,6 +1285,299 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
         // 显示播放列表Fragment
         playlistBottomSheet.show(getParentFragmentManager(), "PlaylistBottomSheet");
+    }
+
+    /**
+     * 显示睡眠定时器弹窗
+     */
+    private void showSleepTimerDialog() {
+        Log.d(TAG, "显示睡眠定时器弹窗");
+
+        if (isSleepTimerActive) {
+            // 如果定时器已激活，显示控制对话框
+            showSleepTimerControlDialog();
+        } else {
+            // 如果定时器未激活，显示开始对话框
+            showSleepTimerStartDialog();
+        }
+    }
+
+    /**
+     * 显示睡眠定时器开始对话框
+     */
+    private void showSleepTimerStartDialog() {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_sleep_timer_start, null);
+        TextView tvSelectedTime = dialogView.findViewById(R.id.tv_selected_time);
+        Slider sliderTime = dialogView.findViewById(R.id.slider_time);
+        MaterialButton btnPlayUntilEnd = dialogView.findViewById(R.id.btn_play_until_end);
+        MaterialButton btnCancel = dialogView.findViewById(R.id.btn_cancel);
+        MaterialButton btnStart = dialogView.findViewById(R.id.btn_start);
+
+        // 设置滑块
+        sliderTime.setValueTo(11); // 0-11对应5,10,15,20,25,30,35,40,45,50,55,60分钟
+        sliderTime.setValue(0); // 默认5分钟
+        final int[] timeOptions = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
+        final boolean[] isPlayUntilEnd = {false};
+
+        // 滑块监听器
+        sliderTime.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser) {
+                int position = (int) value;
+                if (position >= 0 && position < timeOptions.length) {
+                    tvSelectedTime.setText(timeOptions[position] + " 分钟");
+                }
+            }
+        });
+
+        // 播完这首歌按钮
+        btnPlayUntilEnd.setOnClickListener(v -> {
+            isPlayUntilEnd[0] = !isPlayUntilEnd[0];
+            if (isPlayUntilEnd[0]) {
+                btnPlayUntilEnd.setStrokeColorResource(R.color.primary_color);
+                btnPlayUntilEnd.setTextColor(getResources().getColor(R.color.primary_color));
+
+                // 立即计算并显示当前歌曲的剩余时间
+                if (controllerHelper != null) {
+                    long currentPosition = controllerHelper.getCurrentPosition();
+                    long duration = controllerHelper.getDuration();
+                    long remainingTime = duration - currentPosition;
+
+                    if (remainingTime > 0) {
+                        long minutes = remainingTime / (60 * 1000);
+                        long seconds = (remainingTime % (60 * 1000)) / 1000;
+                        tvSelectedTime.setText(String.format("%d:%02d", minutes, seconds));
+                    } else {
+                        tvSelectedTime.setText("歌曲已播放完毕");
+                    }
+                }
+            } else {
+                btnPlayUntilEnd.setStrokeColorResource(R.color.text_secondary);
+                btnPlayUntilEnd.setTextColor(getResources().getColor(R.color.text_primary));
+
+                // 恢复显示选择的时间
+                int position = (int) sliderTime.getValue();
+                if (position >= 0 && position < timeOptions.length) {
+                    tvSelectedTime.setText(timeOptions[position] + " 分钟");
+                }
+            }
+        });
+
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("睡眠定时器")
+                .setView(dialogView);
+
+        AlertDialog dialog = builder.create();
+
+        // 取消按钮
+        btnCancel.setOnClickListener(v -> {
+            dialog.dismiss();
+        });
+
+        // 开始按钮
+        btnStart.setOnClickListener(v -> {
+            int selectedMinutes = timeOptions[(int) sliderTime.getValue()];
+            if (isPlayUntilEnd[0]) {
+                startPlayUntilEndTimer();
+            } else {
+                startFixedTimeTimer(selectedMinutes);
+            }
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * 显示睡眠定时器控制对话框
+     */
+    private void showSleepTimerControlDialog() {
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_sleep_timer_control, null);
+        TextView tvRemainingTime = dialogView.findViewById(R.id.tv_remaining_time);
+        View btnMinus5min = dialogView.findViewById(R.id.btn_minus_5min);
+        View btnPlus5min = dialogView.findViewById(R.id.btn_plus_5min);
+        MaterialButton btnStop = dialogView.findViewById(R.id.btn_stop);
+        MaterialButton btnDone = dialogView.findViewById(R.id.btn_done);
+
+        // 更新剩余时间显示
+        updateRemainingTimeDisplay(tvRemainingTime);
+
+        // 减少5分钟按钮
+        btnMinus5min.setOnClickListener(v -> {
+            sleepTimerRemainingTime -= 5 * 60 * 1000L; // 减少5分钟
+            if (sleepTimerRemainingTime < 0) {
+                sleepTimerRemainingTime = 0;
+            }
+            updateRemainingTimeDisplay(tvRemainingTime);
+            updateSleepTimerDisplay();
+        });
+
+        // 增加5分钟按钮
+        btnPlus5min.setOnClickListener(v -> {
+            sleepTimerRemainingTime += 5 * 60 * 1000L; // 增加5分钟
+            // 限制最大时间为1小时
+            if (sleepTimerRemainingTime > 60 * 60 * 1000L) {
+                sleepTimerRemainingTime = 60 * 60 * 1000L;
+            }
+            updateRemainingTimeDisplay(tvRemainingTime);
+            updateSleepTimerDisplay();
+        });
+
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("睡眠定时器")
+                .setView(dialogView);
+
+        AlertDialog dialog = builder.create();
+
+        // 停止按钮
+        btnStop.setOnClickListener(v -> {
+            stopSleepTimer();
+            dialog.dismiss();
+        });
+
+        // 完成按钮
+        btnDone.setOnClickListener(v -> {
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * 更新剩余时间显示
+     */
+    private void updateRemainingTimeDisplay(TextView textView) {
+        long minutes = sleepTimerRemainingTime / (60 * 1000);
+        long seconds = (sleepTimerRemainingTime % (60 * 1000)) / 1000;
+        textView.setText(String.format("%02d:%02d", minutes, seconds));
+    }
+
+    /**
+     * 开始固定时间定时器
+     */
+    private void startFixedTimeTimer(int minutes) {
+        stopSleepTimer(); // 先停止现有定时器
+
+        sleepTimerRemainingTime = minutes * 60 * 1000L;
+        isSleepTimerActive = true;
+
+        // 启动倒计时
+        startSleepTimerCountdown();
+
+        // 更新UI显示
+        updateSleepTimerDisplay();
+
+    }
+
+    /**
+     * 开始播完这首歌定时器
+     */
+    private void startPlayUntilEndTimer() {
+        if (controllerHelper == null) {
+            ToastUtils.showToast(requireContext(), "无法获取播放信息");
+            return;
+        }
+
+        long currentPosition = controllerHelper.getCurrentPosition();
+        long duration = controllerHelper.getDuration();
+        long remainingTime = duration - currentPosition;
+
+        if (remainingTime <= 0) {
+            ToastUtils.showToast(requireContext(), "当前歌曲已播放完毕");
+            return;
+        }
+
+        stopSleepTimer(); // 先停止现有定时器
+
+        sleepTimerRemainingTime = remainingTime;
+        isSleepTimerActive = true;
+
+        // 启动倒计时
+        startSleepTimerCountdown();
+
+        // 更新UI显示
+        updateSleepTimerDisplay();
+
+        ToastUtils.showToast(requireContext(), "播完这首歌模式已启动");
+    }
+
+    /**
+     * 启动睡眠定时器倒计时
+     */
+    private void startSleepTimerCountdown() {
+        // 停止之前的倒计时更新
+        if (sleepTimerUpdateRunnable != null) {
+            sleepTimerHandler.removeCallbacks(sleepTimerUpdateRunnable);
+        }
+
+        // 创建倒计时更新任务
+        sleepTimerUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isSleepTimerActive && sleepTimerRemainingTime > 0) {
+                    sleepTimerRemainingTime -= 1000; // 减少1秒
+                    updateSleepTimerDisplay();
+
+                    if (sleepTimerRemainingTime <= 0) {
+                        // 时间到，停止音乐播放
+                        stopSleepTimer();
+                        if (controllerHelper != null) {
+                            controllerHelper.pause();
+                        }
+                        ToastUtils.showToast(requireContext(), "睡眠定时器已结束");
+                    } else {
+                        // 继续倒计时
+                        sleepTimerHandler.postDelayed(this, 1000);
+                    }
+                }
+            }
+        };
+
+        // 启动倒计时
+        sleepTimerHandler.post(sleepTimerUpdateRunnable);
+    }
+
+    /**
+     * 停止睡眠定时器
+     */
+    private void stopSleepTimer() {
+        isSleepTimerActive = false;
+        sleepTimerRemainingTime = 0;
+
+        // 停止倒计时更新
+        if (sleepTimerUpdateRunnable != null) {
+            sleepTimerHandler.removeCallbacks(sleepTimerUpdateRunnable);
+            sleepTimerUpdateRunnable = null;
+        }
+
+        // 更新UI显示
+        updateSleepTimerDisplay();
+
+        Log.d(TAG, "睡眠定时器已停止");
+    }
+
+    /**
+     * 更新睡眠定时器显示
+     */
+    private void updateSleepTimerDisplay() {
+        if (binding != null) {
+            if (isSleepTimerActive && sleepTimerRemainingTime > 0) {
+                // 显示倒计时
+                long minutes = sleepTimerRemainingTime / (60 * 1000);
+                long seconds = (sleepTimerRemainingTime % (60 * 1000)) / 1000;
+                binding.titleSleep.setText(String.format("%d:%02d", minutes, seconds));
+                binding.titleSleep.setVisibility(View.VISIBLE);
+                binding.btnSleepMode.setVisibility(View.GONE);
+
+                // 设置倒计时文本颜色与btn_lyrics保持一致
+                boolean isDefault = currentBackgroundType == BACKGROUND_TYPE_DEFAULT;
+                int buttonNormalColor = isDefault ? defaultTextSecondaryColor : Color.WHITE;
+                binding.titleSleep.setTextColor(buttonNormalColor);
+            } else {
+                // 隐藏倒计时，显示睡眠按钮
+                binding.titleSleep.setVisibility(View.GONE);
+                binding.btnSleepMode.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
 
