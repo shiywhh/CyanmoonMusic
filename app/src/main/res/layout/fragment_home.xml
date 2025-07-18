@@ -488,14 +488,16 @@
         android:id="@+id/open_search_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:gravity="center"
         android:hint="@string/search_music"
         android:textAppearance="@style/TextAppearance.App.Body.Large"
         app:layout_anchor="@id/open_search_bar"
         tools:visibility="gone">
 
-        <ScrollView
+        <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="@color/background_primary"
             android:scrollbars="none">
 
             <LinearLayout
@@ -503,7 +505,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
-        </ScrollView>
+        </androidx.core.widget.NestedScrollView>
     </com.google.android.material.search.SearchView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

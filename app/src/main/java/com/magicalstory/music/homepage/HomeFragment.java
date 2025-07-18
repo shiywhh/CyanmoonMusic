@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -65,6 +66,7 @@ import okhttp3.Response;
 import com.magicalstory.music.model.FavoriteSong;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.service.CoverFetchService;
+import com.magicalstory.music.utils.screen.DensityUtil;
 import com.tencent.mmkv.MMKV;
 
 @UnstableApi
@@ -236,6 +238,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     }
 
     private void setupSearchView() {
+        binding.openSearchView.getEditText().setGravity(Gravity.CENTER_VERTICAL);
+        binding.openSearchView.getEditText().setPadding(0, DensityUtil.dip2px(context, 6), 0, 0);
         // 设置SearchView的展开和收起监听
         binding.openSearchView.addTransitionListener((searchView, previousState, newState) -> {
             if (newState == SearchView.TransitionState.SHOWING) {
