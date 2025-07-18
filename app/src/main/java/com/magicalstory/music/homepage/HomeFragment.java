@@ -152,8 +152,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         checkPermissionAndShowUI();
     }
 
-
-
     @Override
     protected void initDataForPersistentView() {
         super.initDataForPersistentView();
@@ -560,6 +558,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             System.out.println("随机推荐点击: " + song.getTitle());
         });
         binding.rvRandomRecommendations.setAdapter(randomRecommendationsAdapter);
+
+
+        //binding.rvMyFavorites.setLayoutFrozen(true);
     }
 
     /**

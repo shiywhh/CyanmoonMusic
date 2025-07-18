@@ -32,4 +32,11 @@
         android:visible="false"
         android:showAsAction="never" />
 
+    <item
+        android:id="@+id/menu_delete_selected_songs"
+        android:title="@string/delete_selected_songs"
+        android:icon="@drawable/ic_delete"
+        android:visible="false"
+        android:showAsAction="never" />
+
 </menu> 

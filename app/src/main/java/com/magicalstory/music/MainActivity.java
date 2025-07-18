@@ -65,7 +65,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
     // 广播常量
-    public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";;
+    public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";
+    ;
 
     private ActivityMainBinding binding;
     private BottomSheetBehavior<View> bottomSheetBehavior;
@@ -401,12 +402,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 1. 检查HomeFragment的搜索框是否展开
-        if (handleSearchViewBack()) {
-            return true;
-        }
+        return handleSearchViewBack();
 
         // 3. 执行默认的返回行为
-        return false;
     }
 
     /**
@@ -445,18 +443,45 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (handleBackPress()) {
+                return true;
+            }
 
-            if (!handleBackPress()) {
+            boolean isHomepage = isCurrentDestinationHomepage();
+            if (isHomepage) {
                 Intent home = new Intent(Intent.ACTION_MAIN);
                 home.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 home.addCategory(Intent.CATEGORY_HOME);
                 startActivity(home);
-
+                return true;
             }
-            return true;
-        }
 
+        }
         return super.onKeyDown(keyCode, event);
+    }
+
+    /**
+     * 检查当前导航目的地是否为homepage
+     * @return true表示当前在homepage，false表示不在
+     */
+    private boolean isCurrentDestinationHomepage() {
+        try {
+            // 获取NavHostFragment
+            androidx.fragment.app.Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+            if (navHostFragment != null) {
+                // 从NavHostFragment获取NavController
+                NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+
+                // 获取当前目的地
+                int currentDestinationId = navController.getCurrentDestination().getId();
+
+                // 检查是否为nav_home
+                return currentDestinationId == R.id.nav_home;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "检查当前导航目的地失败", e);
+        }
+        return false;
     }
 
     /**
@@ -819,7 +844,7 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "成功跳转到艺术家详情页面: " + artistName);
                     } catch (Exception e) {
                         Log.e(TAG, "直接导航失败，尝试备用方案", e);
-                       ToastUtils.showToast(this, "跳转失败");
+                        ToastUtils.showToast(this, "跳转失败");
 
                     }
                 }, 500);

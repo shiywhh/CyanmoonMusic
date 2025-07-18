@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@color/md_theme_background">
 
-    <com.magicalstory.music.myView.CustomNestedScrollView
+    <com.magicalstory.music.myView.OptimizedNestedScrollView
         android:id="@+id/nested_scroll_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -243,8 +243,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:indeterminateTint="@color/md_theme_primary"
-                android:layout_marginTop="200dp" />
+                android:layout_marginTop="200dp"
+                android:indeterminateTint="@color/md_theme_primary" />
 
             <LinearLayout
                 android:id="@+id/layout_songs_lastest_added"
@@ -424,13 +424,11 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rv_my_favorites"
                     android:layout_width="match_parent"
-
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
                     android:paddingHorizontal="@dimen/margin_16"
-
                     android:scrollbars="none" />
             </LinearLayout>
 
@@ -484,7 +482,7 @@
 
         </LinearLayout>
 
-    </com.magicalstory.music.myView.CustomNestedScrollView>
+    </com.magicalstory.music.myView.OptimizedNestedScrollView>
 
     <com.google.android.material.search.SearchView
         android:id="@+id/open_search_view"

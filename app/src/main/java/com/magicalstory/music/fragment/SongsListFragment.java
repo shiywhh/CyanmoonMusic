@@ -56,6 +56,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
     // 请求代码常量
     private static final int DELETE_REQUEST_CODE = 1001;
+    private static final int CLEAR_LIST_REQUEST_CODE = 1002;
 
     private SongVerticalAdapter songAdapter;
     private List<Song> songList;
@@ -199,12 +200,19 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             MenuItem selectAll = menu.findItem(R.id.menu_select_all);
             MenuItem removeFromPlaylist = menu.findItem(R.id.menu_remove_from_playlist);
             MenuItem deleteFromDevice = menu.findItem(R.id.menu_delete_from_device);
+            MenuItem deleteSelectedSongs = menu.findItem(R.id.menu_delete_selected_songs);
 
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
             if (selectAll != null) selectAll.setVisible(visible);
             if (removeFromPlaylist != null) removeFromPlaylist.setVisible(visible);
             if (deleteFromDevice != null) deleteFromDevice.setVisible(visible);
+            
+            // 根据数据类型决定是否显示删除所选歌曲选项
+            boolean showDeleteSelected = (DATA_TYPE_FAVORITE.equals(dataType) || 
+                                        DATA_TYPE_HISTORY.equals(dataType) || 
+                                        DATA_TYPE_MOST_PLAYED.equals(dataType));
+            if (deleteSelectedSongs != null) deleteSelectedSongs.setVisible(visible && showDeleteSelected);
         }
     }
 
@@ -216,10 +224,17 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
             MenuItem playNext = menu.findItem(R.id.action_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+            MenuItem clearList = menu.findItem(R.id.action_clear_list);
 
             if (shufflePlay != null) shufflePlay.setVisible(visible);
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            
+            // 根据数据类型决定是否显示清空列表选项
+            boolean showClearList = (DATA_TYPE_FAVORITE.equals(dataType) || 
+                                   DATA_TYPE_HISTORY.equals(dataType) || 
+                                   DATA_TYPE_MOST_PLAYED.equals(dataType));
+            if (clearList != null) clearList.setVisible(visible && showClearList);
         }
     }
 
@@ -244,6 +259,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             } else if (itemId == R.id.menu_delete_from_device) {
                 deleteFromDevice();
                 return true;
+            } else if (itemId == R.id.menu_delete_selected_songs) {
+                deleteSelectedSongs();
+                return true;
             }
         } else {
             // 普通模式下的菜单处理
@@ -255,6 +273,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 return true;
             } else if (itemId == R.id.action_add_to_playlist) {
                 addToPlaylistNormal();
+                return true;
+            } else if (itemId == R.id.action_clear_list) {
+                clearSongList();
                 return true;
             }
         }
@@ -646,6 +667,91 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     }
 
     /**
+     * 删除所选歌曲（从收藏、历史、最常播放中删除）
+     */
+    private void deleteSelectedSongs() {
+        List<Song> selectedSongs = songAdapter.getSelectedSongs();
+        if (selectedSongs.isEmpty()) {
+            showSnackbar(getString(R.string.select_items_to_delete));
+            return;
+        }
+
+        // 使用dialogUtils显示确认对话框
+        dialogUtils.showAlertDialog(
+                getContext(),
+                getString(R.string.delete_records_confirmation_title),
+                getString(R.string.delete_records_confirmation_message, selectedSongs.size()),
+                getString(R.string.dialog_delete),
+                getString(R.string.dialog_cancel),
+                null,
+                true,
+                new dialogUtils.onclick_with_dismiss() {
+                    @Override
+                    public void click_confirm() {
+                        performDeleteSelectedSongs(selectedSongs);
+                    }
+
+                    @Override
+                    public void click_cancel() {
+                        // 取消删除
+                    }
+
+                    @Override
+                    public void click_three() {
+                        // 不使用第三个按钮
+                    }
+
+                    @Override
+                    public void dismiss() {
+                        // 对话框关闭
+                    }
+                }
+        );
+    }
+
+    /**
+     * 清空歌曲列表
+     */
+    private void clearSongList() {
+        if (songList == null || songList.isEmpty()) {
+            showSnackbar("列表已经是空的");
+            return;
+        }
+
+        // 使用dialogUtils显示确认对话框
+        dialogUtils.showAlertDialog(
+                getContext(),
+                getString(R.string.clear_records_confirmation_title),
+                getString(R.string.clear_records_confirmation_message),
+                getString(R.string.dialog_delete),
+                getString(R.string.dialog_cancel),
+                null,
+                true,
+                new dialogUtils.onclick_with_dismiss() {
+                    @Override
+                    public void click_confirm() {
+                        performClearSongList();
+                    }
+
+                    @Override
+                    public void click_cancel() {
+                        // 取消清空
+                    }
+
+                    @Override
+                    public void click_three() {
+                        // 不使用第三个按钮
+                    }
+
+                    @Override
+                    public void dismiss() {
+                        // 对话框关闭
+                    }
+                }
+        );
+    }
+
+    /**
      * 执行从设备删除操作
      */
     private void performDeleteFromDevice(List<Song> songsToDelete) {
@@ -745,6 +851,108 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         // 发送广播通知其他组件刷新
         Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
         LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
+    }
+
+    /**
+     * 执行删除所选歌曲操作
+     */
+    private void performDeleteSelectedSongs(List<Song> songsToDelete) {
+        try {
+            // 根据数据类型执行不同的删除操作
+            switch (dataType) {
+                case DATA_TYPE_FAVORITE:
+                    // 从收藏中删除
+                    for (Song song : songsToDelete) {
+                        LitePal.deleteAll(com.magicalstory.music.model.FavoriteSong.class, 
+                                        "songId = ?", String.valueOf(song.getId()));
+                    }
+                    showSnackbar(getString(R.string.delete_from_favorites_success, songsToDelete.size()));
+                    break;
+                    
+                case DATA_TYPE_HISTORY:
+                    // 从播放历史中删除
+                    for (Song song : songsToDelete) {
+                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class, 
+                                        "songId = ?", String.valueOf(song.getId()));
+                    }
+                    showSnackbar(getString(R.string.delete_from_history_success, songsToDelete.size()));
+                    break;
+                    
+                case DATA_TYPE_MOST_PLAYED:
+                    // 从最常播放中删除
+                    for (Song song : songsToDelete) {
+                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class, 
+                                        "songId = ?", String.valueOf(song.getId()));
+                    }
+                    showSnackbar(getString(R.string.delete_from_most_played_success, songsToDelete.size()));
+                    break;
+            }
+
+            // 从当前列表中移除
+            songList.removeAll(songsToDelete);
+            songAdapter.notifyDataSetChanged();
+
+            // 如果列表为空，显示空状态
+            if (songList.isEmpty()) {
+                binding.rvRecentSongs.setVisibility(View.GONE);
+                binding.layoutEmpty.setVisibility(View.VISIBLE);
+            }
+
+            // 退出多选模式
+            exitMultiSelectMode();
+
+            // 发送广播通知其他组件刷新
+            Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
+            LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showSnackbar("删除失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 执行清空歌曲列表操作
+     */
+    private void performClearSongList() {
+        try {
+            // 根据数据类型执行不同的清空操作
+            switch (dataType) {
+                case DATA_TYPE_FAVORITE:
+                    // 清空收藏
+                    LitePal.deleteAll(com.magicalstory.music.model.FavoriteSong.class);
+                    showSnackbar("已清空收藏列表");
+                    break;
+                    
+                case DATA_TYPE_HISTORY:
+                    // 清空播放历史
+                    LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class);
+                    showSnackbar("已清空播放历史");
+                    break;
+                    
+                case DATA_TYPE_MOST_PLAYED:
+                    // 清空最常播放（实际上也是清空播放历史）
+                    LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class);
+                    showSnackbar("已清空最常播放列表");
+                    break;
+            }
+
+            // 清空当前列表
+            songList.clear();
+            songAdapter.notifyDataSetChanged();
+
+            // 显示空状态
+            binding.rvRecentSongs.setVisibility(View.GONE);
+            binding.layoutEmpty.setVisibility(View.VISIBLE);
+
+            // 发送广播通知其他组件刷新
+            Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
+            LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showSnackbar("清空失败：" + e.getMessage());
+        }
     }
 
     /**
