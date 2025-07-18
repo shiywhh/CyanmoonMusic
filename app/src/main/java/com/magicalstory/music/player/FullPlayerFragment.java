@@ -26,11 +26,14 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 
+
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
+
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
+import com.magicalstory.music.dialog.PlaylistBottomSheetDialogFragment;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentFullPlayerBinding;
 import com.magicalstory.music.model.Song;
@@ -78,6 +81,8 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
             Log.d(TAG, "FullPlayerFragment收到媒体项切换: " + (mediaItem != null ? mediaItem.mediaId : "null"));
             updateCurrentSong();
+            
+
         }
 
         @Override
@@ -166,6 +171,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     // 播放按钮更新相关
     private final Handler playButtonUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable playButtonUpdateRunnable;
+
+    // 播放列表底部弹出窗口相关
+    private PlaylistBottomSheetDialogFragment playlistBottomSheet;
 
     @Override
     protected FragmentFullPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
@@ -714,8 +722,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 播放列表按钮
         binding.btnPlaylist.setOnClickListener(v -> {
             Log.d(TAG, "播放列表按钮被点击");
-            // 暂时只显示提示
-            ToastUtils.showToast(context, "播放列表功能开发中");
+            showPlaylistBottomSheet();
         });
 
         // 更多按钮
@@ -1213,4 +1220,48 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     public boolean autoHideBottomNavigation() {
         return false;
     }
+
+    /**
+     * 显示播放列表底部弹出窗口
+     */
+    private void showPlaylistBottomSheet() {
+        if (controllerHelper == null) {
+            ToastUtils.showToast(context, "播放列表为空");
+            return;
+        }
+
+        // 创建播放列表底部弹出窗口Fragment
+        playlistBottomSheet = PlaylistBottomSheetDialogFragment.newInstance();
+        playlistBottomSheet.setMediaControllerHelper(controllerHelper);
+        
+        // 设置播放列表操作监听器
+        playlistBottomSheet.setOnPlaylistActionListener(new PlaylistBottomSheetDialogFragment.OnPlaylistActionListener() {
+            @Override
+            public void onPlaylistItemClick(int position, Song song) {
+                Log.d(TAG, "播放列表项被点击: " + position + " - " + song.getTitle());
+            }
+
+            @Override
+            public void onPlaylistItemMoved(int fromPosition, int toPosition) {
+                Log.d(TAG, "播放列表项被移动: " + fromPosition + " -> " + toPosition);
+            }
+
+            @Override
+            public void onPlaylistCleared() {
+                Log.d(TAG, "播放列表被清空");
+            }
+
+            @Override
+            public void onMoreButtonClick(int position, Song song, View view) {
+                Log.d(TAG, "更多按钮被点击: " + position + " - " + song.getTitle());
+                // 这里可以实现更多选项菜单
+                ToastUtils.showToast(context, "更多选项: " + song.getTitle());
+            }
+        });
+
+        // 显示播放列表Fragment
+        playlistBottomSheet.show(getParentFragmentManager(), "PlaylistBottomSheet");
+    }
+
+
 } 

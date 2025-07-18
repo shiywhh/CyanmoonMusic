@@ -25,6 +25,7 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentMiniPlayerBinding;
 import com.magicalstory.music.model.Song;
+import com.tencent.mmkv.MMKV;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -422,6 +423,8 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             System.out.println("currentPosition = " + currentPosition);
             System.out.println("controllerHelper.getDuration() = " + controllerHelper.getDuration());
             long duration = controllerHelper.getDuration();
+
+            MMKV.defaultMMKV().encode("playPosition", currentPosition);
             if (duration > 0) {
                 int progress = (int) (((float) currentPosition / duration) * 100);
                 updateProgress(progress);
@@ -533,6 +536,7 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
      */
     public void updatePlaylist(List<Song> newPlaylist) {
         this.playlist.clear();
+        //pagerSnapHelper.attachToRecyclerView(null);
         binding.miniPlayerRecyclerView.setVisibility(View.VISIBLE);
         binding.itemPlaceholder.setVisibility(View.GONE);
         binding.miniPlayPause.setVisibility(View.VISIBLE);
@@ -544,6 +548,8 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
         if (miniPlayerAdapter != null) {
             miniPlayerAdapter.updatePlaylist(this.playlist);
         }
+
+        //binding.miniPlayerRecyclerView.postDelayed(() -> pagerSnapHelper.attachToRecyclerView(binding.miniPlayerRecyclerView), 1000);
     }
 
     /**

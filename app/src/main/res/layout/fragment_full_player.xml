@@ -324,7 +324,7 @@
         <!-- 歌词按钮 -->
         <ImageView
             android:id="@+id/btn_lyrics"
-            android:layout_width="28dp"
+            android:layout_width="match_parent"
             android:layout_height="28dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
@@ -337,36 +337,52 @@
         <!-- 收藏按钮 -->
         <ImageView
             android:id="@+id/btn_favorite"
-            android:layout_width="28dp"
+            android:layout_width="match_parent"
             android:layout_height="28dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
-
             android:clickable="true"
             android:focusable="true"
             android:padding="2dp"
             android:src="@drawable/ic_favorite_off"
             app:tint="@color/text_secondary" />
 
-        <!-- 睡眠模式按钮 -->
-        <ImageView
-            android:id="@+id/btn_sleep_mode"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_weight="1"
 
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:focusable="true"
-            android:padding="2dp"
-            android:src="@drawable/ic_night"
-            app:tint="@color/text_secondary" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/btn_sleep_mode"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="2dp"
+                android:src="@drawable/ic_night"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:id="@+id/title_Sleep"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:visibility="gone"
+                tools:text="1:00" />
+        </FrameLayout>
+        <!-- 睡眠模式按钮 -->
+
 
         <!-- 播放列表按钮 -->
         <ImageView
             android:id="@+id/btn_playlist"
-            android:layout_width="28dp"
-
+            android:layout_width="match_parent"
             android:layout_height="28dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
@@ -379,7 +395,7 @@
         <!-- 更多按钮 -->
         <ImageView
             android:id="@+id/btn_more"
-            android:layout_width="28dp"
+            android:layout_width="match_parent"
             android:layout_height="28dp"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"

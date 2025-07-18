@@ -48,6 +48,9 @@
     <string name="artist_menus">艺术家菜单</string>
     <string name="artist_play_button">艺术家播放按钮</string>
     <string name="play">播放</string>
+    
+    <!-- 播放列表相关 -->
+    <string name="playlist_title">播放列表 (%d首)</string>
     <string name="recent_added">最近添加</string>
 
     <!-- 多选相关字符串 -->
@@ -61,7 +64,6 @@
     <string name="no_songs_in_artists">选中的艺术家中没有歌曲</string>
     <string name="no_songs_in_albums">选中的专辑中没有歌曲</string>
     <string name="added_to_queue">已添加 %d 首歌曲到播放队列</string>
-    <string name="added_to_playlist">已添加 %d 首歌曲到播放列表</string>
     <string name="removed_from_playlist">已从播放列表移除 %d 首歌曲</string>
     <string name="selected_count_songs">选中了%d首歌曲</string>
     <string name="selected_count_artists">选中了%d个艺术家</string>
@@ -132,6 +134,7 @@
     <string name="no_image_selected">未选择图片</string>
     <string name="error_loading_image">加载图片失败</string>
     <string name="added_to_queue_next">已添加到播放队列下一首</string>
+    <string name="added_to_playlist">已添加到播放列表</string>
     <string name="create_playlist">创建播放列表</string>
     <string name="no_songs_to_add">没有歌曲可以添加</string>
     <string name="songs_lastest">已经是最后一首歌啦</string>

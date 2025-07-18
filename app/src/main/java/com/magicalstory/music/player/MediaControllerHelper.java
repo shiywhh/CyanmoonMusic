@@ -21,6 +21,7 @@ import com.magicalstory.music.utils.app.ToastUtils;
 import com.tencent.mmkv.MMKV;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -92,6 +93,7 @@ public class MediaControllerHelper implements Player.Listener {
 
     //保存播放列表到本地
     public void savePlayListJsonToLocal() {
+        System.out.println("保存到本地：" + getCurrentIndex() + " " + getCurrentSong().getTitle());
         playlistManager.savePlayList(fullPlaylist, getCurrentIndex());
     }
 
@@ -102,6 +104,155 @@ public class MediaControllerHelper implements Player.Listener {
         if (instance != null) {
             instance.cleanupInternal();
             instance = null;
+        }
+    }
+
+    /**
+     * 添加歌曲到播放列表的下一首位置
+     * @param songs 要添加的歌曲列表
+     */
+    public void addSongsToPlayNext(@NonNull List<Song> songs) {
+        if (songs == null || songs.isEmpty()) {
+            Log.w(TAG, "添加歌曲到下一首播放失败：歌曲列表为空");
+            return;
+        }
+
+        try {
+            Log.d(TAG, "添加歌曲到下一首播放，歌曲数量: " + songs.size());
+            
+            // 获取当前播放索引
+            int currentIndex = getCurrentIndex();
+            
+            // 将新歌曲插入到当前播放歌曲的后面
+            int insertIndex = currentIndex + 1;
+            fullPlaylist.addAll(insertIndex, songs);
+            
+            // 更新当前播放索引（如果插入位置在当前播放位置之前，需要调整索引）
+            if (insertIndex <= currentPlaylistIndex) {
+                currentPlaylistIndex += songs.size();
+            }
+            
+            // 更新窗口范围
+            updateWindowAfterInsertion(insertIndex, songs.size());
+            
+            // 刷新播放列表
+            refreshPlaylistAfterInsertion(insertIndex, songs.size());
+            
+            // 保存播放列表到本地
+            savePlayListJsonToLocal();
+            
+            Log.d(TAG, "成功添加歌曲到下一首播放，当前播放索引: " + currentPlaylistIndex);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "添加歌曲到下一首播放时发生错误", e);
+        }
+    }
+
+    /**
+     * 添加歌曲到播放列表末尾
+     * @param songs 要添加的歌曲列表
+     */
+    public void addSongsToPlaylist(@NonNull List<Song> songs) {
+        if (songs == null || songs.isEmpty()) {
+            Log.w(TAG, "添加歌曲到播放列表失败：歌曲列表为空");
+            return;
+        }
+
+        try {
+            Log.d(TAG, "添加歌曲到播放列表末尾，歌曲数量: " + songs.size());
+            
+            // 获取当前播放列表大小
+            int originalSize = fullPlaylist.size();
+            
+            // 将新歌曲添加到播放列表末尾
+            fullPlaylist.addAll(songs);
+            
+            // 更新窗口范围
+            updateWindowAfterInsertion(originalSize, songs.size());
+            
+            // 刷新播放列表
+            refreshPlaylistAfterInsertion(originalSize, songs.size());
+            
+            // 保存播放列表到本地
+            savePlayListJsonToLocal();
+            
+            Log.d(TAG, "成功添加歌曲到播放列表末尾，播放列表大小: " + fullPlaylist.size());
+            
+        } catch (Exception e) {
+            Log.e(TAG, "添加歌曲到播放列表时发生错误", e);
+        }
+    }
+
+    /**
+     * 插入歌曲后更新窗口范围
+     */
+    private void updateWindowAfterInsertion(int insertIndex, int insertCount) {
+        // 如果插入位置在窗口范围内，需要调整窗口
+        if (insertIndex <= windowEnd) {
+            windowEnd += insertCount;
+        }
+        
+        Log.d(TAG, "插入歌曲后更新窗口范围: [" + windowStart + ", " + windowEnd + "]");
+    }
+
+    /**
+     * 插入歌曲后刷新播放列表
+     */
+    private void refreshPlaylistAfterInsertion(int insertIndex, int insertCount) {
+        try {
+            Log.d(TAG, "开始刷新播放列表（插入歌曲后），插入位置: " + insertIndex + ", 插入数量: " + insertCount);
+
+            // 获取当前播放位置和媒体数量
+            int currentMediaIndex = mediaController.getCurrentMediaItemIndex();
+            int mediaItemCount = mediaController.getMediaItemCount();
+
+            Log.d(TAG, "当前MediaIndex: " + currentMediaIndex + ", 媒体数量: " + mediaItemCount);
+
+            // 移除除了当前播放媒体外的所有媒体
+            while (mediaController.getMediaItemCount() > 1) {
+                if (mediaController.getCurrentMediaItemIndex() == 0) {
+                    // 如果当前播放的是第一个，移除最后一个
+                    mediaController.removeMediaItem(mediaController.getMediaItemCount() - 1);
+                } else {
+                    // 否则移除第一个
+                    mediaController.removeMediaItem(0);
+                }
+            }
+            Log.d(TAG, "移除其他媒体后，剩余媒体数量: " + mediaController.getMediaItemCount());
+
+            // 计算需要添加的前后歌曲索引
+            int prevIndex = currentPlaylistIndex - 1;
+            int nextIndex = currentPlaylistIndex + 1;
+
+            // 添加前一首歌（如果存在）
+            if (prevIndex >= 0 && prevIndex < fullPlaylist.size()) {
+                Song prevSong = fullPlaylist.get(prevIndex);
+                MediaItem prevMediaItem = playlistManager.createMediaItem(prevSong);
+                if (prevMediaItem != null) {
+                    mediaController.addMediaItem(0, prevMediaItem);
+                    Log.d(TAG, "添加前一首歌: " + prevSong.getTitle() + " (索引: " + prevIndex + ")");
+                }
+            }
+
+            // 添加后一首歌（如果存在）
+            if (nextIndex >= 0 && nextIndex < fullPlaylist.size()) {
+                Song nextSong = fullPlaylist.get(nextIndex);
+                MediaItem nextMediaItem = playlistManager.createMediaItem(nextSong);
+                if (nextMediaItem != null) {
+                    mediaController.addMediaItem(nextMediaItem);
+                    Log.d(TAG, "添加后一首歌: " + nextSong.getTitle() + " (索引: " + nextIndex + ")");
+                }
+            }
+
+            // 刷新窗口范围
+            windowStart = Math.max(0, currentPlaylistIndex - 1);
+            windowEnd = Math.min(fullPlaylist.size() - 1, currentPlaylistIndex + 1);
+
+            Log.d(TAG, "更新窗口范围: [" + windowStart + ", " + windowEnd + "]");
+            Log.d(TAG, "最终媒体数量: " + mediaController.getMediaItemCount());
+
+        } catch (Exception e) {
+            Log.e(TAG, "插入歌曲后刷新播放列表时发生错误", e);
         }
     }
 
@@ -175,7 +326,7 @@ public class MediaControllerHelper implements Player.Listener {
 
         }
 
-        default void progressInit(long dur,long progress) {
+        default void progressInit(long dur, long progress) {
 
         }
 
@@ -259,6 +410,7 @@ public class MediaControllerHelper implements Player.Listener {
                 Log.e(TAG, "媒体项切换监听器错误", e);
             }
         }
+        savePlayListJsonToLocal();
     }
 
     @Override
@@ -303,14 +455,12 @@ public class MediaControllerHelper implements Player.Listener {
         }
     }
 
-
     /**
      * 设置播放列表（懒加载优化版本）
      */
     public void setPlaylist(@NonNull List<Song> songs) {
         setPlaylist(songs, 0);
     }
-
 
     /**
      * 设置播放列表并指定起始索引（懒加载优化版本）
@@ -611,10 +761,59 @@ public class MediaControllerHelper implements Player.Listener {
      */
     public void removeFromPlaylist(int index) {
         try {
-            if (index >= 0 && index < mediaController.getMediaItemCount()) {
-                mediaController.removeMediaItem(index);
-
-                Log.d(TAG, "Removed song at index: " + index);
+            if (index >= 0 && index < fullPlaylist.size()) {
+                Log.d(TAG, "删除播放列表中的歌曲，索引: " + index);
+                
+                // 记录被删除的歌曲
+                Song removedSong = fullPlaylist.get(index);
+                
+                // 从完整播放列表中移除
+                fullPlaylist.remove(index);
+                
+                // 更新当前播放索引
+                boolean wasCurrentSongDeleted = (index == currentPlaylistIndex);
+                
+                if (wasCurrentSongDeleted) {
+                    // 当前播放歌曲被删除
+                    Log.d(TAG, "当前播放歌曲被删除");
+                    
+                    // 如果播放列表为空，停止播放
+                    if (fullPlaylist.isEmpty()) {
+                        Log.d(TAG, "播放列表为空，停止播放");
+                        mediaController.stop();
+                        currentPlaylistIndex = -1;
+                        windowStart = 0;
+                        windowEnd = 0;
+                        return;
+                    }
+                    
+                    // 如果删除的是最后一首，播放前一首
+                    if (index >= fullPlaylist.size()) {
+                        currentPlaylistIndex = fullPlaylist.size() - 1;
+                    }
+                    // 否则播放下一首（如果存在）
+                    else {
+                        currentPlaylistIndex = index;
+                    }
+                    
+                    // 重新加载播放窗口
+                    loadInitialWindow(currentPlaylistIndex);
+                    
+                } else {
+                    // 其他歌曲被删除，更新索引
+                    if (currentPlaylistIndex > index) {
+                        currentPlaylistIndex--;
+                    }
+                    
+                    // 重新构建播放窗口，参考reorderPlaylist的处理方式
+                    updatePlaylistAfterRemoval(index);
+                }
+                
+                // 保存播放列表到本地
+                savePlayListJsonToLocal();
+                
+                Log.d(TAG, "歌曲删除完成，当前播放索引: " + currentPlaylistIndex + ", 播放列表大小: " + fullPlaylist.size());
+                
             } else {
                 Log.w(TAG, "Invalid index for removal: " + index);
             }
@@ -624,24 +823,168 @@ public class MediaControllerHelper implements Player.Listener {
     }
 
     /**
-     * 移动播放列表中的歌曲
+     * 重新排序播放列表（新方法，避免触发重新播放）
+     * 使用replaceMediaItem来替换当前歌曲的上下两首歌，而不是重新加载整个窗口
      */
-    public void movePlaylistItem(int fromIndex, int toIndex) {
+    public void reorderPlaylist(int fromIndex, int toIndex) {
         try {
-            if (fromIndex >= 0 && fromIndex < mediaController.getMediaItemCount() &&
-                    toIndex >= 0 && toIndex < mediaController.getMediaItemCount()) {
+            if (fromIndex >= 0 && fromIndex < fullPlaylist.size() &&
+                    toIndex >= 0 && toIndex < fullPlaylist.size()) {
 
-                mediaController.moveMediaItem(fromIndex, toIndex);
+                Log.d(TAG, "重新排序播放列表: " + fromIndex + " -> " + toIndex);
+                System.out.println("fromPosition = " + fromIndex);
+                System.out.println("toPosition = " + toIndex);
 
-                Log.d(TAG, "Moved song from index " + fromIndex + " to " + toIndex);
+                // 同步更新fullPlaylist
+                Collections.swap(fullPlaylist, fromIndex, toIndex);
+
+                // 更新当前播放索引
+                if (currentPlaylistIndex == fromIndex) {
+                    currentPlaylistIndex = toIndex;
+                } else if (currentPlaylistIndex > fromIndex && currentPlaylistIndex <= toIndex) {
+                    currentPlaylistIndex--;
+                } else if (currentPlaylistIndex < fromIndex && currentPlaylistIndex >= toIndex) {
+                    currentPlaylistIndex++;
+                }
+                System.out.println("最新的播放位置 = " + currentPlaylistIndex);
+                System.out.println("mediaController.getMediaItemCount() = " + mediaController.getMediaItemCount());
+                System.out.println("mediaController.getCurrentMediaItemIndex() = " + mediaController.getCurrentMediaItemIndex());
+
+                updatePlaylistWithReplaceMediaItem(fromIndex, toIndex);
+
+                // 保存播放列表到本地
+                savePlayListJsonToLocal();
+
+                Log.d(TAG, "播放列表重新排序完成: " + fromIndex + " -> " + toIndex);
             } else {
-                Log.w(TAG, "Invalid indices for move: " + fromIndex + " -> " + toIndex);
+                Log.w(TAG, "Invalid indices for reorder: " + fromIndex + " -> " + toIndex);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error moving song", e);
+            Log.e(TAG, "Error reordering playlist", e);
         }
     }
 
+    /**
+     * 使用replaceMediaItem更新播放列表，避免重新加载整个窗口
+     */
+    private void updatePlaylistWithReplaceMediaItem(int fromIndex, int toIndex) {
+        try {
+            Log.d(TAG, "开始使用replaceMediaItem更新播放列表: " + fromIndex + " -> " + toIndex);
+
+            // 获取当前播放位置和媒体数量
+            int currentMediaIndex = mediaController.getCurrentMediaItemIndex();
+            int mediaItemCount = mediaController.getMediaItemCount();
+
+            Log.d(TAG, "当前MediaIndex: " + currentMediaIndex + ", 媒体数量: " + mediaItemCount);
+
+            // 移除除了当前播放媒体外的所有媒体
+            while (mediaController.getMediaItemCount() > 1) {
+                if (mediaController.getCurrentMediaItemIndex() == 0) {
+                    // 如果当前播放的是第一个，移除最后一个
+                    mediaController.removeMediaItem(mediaController.getMediaItemCount() - 1);
+                } else {
+                    // 否则移除第一个
+                    mediaController.removeMediaItem(0);
+                }
+            }
+            Log.d(TAG, "移除其他媒体后，剩余媒体数量: " + mediaController.getMediaItemCount());
+
+            // 计算需要添加的前后歌曲索引
+            int prevIndex = currentPlaylistIndex - 1;
+            int nextIndex = currentPlaylistIndex + 1;
+
+            // 添加前一首歌（如果存在）
+            if (prevIndex >= 0 && prevIndex < fullPlaylist.size()) {
+                Song prevSong = fullPlaylist.get(prevIndex);
+                MediaItem prevMediaItem = playlistManager.createMediaItem(prevSong);
+                if (prevMediaItem != null) {
+                    mediaController.addMediaItem(0, prevMediaItem);
+                    Log.d(TAG, "添加前一首歌: " + prevSong.getTitle() + " (索引: " + prevIndex + ")");
+                }
+            }
+
+            // 添加后一首歌（如果存在）
+            if (nextIndex >= 0 && nextIndex < fullPlaylist.size()) {
+                Song nextSong = fullPlaylist.get(nextIndex);
+                MediaItem nextMediaItem = playlistManager.createMediaItem(nextSong);
+                if (nextMediaItem != null) {
+                    mediaController.addMediaItem(nextMediaItem);
+                    Log.d(TAG, "添加后一首歌: " + nextSong.getTitle() + " (索引: " + nextIndex + ")");
+                }
+            }
+
+            // 刷新窗口范围
+            windowStart = Math.max(0, currentPlaylistIndex - 1);
+            windowEnd = Math.min(fullPlaylist.size() - 1, currentPlaylistIndex + 1);
+
+            Log.d(TAG, "更新窗口范围: [" + windowStart + ", " + windowEnd + "]");
+            Log.d(TAG, "最终媒体数量: " + mediaController.getMediaItemCount());
+
+        } catch (Exception e) {
+            Log.e(TAG, "使用replaceMediaItem更新播放列表时发生错误", e);
+        }
+    }
+
+    /**
+     * 删除歌曲后更新播放列表，参考updatePlaylistWithReplaceMediaItem的处理方式
+     */
+    private void updatePlaylistAfterRemoval(int removedIndex) {
+        try {
+            Log.d(TAG, "开始更新播放列表（删除歌曲后），删除索引: " + removedIndex);
+
+            // 获取当前播放位置和媒体数量
+            int currentMediaIndex = mediaController.getCurrentMediaItemIndex();
+            int mediaItemCount = mediaController.getMediaItemCount();
+
+            Log.d(TAG, "当前MediaIndex: " + currentMediaIndex + ", 媒体数量: " + mediaItemCount);
+
+            // 移除除了当前播放媒体外的所有媒体
+            while (mediaController.getMediaItemCount() > 1) {
+                if (mediaController.getCurrentMediaItemIndex() == 0) {
+                    // 如果当前播放的是第一个，移除最后一个
+                    mediaController.removeMediaItem(mediaController.getMediaItemCount() - 1);
+                } else {
+                    // 否则移除第一个
+                    mediaController.removeMediaItem(0);
+                }
+            }
+            Log.d(TAG, "移除其他媒体后，剩余媒体数量: " + mediaController.getMediaItemCount());
+
+            // 计算需要添加的前后歌曲索引
+            int prevIndex = currentPlaylistIndex - 1;
+            int nextIndex = currentPlaylistIndex + 1;
+
+            // 添加前一首歌（如果存在）
+            if (prevIndex >= 0 && prevIndex < fullPlaylist.size()) {
+                Song prevSong = fullPlaylist.get(prevIndex);
+                MediaItem prevMediaItem = playlistManager.createMediaItem(prevSong);
+                if (prevMediaItem != null) {
+                    mediaController.addMediaItem(0, prevMediaItem);
+                    Log.d(TAG, "添加前一首歌: " + prevSong.getTitle() + " (索引: " + prevIndex + ")");
+                }
+            }
+
+            // 添加后一首歌（如果存在）
+            if (nextIndex >= 0 && nextIndex < fullPlaylist.size()) {
+                Song nextSong = fullPlaylist.get(nextIndex);
+                MediaItem nextMediaItem = playlistManager.createMediaItem(nextSong);
+                if (nextMediaItem != null) {
+                    mediaController.addMediaItem(nextMediaItem);
+                    Log.d(TAG, "添加后一首歌: " + nextSong.getTitle() + " (索引: " + nextIndex + ")");
+                }
+            }
+
+            // 刷新窗口范围
+            windowStart = Math.max(0, currentPlaylistIndex - 1);
+            windowEnd = Math.min(fullPlaylist.size() - 1, currentPlaylistIndex + 1);
+
+            Log.d(TAG, "更新窗口范围: [" + windowStart + ", " + windowEnd + "]");
+            Log.d(TAG, "最终媒体数量: " + mediaController.getMediaItemCount());
+
+        } catch (Exception e) {
+            Log.e(TAG, "删除歌曲后更新播放列表时发生错误", e);
+        }
+    }
 
     /**
      * 获取当前播放的歌曲
@@ -962,9 +1305,9 @@ public class MediaControllerHelper implements Player.Listener {
         cleanupInternal();
     }
 
-    public void notifyProgressBarInit(long dur,long progress) {
+    public void notifyProgressBarInit(long dur, long progress) {
         for (PlaybackStateListener playbackStateListener : playbackStateListeners) {
-            playbackStateListener.progressInit(dur,progress);
+            playbackStateListener.progressInit(dur, progress);
         }
     }
 
@@ -1053,7 +1396,7 @@ public class MediaControllerHelper implements Player.Listener {
                         //PlaybackState.STATE_PAUSED
                         System.out.println("播放状态转变 = " + playbackState);
                         mediaController.pause();
-                        notifyProgressBarInit(mediaController.getDuration(),progressMs);
+                        notifyProgressBarInit(mediaController.getDuration(), progressMs);
                         notifyStopPlay();
                         System.out.println("mediaController.getDuration() = " + mediaController.getDuration());
                         mediaController.removeListener(this);
@@ -1076,7 +1419,7 @@ public class MediaControllerHelper implements Player.Listener {
                             int mediaIndex = position - windowStart;
                             mediaController.seekTo(mediaIndex, progressMs);
                             mediaController.pause();
-                            notifyProgressBarInit(mediaController.getDuration(),progressMs);
+                            notifyProgressBarInit(mediaController.getDuration(), progressMs);
                             System.out.println("mediaController.getDuration() = " + mediaController.getDuration());
                             Log.d(TAG, "窗口重新加载后设置位置，MediaIndex: " + mediaIndex + ", 进度: " + progressMs + "ms");
                         }

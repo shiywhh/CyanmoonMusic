@@ -129,6 +129,7 @@ public class MainActivity extends AppCompatActivity {
         binding.getRoot().postDelayed(() -> {
             if (hasLastedPlayList) {
                 long dur = MMKV.defaultMMKV().decodeLong("playPosition", 0);
+                System.out.println("dur = " + dur);
                 if (dur == 0) {
                     dur = 1000;
                 }
@@ -737,11 +738,12 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 停止音乐播放但保持服务运行
      */
-    private void stopMusicPlayback() {
+    public void stopMusicPlayback() {
         if (mediaController != null) {
             mediaController.stop();
             PlaylistManager.getInstance().clearPlaylist();
             controllerHelper.notifyStopPlay();
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         }
     }
 

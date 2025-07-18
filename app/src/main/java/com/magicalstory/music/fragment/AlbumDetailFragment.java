@@ -567,11 +567,14 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
      */
     private void addToPlayNext() {
         if (albumSongs != null && !albumSongs.isEmpty()) {
-            if (getActivity() instanceof MainActivity mainActivity) {
-                // 添加到播放队列的下一首位置
-                // 这里需要实现将专辑歌曲添加到播放队列的下一首位置
-                // 由于当前项目中没有看到具体的播放队列管理，先用Toast提示
+            // 获取MediaControllerHelper实例
+            MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+            if (controllerHelper != null) {
+                // 添加专辑歌曲到下一首播放位置
+                controllerHelper.addSongsToPlayNext(albumSongs);
                 ToastUtils.showToast(getContext(), getString(R.string.added_to_queue_next));
+            } else {
+                ToastUtils.showToast(getContext(), "播放控制器未初始化");
             }
         } else {
             ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
@@ -583,9 +586,15 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
      */
     private void addToPlaylist() {
         if (albumSongs != null && !albumSongs.isEmpty()) {
-            // 这里可以实现添加到播放列表的功能
-            // 可以弹出一个对话框让用户选择现有播放列表或创建新的播放列表
-            // 由于当前项目中没有看到具体的播放列表管理，先用Toast提示
+            // 获取MediaControllerHelper实例
+            MediaControllerHelper controllerHelper = MediaControllerHelper.getInstance();
+            if (controllerHelper != null) {
+                // 添加专辑歌曲到播放列表末尾
+                controllerHelper.addSongsToPlaylist(albumSongs);
+                ToastUtils.showToast(getContext(), getString(R.string.added_to_playlist));
+            } else {
+                ToastUtils.showToast(getContext(), "播放控制器未初始化");
+            }
         } else {
             ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
         }

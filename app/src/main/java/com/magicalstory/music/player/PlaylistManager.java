@@ -403,9 +403,7 @@ public class PlaylistManager {
 
     public void savePlayStatus(boolean isPlaying) {
         MMKV.defaultMMKV().encode("playStatus", isPlaying);
-
     }
-
 
     public boolean getPlayStatus() {
         return MMKV.defaultMMKV().decodeBool("playStatus",false);
