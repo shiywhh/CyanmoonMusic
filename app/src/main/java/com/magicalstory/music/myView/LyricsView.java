@@ -36,6 +36,8 @@ public class LyricsView extends RecyclerView {
     private Runnable autoScrollRunnable;
     private boolean isFristLoad = true;
 
+    private int height_half = 0;//组件的一半高度
+
     // 监听器接口
     public interface OnLyricClickListener {
         void onLyricClick(int position, LyricLine lyricLine);
@@ -139,18 +141,17 @@ public class LyricsView extends RecyclerView {
 
             // 如果用户没有在滚动，自动滚动到当前播放的歌词下方两个位置
             if (!isUserScrolling) {
-                int targetPosition = currentPlayingIndex + 2;
+                int targetPosition = currentPlayingIndex;
                 // 确保不越界
                 if (targetPosition >= lyrics.size()) {
                     targetPosition = lyrics.size() - 1;
                 }
                 int finalTargetPosition = targetPosition;
                 if (isFristLoad) {
-                    post(() -> scrollToPosition(finalTargetPosition));
+                    post(() -> ((LinearLayoutManager) getLayoutManager()).scrollToPositionWithOffset(finalTargetPosition, (getHeight() / 2)-100));
                     isFristLoad = false;
                 } else {
-                    scrollToPosition(finalTargetPosition);
-
+                    ((LinearLayoutManager) getLayoutManager()).scrollToPositionWithOffset(finalTargetPosition, (getHeight() / 2)-100);
                 }
             }
         }
