@@ -44,6 +44,7 @@ import com.magicalstory.music.dialog.dialogUtils;
 import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.player.PlaylistManager;
 import com.magicalstory.music.service.MusicScanService;
+import com.magicalstory.music.utils.MusicSyncUtils;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.adapter.SongHorizontalAdapter;
 import com.magicalstory.music.adapter.AlbumHorizontalAdapter;
@@ -73,8 +74,7 @@ import com.magicalstory.music.utils.glide.ColorExtractor;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.service.CoverFetchService;
 import com.magicalstory.music.utils.screen.DensityUtil;
-import com.magicalstory.music.utils.sync.MusicSyncUtils;
-import com.tencent.mmkv.MMKV;
+
 
 @UnstableApi
 public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
@@ -129,22 +129,64 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
             if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_SONGS.equals(intent.getAction())) {
                 // 处理删除歌曲事件
-                List<Long> deletedSongIds = intent.getParcelableArrayListExtra(
-                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_SONG_IDS, Long.class);
+                List<Long> deletedSongIds = null;
+                try {
+                    // 使用Serializable获取Long列表，添加类型检查
+                    java.io.Serializable serializable = intent.getSerializableExtra(
+                            com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_SONG_IDS);
+                    if (serializable instanceof ArrayList<?> rawList) {
+                        deletedSongIds = new ArrayList<>();
+                        for (Object item : rawList) {
+                            if (item instanceof Long) {
+                                deletedSongIds.add((Long) item);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("HomeFragment", "获取删除歌曲ID列表失败: " + e.getMessage(), e);
+                }
                 if (deletedSongIds != null && !deletedSongIds.isEmpty()) {
                     handleSongsDeleted(deletedSongIds);
                 }
             } else if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ALBUMS.equals(intent.getAction())) {
                 // 处理删除专辑事件
-                List<Long> deletedAlbumIds = intent.getParcelableArrayListExtra(
-                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ALBUM_IDS, Long.class);
+                List<Long> deletedAlbumIds = null;
+                try {
+                    // 使用Serializable获取Long列表，添加类型检查
+                    java.io.Serializable serializable = intent.getSerializableExtra(
+                            com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ALBUM_IDS);
+                    if (serializable instanceof ArrayList<?> rawList) {
+                        deletedAlbumIds = new ArrayList<>();
+                        for (Object item : rawList) {
+                            if (item instanceof Long) {
+                                deletedAlbumIds.add((Long) item);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("HomeFragment", "获取删除专辑ID列表失败: " + e.getMessage(), e);
+                }
                 if (deletedAlbumIds != null && !deletedAlbumIds.isEmpty()) {
                     handleAlbumsDeleted(deletedAlbumIds);
                 }
             } else if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ARTISTS.equals(intent.getAction())) {
                 // 处理删除艺术家事件
-                List<Long> deletedArtistIds = intent.getParcelableArrayListExtra(
-                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ARTIST_IDS, Long.class);
+                List<Long> deletedArtistIds = null;
+                try {
+                    // 使用Serializable获取Long列表，添加类型检查
+                    java.io.Serializable serializable = intent.getSerializableExtra(
+                            com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ARTIST_IDS);
+                    if (serializable instanceof ArrayList<?> rawList) {
+                        deletedArtistIds = new ArrayList<>();
+                        for (Object item : rawList) {
+                            if (item instanceof Long) {
+                                deletedArtistIds.add((Long) item);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("HomeFragment", "获取删除艺术家ID列表失败: " + e.getMessage(), e);
+                }
                 if (deletedArtistIds != null && !deletedArtistIds.isEmpty()) {
                     handleArtistsDeleted(deletedArtistIds);
                 }
@@ -200,6 +242,26 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         initSearchComponents();
         // 先检查权限，但不立即查询数据库
         checkPermissionAndShowUI();
+
+        checkMusicLibrary();
+    }
+
+    //检查本机音乐库
+    private void checkMusicLibrary() {
+        if (hasMusicPermission()) {
+            new Thread() {
+                @Override
+                public void run() {
+                    super.run();
+                    MusicSyncUtils.syncMusicFiles(context, result -> {
+                        if (result.addedAlbums != 0 || result.addedArtists != 0 || result.addedSongs != 0 || result.deletedAlbums != 0 || result.deletedArtists != 0 || result.deletedSongs != 0 || result.updatedAlbums != 0 || result.updatedArtists != 0 || result.updatedSongs != 0) {
+                            notifyAllFragmentsRefresh();
+                        }
+                    });
+
+                }
+            }.start();
+        }
     }
 
     @Override
