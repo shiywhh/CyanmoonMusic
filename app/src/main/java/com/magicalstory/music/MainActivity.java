@@ -817,6 +817,13 @@ public class MainActivity extends AppCompatActivity implements PlaybackStateList
     }
 
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (miniPlayerFragment != null) {
+            miniPlayerFragment.checkMusicLibrary();
+        }
+    }
 
     @Override
     public void onPlaylistEmpty() {

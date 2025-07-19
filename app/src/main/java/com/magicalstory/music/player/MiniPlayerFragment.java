@@ -1,7 +1,10 @@
 package com.magicalstory.music.player;
 
+import android.Manifest;
 import android.animation.ObjectAnimator;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -12,6 +15,7 @@ import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
@@ -25,6 +29,7 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentMiniPlayerBinding;
 import com.magicalstory.music.model.Song;
+import com.magicalstory.music.utils.MusicSyncUtils;
 import com.tencent.mmkv.MMKV;
 
 import java.util.ArrayList;
@@ -638,4 +643,38 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
             System.out.println("MiniPlayerFragment UI更新失败: " + e.getMessage());
         }
     }
+
+    //检查本机音乐库
+    public void checkMusicLibrary() {
+        if (hasMusicPermission()) {
+            new Thread() {
+                @Override
+                public void run() {
+                    super.run();
+                    MusicSyncUtils.syncMusicFiles(context, result -> {
+                        if (result.addedAlbums != 0 || result.addedArtists != 0 || result.addedSongs != 0 || result.deletedAlbums != 0 || result.deletedArtists != 0 || result.deletedSongs != 0 || result.updatedAlbums != 0 || result.updatedArtists != 0 || result.updatedSongs != 0) {
+                            notifyAllFragmentsRefresh();
+                        }
+                    });
+
+                }
+            }.start();
+        }
+    }
+
+    /**
+     * 检查是否有音乐权限
+     */
+    private boolean hasMusicPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ 使用 READ_MEDIA_AUDIO
+            return ContextCompat.checkSelfPermission(context,
+                    Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            // Android 12 及以下使用 READ_EXTERNAL_STORAGE
+            return ContextCompat.checkSelfPermission(context,
+                    Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
 } 

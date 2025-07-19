@@ -242,27 +242,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         initSearchComponents();
         // 先检查权限，但不立即查询数据库
         checkPermissionAndShowUI();
-
-        checkMusicLibrary();
     }
 
-    //检查本机音乐库
-    private void checkMusicLibrary() {
-        if (hasMusicPermission()) {
-            new Thread() {
-                @Override
-                public void run() {
-                    super.run();
-                    MusicSyncUtils.syncMusicFiles(context, result -> {
-                        if (result.addedAlbums != 0 || result.addedArtists != 0 || result.addedSongs != 0 || result.deletedAlbums != 0 || result.deletedArtists != 0 || result.deletedSongs != 0 || result.updatedAlbums != 0 || result.updatedArtists != 0 || result.updatedSongs != 0) {
-                            notifyAllFragmentsRefresh();
-                        }
-                    });
 
-                }
-            }.start();
-        }
-    }
 
     @Override
     protected void initDataForPersistentView() {
