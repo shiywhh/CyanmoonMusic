@@ -29,6 +29,7 @@ import com.tencent.mmkv.MMKV;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Mini播放器Fragment - 使用MediaControllerHelper统一管理播放状态
@@ -556,8 +557,85 @@ public class MiniPlayerFragment extends BaseFragment<FragmentMiniPlayerBinding> 
      * 滚动到指定位置（直接跳转）
      */
     private void scrollToPosition(int position) {
-        if (!isUserScrolling) {
-            binding.miniPlayerRecyclerView.scrollToPosition(position);
+        if (layoutManager != null && position >= 0 && position < playlist.size()) {
+            layoutManager.scrollToPosition(position);
+        }
+    }
+
+    /**
+     * 刷新音乐列表
+     */
+    @Override
+    protected void onRefreshMusicList() {
+        // 重新加载播放列表数据
+        refreshFragmentAsync();
+    }
+
+    /**
+     * 在后台线程执行刷新操作
+     */
+    @Override
+    protected void performRefreshInBackground() {
+        try {
+            // 重新加载播放列表数据
+            if (controllerHelper != null) {
+                // 获取当前播放列表
+                List<Song> currentPlaylist = controllerHelper.getPlaylist();
+                if (!currentPlaylist.isEmpty()) {
+                    // 重新查询数据库获取最新的歌曲信息
+                    List<Song> updatedPlaylist = new ArrayList<>();
+                    for (Song song : currentPlaylist) {
+                        // 根据歌曲ID重新查询数据库获取最新信息
+                        Song updatedSong = org.litepal.LitePal.find(Song.class, song.getId());
+                        // 如果找不到更新后的歌曲，保留原歌曲
+                        updatedPlaylist.add(Objects.requireNonNullElse(updatedSong, song));
+                    }
+
+                    // 获取当前播放索引
+                    int currentIndex = controllerHelper.getCurrentIndex();
+                    
+                    // 更新MediaControllerHelper内部的播放列表
+                    controllerHelper.setPlaylist(updatedPlaylist, currentIndex);
+                    
+                    // 更新MiniPlayerFragment自己的播放列表
+                    binding.miniPlayerRecyclerView.post(() -> {
+                        updatePlaylist(updatedPlaylist);
+                    });
+                    
+                    // 打印原始数据到控制台
+                    System.out.println("MiniPlayerFragment后台刷新完成 - 已更新MediaControllerHelper播放列表");
+                    System.out.println("更新后的播放列表大小: " + updatedPlaylist.size());
+                    System.out.println("当前播放索引: " + currentIndex);
+                }
+            }
+
+            // 打印原始数据到控制台
+            System.out.println("MiniPlayerFragment后台刷新完成");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("MiniPlayerFragment后台刷新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在主线程更新UI
+     */
+    @Override
+    protected void updateUIAfterRefresh() {
+        try {
+            // 更新UI显示
+            if (binding != null) {
+                // 更新播放器UI
+                updateCurrentSong();
+                updatePlaybackState();
+            }
+
+            System.out.println("MiniPlayerFragment UI更新完成");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("MiniPlayerFragment UI更新失败: " + e.getMessage());
         }
     }
 } 

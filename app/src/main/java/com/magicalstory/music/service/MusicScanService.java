@@ -181,6 +181,9 @@ public class MusicScanService extends Service {
         try {
             Song song = new Song();
 
+            // 保存MediaStore ID，用于删除文件
+            song.setMediaStoreId(cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)));
+
             // 获取并处理标题，将<unknown>替换为unknown
             String title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE));
             song.setTitle("<unknown>".equals(title) ? "unknown" : title);

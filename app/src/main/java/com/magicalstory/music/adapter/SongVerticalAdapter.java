@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemSongVerticalBinding;
+import com.magicalstory.music.dialog.SongBottomSheetDialogFragment;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.utils.glide.Glide2;
 
@@ -243,6 +244,13 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
             return false;
         });
 
+        // 设置菜单按钮点击事件
+        holder.binding.ivMore.setOnClickListener(v -> {
+            if (!isMultiSelectMode) {
+                showSongBottomSheetDialog(song);
+            }
+        });
+
         // 执行加载动画（仅首次加载的首屏项目）
         if (isFirstLoad && position < MAX_ANIMATED_ITEMS) {
             animateItem(holder.itemView, position);
@@ -334,6 +342,16 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
      */
     public void disableLoadAnimation() {
         this.isFirstLoad = false;
+    }
+
+    /**
+     * 显示歌曲底部弹出窗口
+     */
+    private void showSongBottomSheetDialog(Song song) {
+        if (context instanceof MainActivity) {
+            SongBottomSheetDialogFragment fragment = SongBottomSheetDialogFragment.newInstance(song);
+            fragment.show(((MainActivity) context).getSupportFragmentManager(), "SongBottomSheetDialog");
+        }
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

@@ -25,6 +25,7 @@ public class Song extends LitePalSupport implements Serializable {
     private int year;               // 年份
     private String genre;           // 流派
     private long lastplayed;        // 最后播放时间
+    private long mediaStoreId;      // MediaStore ID，用于删除文件
 
     public Song() {}
 
@@ -172,5 +173,13 @@ public class Song extends LitePalSupport implements Serializable {
 
     public void setLastplayed(long lastplayed) {
         this.lastplayed = lastplayed;
+    }
+
+    public long getMediaStoreId() {
+        return mediaStoreId;
+    }
+
+    public void setMediaStoreId(long mediaStoreId) {
+        this.mediaStoreId = mediaStoreId;
     }
 }

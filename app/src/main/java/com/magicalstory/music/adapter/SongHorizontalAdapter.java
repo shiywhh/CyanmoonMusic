@@ -31,6 +31,7 @@ import com.magicalstory.music.databinding.ItemSongSquareBinding;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.utils.glide.Glide2;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -234,6 +235,32 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
      */
     public List<Song> getSongList() {
         return songList;
+    }
+
+    /**
+     * 根据ID列表移除歌曲
+     * @param songIds 要移除的歌曲ID列表
+     */
+    public void removeSongsByIds(List<Long> songIds) {
+        if (songIds == null || songIds.isEmpty() || songList == null) {
+            return;
+        }
+        
+        // 创建要移除的歌曲列表
+        List<Song> songsToRemove = new ArrayList<>();
+        for (Song song : songList) {
+            if (songIds.contains(song.getId())) {
+                songsToRemove.add(song);
+            }
+        }
+        
+        // 从列表中移除歌曲
+        songList.removeAll(songsToRemove);
+        
+        // 通知适配器数据已更改
+        notifyDataSetChanged();
+        
+        android.util.Log.d("SongHorizontalAdapter", "移除了 " + songsToRemove.size() + " 首歌曲");
     }
 
     // 释放资源

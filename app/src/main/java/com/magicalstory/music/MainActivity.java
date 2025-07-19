@@ -45,6 +45,7 @@ import com.magicalstory.music.player.FullPlayerFragment;
 import com.magicalstory.music.player.PlaylistManager;
 import com.magicalstory.music.service.MusicService;
 import com.magicalstory.music.player.MediaControllerHelper;
+import com.magicalstory.music.player.MediaControllerHelper.PlaybackStateListener;
 import com.magicalstory.music.utils.app.ToastUtils;
 import com.tencent.mmkv.MMKV;
 
@@ -60,13 +61,12 @@ import java.util.concurrent.ExecutionException;
  * 通过MediaControllerHelper统一管理播放状态监听
  */
 @UnstableApi
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements PlaybackStateListener {
 
     private static final String TAG = "MainActivity";
 
     // 广播常量
     public static final String ACTION_BOTTOM_SHEET_STATE_CHANGED = "com.magicalstory.music.ACTION_BOTTOM_SHEET_STATE_CHANGED";
-    ;
 
     private ActivityMainBinding binding;
     private BottomSheetBehavior<View> bottomSheetBehavior;
@@ -85,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
     private MediaController mediaController;
     private ListenableFuture<MediaController> controllerFuture;
     private MediaControllerHelper controllerHelper;
-    private ArrayList<Song> songArrayList_lastest;
+    private ArrayList<Song> songArrayList_lastest = new ArrayList<>();
     private boolean hasLastedPlayList = false;
 
     // SplashScreen相关
@@ -196,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
         Type listType = new TypeToken<List<Song>>() {
         }.getType();
         songArrayList_lastest = GsonFactory.getSingletonGson().fromJson(PlaylistManager.getInstance().getPlayList(), listType);
-        hasLastedPlayList = !songArrayList_lastest.isEmpty();
+        hasLastedPlayList = songArrayList_lastest != null && !songArrayList_lastest.isEmpty();
 
         // 获取mini player和full player的容器
         miniPlayerContainer = bottomSheet.findViewById(R.id.mini_player_container);
@@ -438,7 +438,6 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -514,6 +513,10 @@ public class MainActivity extends AppCompatActivity {
                 // 初始化辅助类（MediaControllerHelper会自动添加Player.Listener）
                 controllerHelper = MediaControllerHelper.getInstance(mediaController, this);
                 Log.d(TAG, "MediaControllerHelper初始化成功");
+
+                // 添加MainActivity作为播放状态监听器
+                controllerHelper.addPlaybackStateListener(this);
+                Log.d(TAG, "MainActivity已添加为播放状态监听器");
 
                 // 添加播放状态监听器到MediaControllerHelper
                 Log.d(TAG, "MediaController连接成功");
@@ -799,6 +802,8 @@ public class MainActivity extends AppCompatActivity {
 
         // 清理辅助类（会自动移除Player.Listener）
         if (controllerHelper != null) {
+            // 移除MainActivity的监听器
+            controllerHelper.removePlaybackStateListener(this);
             //controllerHelper.removePlaybackStateListener(playbackStateListener);
             controllerHelper.cleanup();
             controllerHelper = null;
@@ -811,6 +816,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
+    @Override
+    public void onPlaylistEmpty() {
+        Log.d(TAG, "播放列表为空，隐藏bottomsheet");
+        if (bottomSheetBehavior != null) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        }
+    }
 
     /**
      * 跳转到艺术家详情页面
@@ -852,6 +866,94 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.e(TAG, "跳转到艺术家详情页面失败", e);
+        }
+    }
+
+    /**
+     * 跳转到专辑详情页面
+     * 使用通用的导航方式，适用于从任何页面跳转
+     */
+    public void navigateToAlbumDetail(String albumName, String artistName, long albumId) {
+        try {
+            // 获取NavHostFragment
+            androidx.fragment.app.Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+            if (navHostFragment != null) {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+                // 从NavHostFragment获取NavController
+                NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+
+                // 使用通用的导航方式
+                Bundle bundle = new Bundle();
+                bundle.putString("album_name", albumName);
+                bundle.putString("artist_name", artistName);
+                bundle.putLong("album_id", albumId);
+
+                binding.bottomNavigation.postDelayed(() -> {
+                    try {
+                        // 方法1：使用NavOptions添加动画效果，直接导航到目的地（推荐方式）
+                        NavOptions navOptions = new NavOptions.Builder()
+                                .setEnterAnim(R.anim.fade_in)
+                                .setExitAnim(R.anim.fade_out)
+                                .setPopEnterAnim(R.anim.fade_in_pop)
+                                .setPopExitAnim(R.anim.fade_out_pop)
+                                .build();
+                        navController.navigate(R.id.nav_album_detail, bundle, navOptions);
+                        Log.d(TAG, "成功跳转到专辑详情页面: " + albumName);
+                    } catch (Exception e) {
+                        Log.e(TAG, "直接导航失败，尝试备用方案", e);
+                        ToastUtils.showToast(this, "跳转失败");
+
+                    }
+                }, 500);
+            } else {
+                Log.e(TAG, "NavHostFragment为null，无法执行导航");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "跳转到专辑详情页面失败", e);
+        }
+    }
+
+    /**
+     * 跳转到歌曲标签编辑器
+     * 使用通用的导航方式，适用于从任何页面跳转
+     */
+    public void navigateToSongTagEditor(Song song) {
+        try {
+            // 获取NavHostFragment
+            androidx.fragment.app.Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+            if (navHostFragment != null) {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+                // 从NavHostFragment获取NavController
+                NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+
+                // 使用通用的导航方式
+                Bundle bundle = new Bundle();
+                bundle.putSerializable("song", song);
+
+                binding.bottomNavigation.postDelayed(() -> {
+                    try {
+                        // 方法1：使用NavOptions添加动画效果，直接导航到目的地（推荐方式）
+                        NavOptions navOptions = new NavOptions.Builder()
+                                .setEnterAnim(R.anim.fade_in)
+                                .setExitAnim(R.anim.fade_out)
+                                .setPopEnterAnim(R.anim.fade_in_pop)
+                                .setPopExitAnim(R.anim.fade_out_pop)
+                                .build();
+                        navController.navigate(R.id.nav_song_tag_editor, bundle, navOptions);
+                        Log.d(TAG, "成功跳转到歌曲标签编辑器: " + song.getTitle());
+                    } catch (Exception e) {
+                        Log.e(TAG, "直接导航失败，尝试备用方案", e);
+                        ToastUtils.showToast(this, "跳转失败");
+
+                    }
+                }, 500);
+            } else {
+                Log.e(TAG, "NavHostFragment为null，无法执行导航");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "跳转到歌曲标签编辑器失败", e);
         }
     }
 

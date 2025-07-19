@@ -205,7 +205,7 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
             }
         });
 
-        int albumTitleY = DensityUtil.getScreenHeightAndWeight(context)[0];
+        int albumTitleY = DensityUtil.dip2px(context,60);
         binding.nestedScrollView.setOnScrollChangeListener((View.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
             if (Math.abs(scrollY) > albumTitleY) {
                 if (currentAlbum != null) {
@@ -844,5 +844,63 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
     @Override
     public boolean autoHideBottomNavigation() {
         return true;
+    }
+
+    /**
+     * 刷新音乐列表
+     */
+    @Override
+    protected void onRefreshMusicList() {
+        // 重新加载专辑详情数据
+        refreshFragmentAsync();
+    }
+
+    /**
+     * 在后台线程执行刷新操作
+     */
+    @Override
+    protected void performRefreshInBackground() {
+        try {
+            // 重新加载专辑详情数据
+            if (currentAlbum != null) {
+                loadAlbumDetail(currentAlbum.getAlbumId(), currentAlbum.getArtist(), currentAlbum.getAlbumName());
+            }
+            
+            // 打印原始数据到控制台
+            System.out.println("AlbumDetailFragment后台刷新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("AlbumDetailFragment后台刷新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在主线程更新UI
+     */
+    @Override
+    protected void updateUIAfterRefresh() {
+        try {
+            // 更新UI显示
+            if (binding != null && currentAlbum != null) {
+                // 更新专辑信息
+                updateUI();
+                
+                // 更新歌曲列表
+                updateSongsList();
+                
+                // 更新其他专辑列表
+                updateOtherAlbumsList();
+                
+                // 更新当前播放歌曲状态
+                updateCurrentPlayingSong();
+            }
+            
+            System.out.println("AlbumDetailFragment UI更新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("AlbumDetailFragment UI更新失败: " + e.getMessage());
+        }
     }
 } 

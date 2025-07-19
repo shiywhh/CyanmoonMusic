@@ -1622,57 +1622,56 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         SongBottomSheetDialogFragment songBottomSheet = SongBottomSheetDialogFragment.newInstance(currentSong);
         songBottomSheet.setMediaControllerHelper(controllerHelper);
 
-        // 设置歌曲操作监听器
-        songBottomSheet.setOnSongActionListener(new SongBottomSheetDialogFragment.OnSongActionListener() {
-            @Override
-            public void onPlayNext(Song song) {
-                Log.d(TAG, "下一首播放: " + song.getTitle());
-            }
-
-            @Override
-            public void onAddToPlaylist(Song song) {
-                Log.d(TAG, "添加到播放列表: " + song.getTitle());
-            }
-
-            @Override
-            public void onViewAlbum(Song song) {
-                Log.d(TAG, "查看专辑: " + song.getAlbum());
-            }
-
-            @Override
-            public void onViewArtist(Song song) {
-                Log.d(TAG, "查看艺术家: " + song.getArtist());
-            }
-
-            @Override
-            public void onTagEditor(Song song) {
-                Log.d(TAG, "标签编辑器: " + song.getTitle());
-            }
-
-            @Override
-            public void onEditLyrics(Song song) {
-                Log.d(TAG, "编辑歌词: " + song.getTitle());
-            }
-
-            @Override
-            public void onDetails(Song song) {
-                Log.d(TAG, "详细信息: " + song.getTitle());
-            }
-
-            @Override
-            public void onShare(Song song) {
-                Log.d(TAG, "分享: " + song.getTitle());
-            }
-
-            @Override
-            public void onDelete(Song song) {
-                Log.d(TAG, "从设备上删除: " + song.getTitle());
-            }
-        });
-
         // 显示歌曲底部弹出窗口Fragment
         songBottomSheet.show(getParentFragmentManager(), "SongBottomSheet");
     }
 
+    /**
+     * 刷新音乐列表
+     */
+    @Override
+    protected void onRefreshMusicList() {
+        // 重新加载播放器数据
+        refreshFragmentAsync();
+    }
 
+    /**
+     * 在后台线程执行刷新操作
+     */
+    @Override
+    protected void performRefreshInBackground() {
+        try {
+            // 重新加载播放器数据
+            // 这里可以添加具体的刷新逻辑
+            
+            // 打印原始数据到控制台
+            System.out.println("FullPlayerFragment后台刷新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("FullPlayerFragment后台刷新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在主线程更新UI
+     */
+    @Override
+    protected void updateUIAfterRefresh() {
+        try {
+            // 更新UI显示
+            if (binding != null) {
+                // 更新播放器UI
+                updateCurrentSong();
+                updatePlaybackState();
+                updatePlayButton(controllerHelper != null && controllerHelper.isPlaying());
+            }
+            
+            System.out.println("FullPlayerFragment UI更新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("FullPlayerFragment UI更新失败: " + e.getMessage());
+        }
+    }
 } 

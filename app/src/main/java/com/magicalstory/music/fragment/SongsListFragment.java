@@ -15,7 +15,6 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.navigation.Navigation;
@@ -31,6 +30,7 @@ import com.magicalstory.music.model.Song;
 import com.google.android.material.snackbar.Snackbar;
 import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.app.ToastUtils;
+import com.magicalstory.music.utils.file.FileDeleteUtils;
 
 import org.litepal.LitePal;
 
@@ -55,7 +55,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     private static final String DATA_TYPE_MOST_PLAYED = "most_played";
 
     // 请求代码常量
-    private static final int DELETE_REQUEST_CODE = 1001;
     private static final int CLEAR_LIST_REQUEST_CODE = 1002;
 
     private SongVerticalAdapter songAdapter;
@@ -207,11 +206,11 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             if (selectAll != null) selectAll.setVisible(visible);
             if (removeFromPlaylist != null) removeFromPlaylist.setVisible(visible);
             if (deleteFromDevice != null) deleteFromDevice.setVisible(visible);
-            
+
             // 根据数据类型决定是否显示删除所选歌曲选项
-            boolean showDeleteSelected = (DATA_TYPE_FAVORITE.equals(dataType) || 
-                                        DATA_TYPE_HISTORY.equals(dataType) || 
-                                        DATA_TYPE_MOST_PLAYED.equals(dataType));
+            boolean showDeleteSelected = (DATA_TYPE_FAVORITE.equals(dataType) ||
+                    DATA_TYPE_HISTORY.equals(dataType) ||
+                    DATA_TYPE_MOST_PLAYED.equals(dataType));
             if (deleteSelectedSongs != null) deleteSelectedSongs.setVisible(visible && showDeleteSelected);
         }
     }
@@ -229,11 +228,11 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             if (shufflePlay != null) shufflePlay.setVisible(visible);
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
-            
+
             // 根据数据类型决定是否显示清空列表选项
-            boolean showClearList = (DATA_TYPE_FAVORITE.equals(dataType) || 
-                                   DATA_TYPE_HISTORY.equals(dataType) || 
-                                   DATA_TYPE_MOST_PLAYED.equals(dataType));
+            boolean showClearList = (DATA_TYPE_FAVORITE.equals(dataType) ||
+                    DATA_TYPE_HISTORY.equals(dataType) ||
+                    DATA_TYPE_MOST_PLAYED.equals(dataType));
             if (clearList != null) clearList.setVisible(visible && showClearList);
         }
     }
@@ -241,7 +240,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
-        
+
         if (isMultiSelectMode) {
             // 多选模式下的菜单处理
             if (itemId == R.id.menu_play_next) {
@@ -279,7 +278,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 return true;
             }
         }
-        
+
         return super.onOptionsItemSelected(item);
     }
 
@@ -295,20 +294,21 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == DELETE_REQUEST_CODE) {
-            if (resultCode == android.app.Activity.RESULT_OK) {
-                // 用户同意删除，从数据库中移除记录
-                List<Song> selectedSongs = songAdapter.getSelectedSongs();
-                for (Song song : selectedSongs) {
-                    LitePal.delete(Song.class, song.getId());
+        // 处理删除结果
+        if (requestCode == FileDeleteUtils.DELETE_REQUEST_CODE) {
+            List<Song> selectedSongs = songAdapter.getSelectedSongs();
+            FileDeleteUtils.handleDeleteResult(this, requestCode, resultCode, data, selectedSongs, new FileDeleteUtils.DeleteCallback() {
+                @Override
+                public void onDeleteSuccess(List<Song> deletedSongs) {
+                    // 更新UI
+                    handleDeleteSuccess(deletedSongs);
                 }
 
-                // 更新UI
-                onDeleteSuccess(selectedSongs);
-            } else {
-                // 用户取消删除
-                showSnackbar(getString(R.string.delete_cancelled));
-            }
+                @Override
+                public void onDeleteFailed(String errorMessage) {
+                    showSnackbar(errorMessage);
+                }
+            });
         }
     }
 
@@ -755,83 +755,25 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
      * 执行从设备删除操作
      */
     private void performDeleteFromDevice(List<Song> songsToDelete) {
-        // 使用Android推荐的MediaStore删除方式
-        try {
-            // 构建需要删除的URI列表
-            List<android.net.Uri> urisToDelete = new ArrayList<>();
-            for (Song song : songsToDelete) {
-                android.net.Uri uri = android.content.ContentUris.withAppendedId(
-                        android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        song.getId()
-                );
-                urisToDelete.add(uri);
+        // 使用FileDeleteUtils统一处理删除操作
+        FileDeleteUtils.deleteSongsWithMediaStore(this, songsToDelete, new FileDeleteUtils.DeleteCallback() {
+            @Override
+            public void onDeleteSuccess(List<Song> deletedSongs) {
+                // 更新UI
+                handleDeleteSuccess(deletedSongs);
             }
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                // Android 11及以上版本使用MediaStore.createDeleteRequest()
-                android.app.PendingIntent deleteIntent = android.provider.MediaStore.createDeleteRequest(
-                        requireContext().getContentResolver(),
-                        urisToDelete
-                );
-
-                // 启动删除请求
-                startIntentSenderForResult(
-                        deleteIntent.getIntentSender(),
-                        DELETE_REQUEST_CODE,
-                        null,
-                        0,
-                        0,
-                        0,
-                        null
-                );
-            } else {
-                // Android 10及以下版本使用ContentResolver.delete()
-                deleteFilesLegacy(urisToDelete, songsToDelete);
+            @Override
+            public void onDeleteFailed(String errorMessage) {
+                showSnackbar(getString(R.string.delete_failed) + "：" + errorMessage);
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            showSnackbar(getString(R.string.delete_failed) + "：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 传统方式删除文件（Android 10及以下版本）
-     */
-    private void deleteFilesLegacy(List<android.net.Uri> urisToDelete, List<Song> songsToDelete) {
-        android.content.ContentResolver resolver = requireContext().getContentResolver();
-        int deletedCount = 0;
-
-        for (android.net.Uri uri : urisToDelete) {
-            try {
-                int count = resolver.delete(uri, null, null);
-                if (count > 0) {
-                    deletedCount++;
-                }
-            } catch (SecurityException e) {
-                // 处理权限不足的情况
-                e.printStackTrace();
-                showSnackbar(getString(R.string.delete_some_failed));
-            }
-        }
-
-        if (deletedCount > 0) {
-            // 从数据库中移除记录
-            for (Song song : songsToDelete) {
-                LitePal.delete(Song.class, song.getId());
-            }
-
-            // 更新UI
-            onDeleteSuccess(songsToDelete);
-        } else {
-            showSnackbar(getString(R.string.delete_failed));
-        }
+        });
     }
 
     /**
      * 删除成功后的处理
      */
-    private void onDeleteSuccess(List<Song> deletedSongs) {
+    private void handleDeleteSuccess(List<Song> deletedSongs) {
         // 从当前列表中移除
         songList.removeAll(deletedSongs);
         songAdapter.notifyDataSetChanged();
@@ -847,10 +789,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
         // 通知删除成功
         showSnackbar(getString(R.string.delete_success, deletedSongs.size()));
-
-        // 发送广播通知其他组件刷新
-        Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
-        LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
     }
 
     /**
@@ -863,26 +801,26 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 case DATA_TYPE_FAVORITE:
                     // 从收藏中删除
                     for (Song song : songsToDelete) {
-                        LitePal.deleteAll(com.magicalstory.music.model.FavoriteSong.class, 
-                                        "songId = ?", String.valueOf(song.getId()));
+                        LitePal.deleteAll(com.magicalstory.music.model.FavoriteSong.class,
+                                "songId = ?", String.valueOf(song.getId()));
                     }
                     showSnackbar(getString(R.string.delete_from_favorites_success, songsToDelete.size()));
                     break;
-                    
+
                 case DATA_TYPE_HISTORY:
                     // 从播放历史中删除
                     for (Song song : songsToDelete) {
-                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class, 
-                                        "songId = ?", String.valueOf(song.getId()));
+                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class,
+                                "songId = ?", String.valueOf(song.getId()));
                     }
                     showSnackbar(getString(R.string.delete_from_history_success, songsToDelete.size()));
                     break;
-                    
+
                 case DATA_TYPE_MOST_PLAYED:
                     // 从最常播放中删除
                     for (Song song : songsToDelete) {
-                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class, 
-                                        "songId = ?", String.valueOf(song.getId()));
+                        LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class,
+                                "songId = ?", String.valueOf(song.getId()));
                     }
                     showSnackbar(getString(R.string.delete_from_most_played_success, songsToDelete.size()));
                     break;
@@ -901,10 +839,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             // 退出多选模式
             exitMultiSelectMode();
 
-            // 发送广播通知其他组件刷新
-            Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
-            LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
-
+            FileDeleteUtils.deleteSongsFromDatabase(songsToDelete);
         } catch (Exception e) {
             e.printStackTrace();
             showSnackbar("删除失败：" + e.getMessage());
@@ -923,13 +858,13 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                     LitePal.deleteAll(com.magicalstory.music.model.FavoriteSong.class);
                     showSnackbar("已清空收藏列表");
                     break;
-                    
+
                 case DATA_TYPE_HISTORY:
                     // 清空播放历史
                     LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class);
                     showSnackbar("已清空播放历史");
                     break;
-                    
+
                 case DATA_TYPE_MOST_PLAYED:
                     // 清空最常播放（实际上也是清空播放历史）
                     LitePal.deleteAll(com.magicalstory.music.model.PlayHistory.class);
@@ -944,10 +879,6 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             // 显示空状态
             binding.rvRecentSongs.setVisibility(View.GONE);
             binding.layoutEmpty.setVisibility(View.VISIBLE);
-
-            // 发送广播通知其他组件刷新
-            Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
-            LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -1102,9 +1033,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
      * 显示Snackbar提示
      */
     private void showSnackbar(String message) {
-        if (getView() != null) {
-            Snackbar.make(getView(), message, Snackbar.LENGTH_SHORT).show();
-        }
+        ToastUtils.showToast(context, message);
     }
 
     /**
@@ -1127,7 +1056,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
         // 将当前歌曲列表设置为播放列表并播放第一首
         if (getActivity() instanceof MainActivity mainActivity) {
-            mainActivity.playFromPlaylist(songList,0);
+            mainActivity.playFromPlaylist(songList, 0);
         }
     }
 }

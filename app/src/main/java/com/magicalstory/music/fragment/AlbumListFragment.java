@@ -32,6 +32,7 @@ import com.magicalstory.music.model.Song;
 import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.query.MusicQueryUtils;
 import com.magicalstory.music.utils.app.ToastUtils;
+import com.magicalstory.music.utils.file.FileDeleteUtils;
 import com.google.android.material.snackbar.Snackbar;
 
 
@@ -48,7 +49,7 @@ import java.util.List;
 public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
     // 请求代码常量
-    private static final int DELETE_REQUEST_CODE = 1001;
+    private static final int DELETE_REQUEST_CODE = FileDeleteUtils.DELETE_REQUEST_CODE;
 
     private AlbumGridAdapter albumAdapter;
     private List<Album> albumList;
@@ -56,6 +57,11 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
     private MediaControllerHelper controllerHelper;
     private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
+        @Override
+        public void songChange(Song newSong) {
+            // 更新当前播放歌曲的状态
+            updateCurrentPlayingSong();
+        }
     };
 
     // 多选相关
@@ -161,7 +167,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
-        
+
         if (isMultiSelectMode) {
             // 多选模式下的菜单处理
             if (itemId == R.id.menu_play_next) {
@@ -193,7 +199,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 return true;
             }
         }
-        
+
         return super.onOptionsItemSelected(item);
     }
 
@@ -211,27 +217,31 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == DELETE_REQUEST_CODE) {
-            if (resultCode == android.app.Activity.RESULT_OK) {
-                // 用户同意删除，从数据库中移除记录
-                List<Album> selectedAlbums = albumAdapter.getSelectedAlbums();
-                List<Song> songsToDelete = new ArrayList<>();
-                for (Album album : selectedAlbums) {
-                    List<Song> albumSongs = MusicQueryUtils.getSongsByAlbum(album);
-                    if (albumSongs != null) {
-                        songsToDelete.addAll(albumSongs);
-                    }
+            List<Album> selectedAlbums = albumAdapter.getSelectedAlbums();
+            List<Song> songsToDelete = new ArrayList<>();
+            for (Album album : selectedAlbums) {
+                List<Song> albumSongs = MusicQueryUtils.getSongsByAlbum(album);
+                if (albumSongs != null) {
+                    songsToDelete.addAll(albumSongs);
                 }
-
-                for (Song song : songsToDelete) {
-                    LitePal.delete(Song.class, song.getId());
-                }
-
-                // 更新UI
-                onDeleteSuccess(selectedAlbums, songsToDelete);
-            } else {
-                // 用户取消删除
-                showSnackbar(getString(R.string.delete_cancelled));
             }
+
+            // 使用FileDeleteUtils处理删除结果
+            FileDeleteUtils.handleDeleteResult(this, requestCode, resultCode, data, songsToDelete, new FileDeleteUtils.DeleteCallback() {
+                @Override
+                public void onDeleteSuccess(List<Song> deletedSongs) {
+                    // 删除空专辑记录（只删除没有歌曲的专辑）
+                    FileDeleteUtils.deleteEmptyAlbums(context,selectedAlbums);
+
+                    // 更新UI
+                    handleDeleteSuccess(selectedAlbums, deletedSongs);
+                }
+
+                @Override
+                public void onDeleteFailed(String errorMessage) {
+                    showSnackbar(getString(R.string.delete_failed) + "：" + errorMessage);
+                }
+            });
         }
     }
 
@@ -392,6 +402,15 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
     }
 
     /**
+     * 更新当前播放歌曲的状态
+     */
+    private void updateCurrentPlayingSong() {
+        if (albumAdapter != null) {
+            albumAdapter.notifyDataSetChanged();
+        }
+    }
+
+    /**
      * 下一首播放
      */
     private void playNext() {
@@ -408,7 +427,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         }
 
         // 实现添加到播放队列下一首的功能
-        if (context instanceof MainActivity mainActivity) {
+        if (getActivity() instanceof MainActivity mainActivity) {
             // 暂时使用Snackbar提示，后续可以扩展MusicService来支持添加到播放队列
             showSnackbar(getString(R.string.added_to_queue, allSongs.size()));
             // TODO: 后续需要在MusicService中添加addToPlayQueue方法
@@ -434,7 +453,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
         }
 
         // 实现添加到播放列表的功能
-        if (context instanceof MainActivity mainActivity) {
+        if (getActivity() instanceof MainActivity mainActivity) {
             // 将选中的专辑中的歌曲添加到当前播放列表
             java.util.List<Song> currentPlaylist = new java.util.ArrayList<>();
             if (mainActivity.getCurrentSong() != null) {
@@ -498,8 +517,13 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
 
         // 计算要删除的歌曲数量
         List<Song> allSongs = MusicQueryUtils.getSongsByAlbums(selectedAlbums);
+        
         if (allSongs == null || allSongs.isEmpty()) {
-            showSnackbar(getString(R.string.no_songs_in_albums));
+            // 如果没有歌曲，直接删除专辑记录
+            // 直接删除专辑记录
+            FileDeleteUtils.deleteAlbums(context,selectedAlbums);
+            // 更新UI
+            handleDeleteSuccess(selectedAlbums, new ArrayList<>());
             return;
         }
 
@@ -540,101 +564,43 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
      * 执行从设备删除操作
      */
     private void performDeleteFromDevice(List<Album> albumsToDelete, List<Song> songsToDelete) {
-        // 使用Android推荐的MediaStore删除方式
-        try {
-            // 构建需要删除的URI列表
-            List<android.net.Uri> urisToDelete = new ArrayList<>();
-            for (Song song : songsToDelete) {
-                android.net.Uri uri = android.content.ContentUris.withAppendedId(
-                        android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        song.getId()
-                );
-                urisToDelete.add(uri);
+        // 使用FileDeleteUtils统一处理删除操作
+        FileDeleteUtils.deleteSongsWithMediaStore(this, songsToDelete, new FileDeleteUtils.DeleteCallback() {
+            @Override
+            public void onDeleteSuccess(List<Song> deletedSongs) {
+                // 删除空专辑记录（只删除没有歌曲的专辑）
+                FileDeleteUtils.deleteEmptyAlbums(context,albumsToDelete);
+
+                // 更新UI
+                handleDeleteSuccess(albumsToDelete, deletedSongs);
             }
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                // Android 11及以上版本使用MediaStore.createDeleteRequest()
-                android.app.PendingIntent deleteIntent = android.provider.MediaStore.createDeleteRequest(
-                        requireContext().getContentResolver(),
-                        urisToDelete
-                );
-
-                // 启动删除请求
-                startIntentSenderForResult(
-                        deleteIntent.getIntentSender(),
-                        DELETE_REQUEST_CODE,
-                        null,
-                        0,
-                        0,
-                        0,
-                        null
-                );
-            } else {
-                // Android 10及以下版本使用ContentResolver.delete()
-                deleteFilesLegacy(urisToDelete, albumsToDelete, songsToDelete);
+            @Override
+            public void onDeleteFailed(String errorMessage) {
+                showSnackbar(getString(R.string.delete_failed) + "：" + errorMessage);
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            showSnackbar(getString(R.string.delete_failed) + "：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 传统方式删除文件（Android 10及以下版本）
-     */
-    private void deleteFilesLegacy(List<android.net.Uri> urisToDelete, List<Album> albumsToDelete, List<Song> songsToDelete) {
-        android.content.ContentResolver resolver = requireContext().getContentResolver();
-        int deletedCount = 0;
-
-        for (android.net.Uri uri : urisToDelete) {
-            try {
-                int count = resolver.delete(uri, null, null);
-                if (count > 0) {
-                    deletedCount++;
-                }
-            } catch (SecurityException e) {
-                // 处理权限不足的情况
-                e.printStackTrace();
-                showSnackbar(getString(R.string.delete_some_failed));
-            }
-        }
-
-        if (deletedCount > 0) {
-            // 从数据库中移除记录
-            for (Song song : songsToDelete) {
-                LitePal.delete(Song.class, song.getId());
-            }
-
-            // 更新UI
-            onDeleteSuccess(albumsToDelete, songsToDelete);
-        } else {
-            showSnackbar(getString(R.string.delete_failed));
-        }
+        });
     }
 
     /**
      * 删除成功后的处理
      */
-    private void onDeleteSuccess(List<Album> deletedAlbums, List<Song> deletedSongs) {
-        // 从当前列表中移除
-        albumList.removeAll(deletedAlbums);
-        albumAdapter.notifyDataSetChanged();
-
-        // 如果列表为空，显示空状态
-        if (albumList.isEmpty()) {
-            binding.rvAlbums.setVisibility(View.GONE);
-            binding.layoutEmpty.setVisibility(View.VISIBLE);
-        }
-
+    private void handleDeleteSuccess(List<Album> deletedAlbums, List<Song> deletedSongs) {
         // 退出多选模式
         exitMultiSelectMode();
 
         // 通知删除成功
-        showSnackbar(getString(R.string.delete_success, deletedSongs.size()));
+        if (deletedSongs.isEmpty()) {
+            showSnackbar("已删除 " + deletedAlbums.size() + " 个专辑记录");
+        } else {
+            showSnackbar(getString(R.string.delete_success, deletedSongs.size()));
+        }
+
+        // 重新加载数据以反映数据库变化
+        loadAlbums();
 
         // 发送广播通知其他组件刷新
-        Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
+        Intent refreshIntent = new Intent(FileDeleteUtils.ACTION_REFRESH_MUSIC_LIST);
         LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
     }
 
@@ -722,9 +688,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
      * 显示Snackbar提示
      */
     private void showSnackbar(String message) {
-        if (getView() != null) {
-            Snackbar.make(getView(), message, Snackbar.LENGTH_SHORT).show();
-        }
+        ToastUtils.showToast(context, message);
     }
 
     /**
@@ -756,7 +720,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 // 遍历所有专辑，获取每个专辑的歌曲
                 for (Album album : albumList) {
                     List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
-                            String.valueOf(album.getAlbumId()), album.getArtist())
+                                    String.valueOf(album.getAlbumId()), album.getArtist())
                             .order("track asc")
                             .find(Song.class);
                     if (albumSongs != null) {
@@ -803,7 +767,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 // 遍历所有专辑，获取每个专辑的歌曲
                 for (Album album : albumList) {
                     List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
-                            String.valueOf(album.getAlbumId()), album.getArtist())
+                                    String.valueOf(album.getAlbumId()), album.getArtist())
                             .order("track asc")
                             .find(Song.class);
                     if (albumSongs != null) {
@@ -854,7 +818,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 // 遍历所有专辑，获取每个专辑的歌曲
                 for (Album album : albumList) {
                     List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
-                            String.valueOf(album.getAlbumId()), album.getArtist())
+                                    String.valueOf(album.getAlbumId()), album.getArtist())
                             .order("track asc")
                             .find(Song.class);
                     if (albumSongs != null) {
@@ -905,7 +869,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 // 遍历所有专辑，获取每个专辑的歌曲
                 for (Album album : albumList) {
                     List<Song> albumSongs = LitePal.where("albumId = ? and artist = ?",
-                            String.valueOf(album.getAlbumId()), album.getArtist())
+                                    String.valueOf(album.getAlbumId()), album.getArtist())
                             .order("track asc")
                             .find(Song.class);
                     if (albumSongs != null) {
@@ -917,7 +881,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 mainHandler.post(() -> {
                     if (!allSongs.isEmpty()) {
                         if (getActivity() instanceof MainActivity mainActivity) {
-                            mainActivity.playFromPlaylist(allSongs,0);
+                            mainActivity.playFromPlaylist(allSongs, 0);
                             showSnackbar("开始播放所有专辑歌曲，共 " + allSongs.size() + " 首");
                         }
                     } else {
@@ -930,7 +894,7 @@ public class AlbumListFragment extends BaseFragment<FragmentAlbumBinding> {
                 mainHandler.post(() -> {
                     showSnackbar("播放失败：" + e.getMessage());
                 });
-                         }
-         }).start();
-     }
+            }
+        }).start();
+    }
 }  

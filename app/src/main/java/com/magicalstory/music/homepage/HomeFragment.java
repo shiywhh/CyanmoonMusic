@@ -73,6 +73,7 @@ import com.magicalstory.music.utils.glide.ColorExtractor;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.service.CoverFetchService;
 import com.magicalstory.music.utils.screen.DensityUtil;
+import com.magicalstory.music.utils.sync.MusicSyncUtils;
 import com.tencent.mmkv.MMKV;
 
 @UnstableApi
@@ -116,6 +117,37 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 ToastUtils.showToast(getContext(), "扫描完成，新增 " + scanCount + " 首歌曲");
                 // 扫描完成后重新加载歌曲并显示布局
                 reloadMusicDataAndShowLayout();
+            }
+        }
+    };
+
+    // 删除事件广播接收器
+    private final BroadcastReceiver deleteEventReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            android.util.Log.d("HomeFragment", "收到删除广播: " + intent.getAction());
+
+            if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_SONGS.equals(intent.getAction())) {
+                // 处理删除歌曲事件
+                List<Long> deletedSongIds = intent.getParcelableArrayListExtra(
+                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_SONG_IDS, Long.class);
+                if (deletedSongIds != null && !deletedSongIds.isEmpty()) {
+                    handleSongsDeleted(deletedSongIds);
+                }
+            } else if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ALBUMS.equals(intent.getAction())) {
+                // 处理删除专辑事件
+                List<Long> deletedAlbumIds = intent.getParcelableArrayListExtra(
+                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ALBUM_IDS, Long.class);
+                if (deletedAlbumIds != null && !deletedAlbumIds.isEmpty()) {
+                    handleAlbumsDeleted(deletedAlbumIds);
+                }
+            } else if (com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ARTISTS.equals(intent.getAction())) {
+                // 处理删除艺术家事件
+                List<Long> deletedArtistIds = intent.getParcelableArrayListExtra(
+                        com.magicalstory.music.utils.file.FileDeleteUtils.EXTRA_DELETED_ARTIST_IDS, Long.class);
+                if (deletedArtistIds != null && !deletedArtistIds.isEmpty()) {
+                    handleArtistsDeleted(deletedArtistIds);
+                }
             }
         }
     };
@@ -187,6 +219,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         // 注册广播接收器
         registerScanCompleteReceiver();
+        registerDeleteEventReceiver();
 
         // 现在线程池和Handler已经初始化，可以检查权限并更新UI
         checkMusicPermissionAndUpdateUI();
@@ -352,6 +385,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     protected void initListenerForPersistentView() {
         super.initListenerForPersistentView();
 
+
         // 扫描按钮点击事件
         binding.buttonScan.setOnClickListener(v -> {
             requestMusicPermissionAndScan();
@@ -411,6 +445,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             // 开始随机播放
             startRandomPlay();
         });
+
+        if (hasMusicPermission()) {
+            //MusicSyncUtils.syncMusicFiles(context);
+        }
     }
 
     /**
@@ -1330,6 +1368,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         try {
             if (getContext() != null) {
                 LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(scanCompleteReceiver);
+                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(deleteEventReceiver);
                 android.util.Log.d("HomeFragment", "广播接收器注销成功");
             }
         } catch (Exception e) {
@@ -1398,6 +1437,177 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             android.util.Log.d("HomeFragment", "扫描完成广播接收器注册成功");
         } catch (Exception e) {
             android.util.Log.e("HomeFragment", "注册扫描完成广播接收器失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 注册删除事件广播接收器
+     */
+    private void registerDeleteEventReceiver() {
+        try {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_SONGS);
+            filter.addAction(com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ALBUMS);
+            filter.addAction(com.magicalstory.music.utils.file.FileDeleteUtils.ACTION_DELETE_ARTISTS);
+            LocalBroadcastManager.getInstance(getContext()).registerReceiver(deleteEventReceiver, filter);
+            android.util.Log.d("HomeFragment", "删除事件广播接收器注册成功");
+        } catch (Exception e) {
+            android.util.Log.e("HomeFragment", "注册删除事件广播接收器失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 处理歌曲删除事件
+     * @param deletedSongIds 已删除的歌曲ID列表
+     */
+    private void handleSongsDeleted(List<Long> deletedSongIds) {
+        android.util.Log.d("HomeFragment", "处理歌曲删除事件，删除歌曲数量: " + deletedSongIds.size());
+
+        // 从各个适配器中移除被删除的歌曲
+        if (songsLatestAddedAdapter != null) {
+            songsLatestAddedAdapter.removeSongsByIds(deletedSongIds);
+            updateGroupVisibility(songsLatestAddedAdapter, binding.layoutSongsLastestAdded);
+        }
+
+        if (myFavoritesAdapter != null) {
+            myFavoritesAdapter.removeSongsByIds(deletedSongIds);
+            updateGroupVisibility(myFavoritesAdapter, binding.layoutMyFavorites);
+        }
+
+        if (randomRecommendationsAdapter != null) {
+            randomRecommendationsAdapter.removeSongsByIds(deletedSongIds);
+            updateGroupVisibility(randomRecommendationsAdapter, binding.layoutRandomRecommendations);
+        }
+
+        // 检查是否需要显示空布局
+        checkAndShowEmptyLayout();
+    }
+
+    /**
+     * 处理专辑删除事件
+     * @param deletedAlbumIds 已删除的专辑ID列表
+     */
+    private void handleAlbumsDeleted(List<Long> deletedAlbumIds) {
+        android.util.Log.d("HomeFragment", "处理专辑删除事件，删除专辑数量: " + deletedAlbumIds.size());
+
+        // 从专辑适配器中移除被删除的专辑
+        if (recentAlbumsAdapter != null) {
+            recentAlbumsAdapter.removeAlbumsByIds(deletedAlbumIds);
+            updateGroupVisibility(recentAlbumsAdapter, binding.layoutRecentAlbums);
+        }
+
+        // 检查是否需要显示空布局
+        checkAndShowEmptyLayout();
+    }
+
+    /**
+     * 处理艺术家删除事件
+     * @param deletedArtistIds 已删除的艺术家ID列表
+     */
+    private void handleArtistsDeleted(List<Long> deletedArtistIds) {
+        android.util.Log.d("HomeFragment", "处理艺术家删除事件，删除艺术家数量: " + deletedArtistIds.size());
+
+        // 从艺术家适配器中移除被删除的艺术家
+        if (recentArtistsAdapter != null) {
+            recentArtistsAdapter.removeArtistsByIds(deletedArtistIds);
+            updateGroupVisibility(recentArtistsAdapter, binding.layoutRecentArtists);
+        }
+
+        // 检查是否需要显示空布局
+        checkAndShowEmptyLayout();
+    }
+
+    /**
+     * 更新组可见性
+     * @param adapter 适配器
+     * @param groupLayout 组布局
+     */
+    private void updateGroupVisibility(androidx.recyclerview.widget.RecyclerView.Adapter adapter, View groupLayout) {
+        if (adapter.getItemCount() == 0) {
+            groupLayout.setVisibility(View.GONE);
+            android.util.Log.d("HomeFragment", "隐藏空组: " + groupLayout.getId());
+        } else {
+            groupLayout.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /**
+     * 检查并显示空布局
+     */
+    private void checkAndShowEmptyLayout() {
+        // 检查所有组是否都为空
+        boolean allGroupsEmpty = true;
+
+        if (songsLatestAddedAdapter != null && songsLatestAddedAdapter.getItemCount() > 0) {
+            allGroupsEmpty = false;
+        }
+        if (recentAlbumsAdapter != null && recentAlbumsAdapter.getItemCount() > 0) {
+            allGroupsEmpty = false;
+        }
+        if (recentArtistsAdapter != null && recentArtistsAdapter.getItemCount() > 0) {
+            allGroupsEmpty = false;
+        }
+        if (myFavoritesAdapter != null && myFavoritesAdapter.getItemCount() > 0) {
+            allGroupsEmpty = false;
+        }
+        if (randomRecommendationsAdapter != null && randomRecommendationsAdapter.getItemCount() > 0) {
+            allGroupsEmpty = false;
+        }
+
+        if (allGroupsEmpty) {
+            // 显示空布局
+            binding.layoutEmpty.setVisibility(View.VISIBLE);
+            android.util.Log.d("HomeFragment", "所有组都为空，显示空布局");
+        } else {
+            // 隐藏空布局
+            binding.layoutEmpty.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * 刷新音乐列表
+     */
+    @Override
+    protected void onRefreshMusicList() {
+        // 重新加载音乐数据
+        refreshFragmentAsync();
+    }
+
+    /**
+     * 在后台线程执行刷新操作
+     */
+    @Override
+    protected void performRefreshInBackground() {
+        try {
+            // 重新加载音乐数据
+            // 这里会重新查询数据库获取最新的歌曲和专辑信息
+            loadMusicData();
+
+            // 打印原始数据到控制台
+            System.out.println("HomeFragment后台刷新完成 - 已重新查询数据库获取最新数据");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("HomeFragment后台刷新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在主线程更新UI
+     */
+    @Override
+    protected void updateUIAfterRefresh() {
+        try {
+            // 更新UI显示
+            if (binding != null) {
+                // 重新加载数据并更新各个适配器
+                // 这里不需要手动调用notifyDataSetChanged，因为loadMusicData()会重新设置数据
+                System.out.println("HomeFragment UI更新完成 - 已刷新所有适配器数据");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("HomeFragment UI更新失败: " + e.getMessage());
         }
     }
 

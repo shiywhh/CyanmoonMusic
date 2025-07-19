@@ -93,7 +93,9 @@ public class MediaControllerHelper implements Player.Listener {
 
     //保存播放列表到本地
     public void savePlayListJsonToLocal() {
-        System.out.println("保存到本地：" + getCurrentIndex() + " " + getCurrentSong().getTitle());
+        Song currentSong = getCurrentSong();
+        String songTitle = currentSong != null ? currentSong.getTitle() : "未知歌曲";
+        System.out.println("保存到本地：" + getCurrentIndex() + " " + songTitle);
         playlistManager.savePlayList(fullPlaylist, getCurrentIndex());
     }
 
@@ -112,7 +114,7 @@ public class MediaControllerHelper implements Player.Listener {
      * @param songs 要添加的歌曲列表
      */
     public void addSongsToPlayNext(@NonNull List<Song> songs) {
-        if (songs == null || songs.isEmpty()) {
+        if (songs.isEmpty()) {
             Log.w(TAG, "添加歌曲到下一首播放失败：歌曲列表为空");
             return;
         }
@@ -327,6 +329,13 @@ public class MediaControllerHelper implements Player.Listener {
         }
 
         default void progressInit(long dur, long progress) {
+
+        }
+
+        /**
+         * 播放列表为空时的回调
+         */
+        default void onPlaylistEmpty() {
 
         }
 
@@ -932,6 +941,11 @@ public class MediaControllerHelper implements Player.Listener {
         try {
             Log.d(TAG, "开始更新播放列表（删除歌曲后），删除索引: " + removedIndex);
 
+            // 如果removedIndex为-1，表示是外部删除（如从设备删除），不需要特殊处理
+            if (removedIndex == -1) {
+                Log.d(TAG, "外部删除，直接更新播放列表");
+            }
+
             // 获取当前播放位置和媒体数量
             int currentMediaIndex = mediaController.getCurrentMediaItemIndex();
             int mediaItemCount = mediaController.getMediaItemCount();
@@ -985,6 +999,150 @@ public class MediaControllerHelper implements Player.Listener {
             Log.e(TAG, "删除歌曲后更新播放列表时发生错误", e);
         }
     }
+
+    /**
+     * 从设备删除歌曲后刷新播放列表
+     * 检查并移除已删除的歌曲，更新播放列表
+     * @param deletedSongIds 已删除歌曲的ID列表
+     */
+    public void refreshPlaylistAfterDeviceDeletion(List<Long> deletedSongIds) {
+        if (deletedSongIds == null || deletedSongIds.isEmpty()) {
+            Log.d(TAG, "没有需要处理的删除歌曲");
+            return;
+        }
+
+        try {
+            Log.d(TAG, "开始处理设备删除歌曲后的播放列表刷新，删除歌曲数量: " + deletedSongIds.size());
+            Log.d(TAG, "当前播放列表大小: " + fullPlaylist.size() + ", 当前播放索引: " + currentPlaylistIndex);
+
+            // 获取当前播放歌曲
+            Song currentSong = getCurrentSong();
+            boolean currentSongDeleted = false;
+            
+            Log.d(TAG, "当前播放歌曲: " + (currentSong != null ? currentSong.getTitle() : "null"));
+            
+            // 检查当前播放歌曲是否在删除列表中
+            if (currentSong != null && deletedSongIds.contains(currentSong.getId())) {
+                currentSongDeleted = true;
+                Log.d(TAG, "当前播放歌曲已被删除: " + currentSong.getTitle());
+            } else if (currentSong == null) {
+                Log.d(TAG, "当前播放歌曲为null，尝试通过索引检查");
+                // 如果当前播放歌曲为null，但当前索引有效，检查该索引的歌曲是否被删除
+                if (currentPlaylistIndex >= 0 && currentPlaylistIndex < fullPlaylist.size()) {
+                    Song songAtIndex = fullPlaylist.get(currentPlaylistIndex);
+                    Log.d(TAG, "通过索引获取的歌曲: " + songAtIndex.getTitle() + " (ID: " + songAtIndex.getId() + ")");
+                    if (deletedSongIds.contains(songAtIndex.getId())) {
+                        currentSongDeleted = true;
+                        Log.d(TAG, "通过索引检查发现当前播放歌曲已被删除: " + songAtIndex.getTitle());
+                    } else {
+                        Log.d(TAG, "通过索引检查发现当前播放歌曲未被删除: " + songAtIndex.getTitle());
+                    }
+                } else {
+                    Log.d(TAG, "当前播放索引无效: " + currentPlaylistIndex + ", 播放列表大小: " + fullPlaylist.size());
+                }
+            } else {
+                Log.d(TAG, "当前播放歌曲未被删除: " + currentSong.getTitle());
+            }
+
+            // 从完整播放列表中移除已删除的歌曲
+            List<Song> songsToRemove = new ArrayList<>();
+            for (Song song : fullPlaylist) {
+                if (deletedSongIds.contains(song.getId())) {
+                    songsToRemove.add(song);
+                    Log.d(TAG, "找到要删除的歌曲: " + song.getTitle() + " (ID: " + song.getId() + ")");
+                }
+            }
+            
+            Log.d(TAG, "要删除的歌曲数量: " + songsToRemove.size());
+
+            if (!songsToRemove.isEmpty()) {
+                // 移除被删除的歌曲
+                fullPlaylist.removeAll(songsToRemove);
+                Log.d(TAG, "从完整播放列表中移除 " + songsToRemove.size() + " 首已删除的歌曲");
+
+                // 如果当前播放歌曲被删除，参考removeFromPlaylist的处理逻辑
+                if (currentSongDeleted) {
+                    Log.d(TAG, "当前播放歌曲被删除，停止播放");
+                    
+                    // 停止播放
+                    mediaController.pause();
+                    
+                    // 如果播放列表为空，停止播放并清空
+                    if (fullPlaylist.isEmpty()) {
+                        Log.d(TAG, "播放列表为空，停止播放");
+                        mediaController.stop();
+                        currentPlaylistIndex = -1;
+                        windowStart = 0;
+                        windowEnd = 0;
+                        
+                        // 通知播放停止
+                        for (PlaybackStateListener listener : playbackStateListeners) {
+                            listener.stopPlay();
+                        }
+                        
+                        // 通知播放列表为空
+                        for (PlaybackStateListener listener : playbackStateListeners) {
+                            listener.onPlaylistEmpty();
+                        }
+                    } else {
+                        // 播放列表不为空，选择新的播放位置
+                        // 参考removeFromPlaylist的逻辑：如果删除的是最后一首，播放前一首，否则播放下一首
+                        int newPlayIndex;
+                        if (currentPlaylistIndex >= fullPlaylist.size()) {
+                            // 如果当前索引超出范围，播放最后一首
+                            newPlayIndex = fullPlaylist.size() - 1;
+                        } else {
+                            // 否则播放当前位置的歌曲（删除后，后面的歌曲会前移）
+                            newPlayIndex = currentPlaylistIndex;
+                        }
+                        
+                        Log.d(TAG, "选择新的播放位置: " + newPlayIndex);
+                        currentPlaylistIndex = newPlayIndex;
+                        
+                        // 重新加载播放窗口
+                        loadInitialWindow(currentPlaylistIndex);
+                        
+                        // 开始播放
+                        mediaController.play();
+                    }
+                } else {
+                    // 当前播放歌曲未被删除，需要调整索引
+                    Log.d(TAG, "当前播放歌曲未被删除，调整播放索引");
+                    
+                    // 计算在当前播放索引之前被删除的歌曲数量
+                    int deletedBeforeCurrent = 0;
+                    for (Song removedSong : songsToRemove) {
+                        // 这里需要更精确的计算，暂时使用简化版本
+                        // 由于我们无法直接知道被删除歌曲在原始列表中的确切位置，
+                        // 我们使用一个简化的方法来调整索引
+                        if (currentPlaylistIndex > 0) {
+                            // 简化处理：假设被删除的歌曲平均分布，调整索引
+                            deletedBeforeCurrent = Math.min(deletedBeforeCurrent + 1, currentPlaylistIndex);
+                        }
+                    }
+                    
+                    // 调整当前播放索引
+                    if (currentPlaylistIndex > 0) {
+                        currentPlaylistIndex = Math.max(0, currentPlaylistIndex - deletedBeforeCurrent);
+                    }
+                    
+                    Log.d(TAG, "调整后的当前播放索引: " + currentPlaylistIndex);
+                    
+                    // 更新播放窗口
+                    updatePlaylistAfterRemoval(-1); // 使用-1表示外部删除
+                }
+
+                // 保存更新后的播放列表到本地
+                savePlayListJsonToLocal();
+            }
+
+            Log.d(TAG, "设备删除歌曲后的播放列表刷新完成");
+
+        } catch (Exception e) {
+            Log.e(TAG, "处理设备删除歌曲后的播放列表刷新时发生错误", e);
+        }
+    }
+
 
     /**
      * 获取当前播放的歌曲

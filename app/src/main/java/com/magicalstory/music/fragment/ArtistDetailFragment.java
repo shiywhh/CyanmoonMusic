@@ -79,7 +79,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
     private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
         @Override
         public void songChange(Song newSong) {
-            
+
             // 更新当前播放歌曲的状态
             updateCurrentPlayingSong();
         }
@@ -192,7 +192,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
             }
         });
 
-        int albumTitleY = DensityUtil.getScreenHeightAndWeight(context)[0];
+        int albumTitleY = DensityUtil.dip2px(context, 60);
         binding.nestedScrollView.setOnScrollChangeListener((View.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
             if (Math.abs(scrollY) > albumTitleY) {
                 if (currentArtist != null) {
@@ -301,7 +301,7 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
         // 热门歌曲列表
         binding.rvPopularSongs.setLayoutManager(new LinearLayoutManager(getContext()));
         songAdapter = new SongVerticalAdapter(getContext(), new ArrayList<>());
-        
+
         // 设置歌曲适配器的监听器
         songAdapter.setOnItemClickListener((song, position) -> {
             if (isMultiSelectMode) {
@@ -784,6 +784,69 @@ public class ArtistDetailFragment extends BaseFragment<FragmentArtistDetailBindi
             }
         } else {
             ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+        }
+    }
+
+    @Override
+    public boolean autoHideBottomNavigation() {
+        return true;
+    }
+
+    /**
+     * 刷新音乐列表
+     */
+    @Override
+    protected void onRefreshMusicList() {
+        // 重新加载艺术家详情数据
+        refreshFragmentAsync();
+    }
+
+    /**
+     * 在后台线程执行刷新操作
+     */
+    @Override
+    protected void performRefreshInBackground() {
+        try {
+            // 重新加载艺术家详情数据
+            if (currentArtist != null) {
+                loadArtistDetail(currentArtist.getArtistName());
+            }
+            
+            // 打印原始数据到控制台
+            System.out.println("ArtistDetailFragment后台刷新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("ArtistDetailFragment后台刷新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在主线程更新UI
+     */
+    @Override
+    protected void updateUIAfterRefresh() {
+        try {
+            // 更新UI显示
+            if (binding != null && currentArtist != null) {
+                // 更新艺术家信息
+                updateUI();
+                
+                // 更新热门歌曲列表
+                updatePopularSongsList();
+                
+                // 更新专辑列表
+                updateAlbumsList();
+                
+                // 更新当前播放歌曲状态
+                updateCurrentPlayingSong();
+            }
+            
+            System.out.println("ArtistDetailFragment UI更新完成");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("ArtistDetailFragment UI更新失败: " + e.getMessage());
         }
     }
 

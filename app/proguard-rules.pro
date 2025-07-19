@@ -11,9 +11,26 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
-
+# Please add these rules to your existing keep rules in order to suppress warnings.
+# This is generated automatically by the Android Gradle plugin.
+-dontwarn org.bouncycastle.jsse.BCSSLParameters
+-dontwarn org.bouncycastle.jsse.BCSSLSocket
+-dontwarn org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
+-dontwarn org.conscrypt.Conscrypt$Version
+-dontwarn org.conscrypt.Conscrypt
+-dontwarn org.conscrypt.ConscryptHostnameVerifier
+-dontwarn org.openjsse.javax.net.ssl.SSLParameters
+-dontwarn org.openjsse.javax.net.ssl.SSLSocket
+-dontwarn org.openjsse.net.ssl.OpenJSSE
 -keep class com.magicalstory.music.model.** { *; }
-
+-keep class org.litepal.** { *; }
+-keep class * extends org.litepal.crud.DataSupport { *; }
+-keep class * extends org.litepal.crud.LitePalSupport { *; }
+#Jaudiotagger
+-dontwarn org.jaudiotagger.**
+-dontwarn org.jcodec.**
+-keep class org.jaudiotagger.** { *; }
+-keep class org.jcodec.** { *; }
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable

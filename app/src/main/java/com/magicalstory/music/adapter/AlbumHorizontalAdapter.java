@@ -23,6 +23,7 @@ import com.magicalstory.music.model.Song;
 
 import org.litepal.LitePal;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -166,6 +167,32 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
     public void updateData(List<Album> newAlbumList) {
         this.albumList = newAlbumList;
         notifyDataSetChanged();
+    }
+
+    /**
+     * 根据ID列表移除专辑
+     * @param albumIds 要移除的专辑ID列表
+     */
+    public void removeAlbumsByIds(List<Long> albumIds) {
+        if (albumIds == null || albumIds.isEmpty() || albumList == null) {
+            return;
+        }
+        
+        // 创建要移除的专辑列表
+        List<Album> albumsToRemove = new ArrayList<>();
+        for (Album album : albumList) {
+            if (albumIds.contains(album.getId())) {
+                albumsToRemove.add(album);
+            }
+        }
+        
+        // 从列表中移除专辑
+        albumList.removeAll(albumsToRemove);
+        
+        // 通知适配器数据已更改
+        notifyDataSetChanged();
+        
+        Log.d(TAG, "移除了 " + albumsToRemove.size() + " 张专辑");
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

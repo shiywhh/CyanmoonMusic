@@ -335,6 +335,69 @@ public abstract class BaseFragment<VB extends ViewBinding> extends Fragment {
         // 子类可以重写此方法
     }
 
+    /**
+     * 发送刷新广播通知所有fragment刷新
+     * 使用多线程执行刷新操作
+     */
+    protected void notifyAllFragmentsRefresh() {
+        // 在后台线程发送广播
+        new Thread(() -> {
+            try {
+                // 发送刷新广播
+                Intent refreshIntent = new Intent(ACTION_REFRESH_MUSIC_LIST);
+                LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(refreshIntent);
+
+                // 打印原始数据到控制台
+                System.out.println("已发送刷新广播通知所有fragment刷新");
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.out.println("发送刷新广播失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * 多线程刷新当前fragment
+     * 子类可以重写此方法来实现自己的多线程刷新逻辑
+     */
+    protected void refreshFragmentAsync() {
+        // 在后台线程执行刷新操作
+        new Thread(() -> {
+            try {
+                // 执行刷新逻辑
+                performRefreshInBackground();
+                
+                // 在主线程更新UI
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        updateUIAfterRefresh();
+                    });
+                }
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.out.println("多线程刷新失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * 在后台线程执行刷新操作
+     * 子类可以重写此方法来实现具体的刷新逻辑
+     */
+    protected void performRefreshInBackground() {
+        // 子类可以重写此方法
+    }
+
+    /**
+     * 在主线程更新UI
+     * 子类可以重写此方法来实现UI更新逻辑
+     */
+    protected void updateUIAfterRefresh() {
+        // 子类可以重写此方法
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();

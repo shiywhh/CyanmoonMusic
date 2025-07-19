@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/md_theme_background"
-    tools:context=".fragment.TagEditorFragment">
+    tools:context=".fragment.SongTagEditorFragment">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -21,7 +21,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:navigationIcon="@drawable/ic_arrow_back"
-            app:title="@string/tag_editor"
+            app:title="@string/song_tag_editor"
             app:titleTextColor="@color/text_primary">
 
             <com.google.android.material.button.MaterialButton
@@ -41,9 +41,9 @@
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true"
         android:scrollbars="none"
         android:overScrollMode="never"
+        android:fillViewport="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
@@ -55,7 +55,7 @@
             android:paddingEnd="@dimen/margin_20"
             android:paddingBottom="@dimen/margin_bottom_100">
 
-            <!-- 专辑封面 -->
+            <!-- 歌曲封面 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -64,7 +64,7 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/ivAlbumCover"
+                    android:id="@+id/ivSongCover"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
                     android:layout_marginEnd="16dp"
@@ -73,7 +73,7 @@
                     android:focusable="true"
                     android:foreground="?attr/selectableItemBackground"
                     android:scaleType="centerCrop"
-                    android:src="@drawable/place_holder_album"
+                    android:src="@drawable/place_holder_song"
                     app:shapeAppearanceOverlay="@style/roundedCornerImageStyle_10"
                     tools:ignore="ContentDescription" />
 
@@ -84,7 +84,7 @@
                     android:orientation="vertical">
 
                     <TextView
-                        android:id="@+id/tvAlbumName"
+                        android:id="@+id/tvSongTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="8dp"
@@ -93,21 +93,20 @@
                         android:textColor="@color/md_theme_onSurface"
                         android:textSize="18sp"
                         android:textStyle="bold"
-                        tools:text="Eason's Moving On Stage 1" />
+                        tools:text="歌曲标题" />
 
                     <TextView
-                        android:id="@+id/tvSongCount"
+                        android:id="@+id/tvSongArtist"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="8dp"
                         android:textColor="@color/md_theme_onSurfaceVariant"
                         android:textSize="14sp"
-                        tools:text="1 首歌曲 • 时长 04:19" />
+                        tools:text="艺术家 • 专辑" />
 
                 </LinearLayout>
 
             </LinearLayout>
-
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -134,12 +133,63 @@
                     android:text="@string/change_cover" />
             </LinearLayout>
 
-
             <!-- 标签编辑表单 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
+
+                <!-- 标题 -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:hint="@string/title"
+                    app:boxBackgroundColor="@color/md_theme_surface"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/md_theme_primary"
+                    app:hintTextColor="@color/md_theme_primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/md_theme_onSurface"
+                        android:textSize="16sp" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- 艺术家 -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:hint="@string/artist"
+                    app:boxBackgroundColor="@color/md_theme_surface"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/md_theme_primary"
+                    app:hintTextColor="@color/md_theme_primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etArtist"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/md_theme_onSurface"
+                        android:textSize="16sp" />
+
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- 专辑 -->
                 <com.google.android.material.textfield.TextInputLayout
@@ -157,7 +207,7 @@
                     app:hintTextColor="@color/md_theme_primary">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etAlbumName"
+                        android:id="@+id/etAlbum"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="text"
@@ -184,6 +234,32 @@
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etAlbumArtist"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/md_theme_onSurface"
+                        android:textSize="16sp" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- 作曲家 -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:hint="@string/composer"
+                    app:boxBackgroundColor="@color/md_theme_surface"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/md_theme_primary"
+                    app:hintTextColor="@color/md_theme_primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etComposer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="text"
@@ -245,62 +321,136 @@
 
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Track total -->
-                <com.google.android.material.textfield.TextInputLayout
+                <!-- 曲目号和碟片号 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    android:hint="@string/track_total"
-                    app:boxBackgroundColor="@color/md_theme_surface"
-                    app:boxBackgroundMode="outline"
-                    app:boxCornerRadiusBottomEnd="8dp"
-                    app:boxCornerRadiusBottomStart="8dp"
-                    app:boxCornerRadiusTopEnd="8dp"
-                    app:boxCornerRadiusTopStart="8dp"
-                    app:boxStrokeColor="@color/md_theme_primary"
-                    app:hintTextColor="@color/md_theme_primary">
+                    android:orientation="horizontal">
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etTrackTotal"
-                        android:layout_width="match_parent"
+                    <!-- 曲目号 -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:maxLines="1"
-                        android:textColor="@color/md_theme_onSurface"
-                        android:textSize="16sp" />
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:hint="@string/track_number"
+                        app:boxBackgroundColor="@color/md_theme_surface"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="8dp"
+                        app:boxCornerRadiusBottomStart="8dp"
+                        app:boxCornerRadiusTopEnd="8dp"
+                        app:boxCornerRadiusTopStart="8dp"
+                        app:boxStrokeColor="@color/md_theme_primary"
+                        app:hintTextColor="@color/md_theme_primary">
 
-                </com.google.android.material.textfield.TextInputLayout>
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etTrackNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:textColor="@color/md_theme_onSurface"
+                            android:textSize="16sp" />
 
-                <!-- Disc total -->
-                <com.google.android.material.textfield.TextInputLayout
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- 碟片号 -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:hint="@string/disc_number"
+                        app:boxBackgroundColor="@color/md_theme_surface"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="8dp"
+                        app:boxCornerRadiusBottomStart="8dp"
+                        app:boxCornerRadiusTopEnd="8dp"
+                        app:boxCornerRadiusTopStart="8dp"
+                        app:boxStrokeColor="@color/md_theme_primary"
+                        app:hintTextColor="@color/md_theme_primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etDiscNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:textColor="@color/md_theme_onSurface"
+                            android:textSize="16sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+
+                <!-- Track Total和Disc Total -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp"
-                    android:hint="@string/disc_total"
-                    app:boxBackgroundColor="@color/md_theme_surface"
-                    app:boxBackgroundMode="outline"
-                    app:boxCornerRadiusBottomEnd="8dp"
-                    app:boxCornerRadiusBottomStart="8dp"
-                    app:boxCornerRadiusTopEnd="8dp"
-                    app:boxCornerRadiusTopStart="8dp"
-                    app:boxStrokeColor="@color/md_theme_primary"
-                    app:hintTextColor="@color/md_theme_primary">
+                    android:layout_marginBottom="16dp"
+                    android:orientation="horizontal">
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etDiscTotal"
-                        android:layout_width="match_parent"
+                    <!-- Track Total -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:maxLines="1"
-                        android:textColor="@color/md_theme_onSurface"
-                        android:textSize="16sp" />
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:hint="@string/track_total"
+                        app:boxBackgroundColor="@color/md_theme_surface"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="8dp"
+                        app:boxCornerRadiusBottomStart="8dp"
+                        app:boxCornerRadiusTopEnd="8dp"
+                        app:boxCornerRadiusTopStart="8dp"
+                        app:boxStrokeColor="@color/md_theme_primary"
+                        app:hintTextColor="@color/md_theme_primary">
 
-                </com.google.android.material.textfield.TextInputLayout>
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etTrackTotal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:textColor="@color/md_theme_onSurface"
+                            android:textSize="16sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Disc Total -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:hint="@string/disc_total"
+                        app:boxBackgroundColor="@color/md_theme_surface"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="8dp"
+                        app:boxCornerRadiusBottomStart="8dp"
+                        app:boxCornerRadiusTopEnd="8dp"
+                        app:boxCornerRadiusTopStart="8dp"
+                        app:boxStrokeColor="@color/md_theme_primary"
+                        app:hintTextColor="@color/md_theme_primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etDiscTotal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLines="1"
+                            android:textColor="@color/md_theme_onSurface"
+                            android:textSize="16sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+
             </LinearLayout>
 
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
 
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout> 

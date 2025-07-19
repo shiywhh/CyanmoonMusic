@@ -22,6 +22,7 @@ import com.magicalstory.music.model.Song;
 
 import org.litepal.LitePal;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -162,6 +163,32 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
     public void updateData(List<Artist> newArtistList) {
         this.artistList = newArtistList;
         notifyDataSetChanged();
+    }
+
+    /**
+     * 根据ID列表移除艺术家
+     * @param artistIds 要移除的艺术家ID列表
+     */
+    public void removeArtistsByIds(List<Long> artistIds) {
+        if (artistIds == null || artistIds.isEmpty() || artistList == null) {
+            return;
+        }
+        
+        // 创建要移除的艺术家列表
+        List<Artist> artistsToRemove = new ArrayList<>();
+        for (Artist artist : artistList) {
+            if (artistIds.contains(artist.getId())) {
+                artistsToRemove.add(artist);
+            }
+        }
+        
+        // 从列表中移除艺术家
+        artistList.removeAll(artistsToRemove);
+        
+        // 通知适配器数据已更改
+        notifyDataSetChanged();
+        
+        android.util.Log.d("ArtistHorizontalAdapter", "移除了 " + artistsToRemove.size() + " 个艺术家");
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

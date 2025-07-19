@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <litepal>
     <dbname value="MagicalMusic" />
-    <version value="8" />
+    <version value="9" />
     <list>
         <mapping class="com.magicalstory.music.model.Song" />
         <mapping class="com.magicalstory.music.model.singer" />

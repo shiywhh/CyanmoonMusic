@@ -20,6 +20,7 @@ import com.magicalstory.music.R;
 import com.magicalstory.music.adapter.PlaylistAdapter;
 import com.magicalstory.music.adapter.PlaylistItemTouchHelper;
 import com.magicalstory.music.databinding.BottomSheetPlaylistBinding;
+import com.magicalstory.music.dialog.SongBottomSheetDialogFragment;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.player.MediaControllerHelper;
 import com.magicalstory.music.utils.app.ToastUtils;
@@ -333,13 +334,8 @@ public class PlaylistBottomSheetDialogFragment extends BottomSheetDialogFragment
      */
     private void setupPlaylistItemListeners() {
         playlistAdapter.setOnItemMoreClickListener((position, song, view) -> {
-            // 通知监听器
-            if (actionListener != null) {
-                actionListener.onMoreButtonClick(position, song, view);
-            } else {
-                // 默认显示提示
-                ToastUtils.showToast(requireContext(), "更多选项: " + song.getTitle());
-            }
+            // 显示歌曲底部弹出窗口
+            showSongBottomSheetDialog(song);
         });
     }
 
@@ -410,6 +406,14 @@ public class PlaylistBottomSheetDialogFragment extends BottomSheetDialogFragment
      */
     public PlaylistAdapter getPlaylistAdapter() {
         return playlistAdapter;
+    }
+
+    /**
+     * 显示歌曲底部弹出窗口
+     */
+    private void showSongBottomSheetDialog(Song song) {
+        SongBottomSheetDialogFragment fragment = SongBottomSheetDialogFragment.newInstance(song);
+        fragment.show(getChildFragmentManager(), "SongBottomSheetDialog");
     }
 
     /**

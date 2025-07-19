@@ -15,6 +15,7 @@ import com.magicalstory.music.databinding.ItemAlbumVerticalBinding;
 import com.magicalstory.music.databinding.ItemArtistVerticalBinding;
 import com.magicalstory.music.databinding.ItemSearchGroupTitleBinding;
 import com.magicalstory.music.databinding.ItemSongVerticalBinding;
+import com.magicalstory.music.dialog.SongBottomSheetDialogFragment;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
 import com.magicalstory.music.model.Song;
@@ -139,6 +140,11 @@ public class SearchResultAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
                 onSongClickListener.onSongClick(song, position);
             }
         });
+
+        // 设置菜单按钮点击事件
+        holder.binding.ivMore.setOnClickListener(v -> {
+            showSongBottomSheetDialog(song);
+        });
     }
 
     private void bindAlbum(AlbumViewHolder holder, SearchResultItem item, int position) {
@@ -209,6 +215,16 @@ public class SearchResultAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
         seconds = seconds % 60;
 
         return String.format("%d:%02d", minutes, seconds);
+    }
+
+    /**
+     * 显示歌曲底部弹出窗口
+     */
+    private void showSongBottomSheetDialog(Song song) {
+        if (context instanceof MainActivity) {
+            SongBottomSheetDialogFragment fragment = SongBottomSheetDialogFragment.newInstance(song);
+            fragment.show(((MainActivity) context).getSupportFragmentManager(), "SongBottomSheetDialog");
+        }
     }
 
     @Override

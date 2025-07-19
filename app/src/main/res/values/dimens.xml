@@ -23,4 +23,5 @@
     <dimen name="margin_4">4dp</dimen>
     <dimen name="margin_2">2dp</dimen>
     <dimen name="margin_6">6dp</dimen>
+    <dimen name="margin_bottom_100">100dp</dimen>
 </resources>

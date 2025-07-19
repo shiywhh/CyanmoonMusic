@@ -92,7 +92,7 @@
 
     <!-- 歌词相关 -->
     <string name="no_lyrics">暂无歌词</string>
-    <string name="lyrics_loading">歌词加载中...</string>
+    <string name="lyrics_loading">歌词加载中…</string>
     <string name="lyrics">歌词</string>
     <string name="lyrics_not_found">未找到歌词</string>
 
@@ -107,9 +107,9 @@
     <string name="unknown_artist">Unknown Artist</string>
 
     <!-- 专辑详情功能提示 -->
-    <string name="tag_editor_coming_soon">标签编辑器功能开发中...</string>
+    <string name="tag_editor_coming_soon">标签编辑器功能开发中…</string>
     <string name="added_to_play_queue">已添加到播放队列</string>
-    <string name="add_to_playlist_coming_soon">添加到播放列表功能开发中...</string>
+    <string name="add_to_playlist_coming_soon">添加到播放列表功能开发中…</string>
     <string name="load_album_detail_failed">加载专辑详情失败</string>
 
     <!-- 菜单项 -->
@@ -163,4 +163,19 @@
     <string name="artist">艺术家</string>
     <string name="playlist">播放列表</string>
     <string name="search_empty">搜索内容为空</string>
+    <string name="remove_cover">移除封面</string>
+    <string name="change_cover">更换封面</string>
+    <string name="cover_removed">封面已移除</string>
+    <string name="pick_from_local_storage">从本地存储选择</string>
+    <string name="web_search">网络搜索</string>
+    <string name="update_image">更新图片</string>
+    <string name="action_cancel">取消</string>
+    <string name="error_load_failed">加载失败</string>
+    
+    <!-- 歌曲标签编辑器 -->
+    <string name="song_tag_editor">歌曲标签编辑器</string>
+    <string name="title">标题</string>
+    <string name="track_number">曲目号</string>
+    <string name="disc_number">碟片号</string>
+    <string name="composer">作曲家</string>
 </resources>

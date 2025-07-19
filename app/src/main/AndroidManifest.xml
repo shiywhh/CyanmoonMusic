@@ -23,22 +23,23 @@
     <uses-permission android:name="android.permission.BIND_MEDIA_BUTTON_SERVICE" />
 
     <application
+        android:name=".applicantion"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:name=".applicantion"
         android:theme="@style/AppTheme"
         tools:targetApi="31">
         <activity
-            android:theme="@style/AppTheme.Splash"
             android:name=".MainActivity"
-            android:windowSoftInputMode="adjustNothing"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.Splash"
+            android:windowSoftInputMode="adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <action android:name="android.intent.action.MUSIC_PLAYER" />
@@ -48,13 +49,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-        
+
         <!-- 音乐扫描服务 -->
         <service
             android:name=".service.MusicScanService"
             android:enabled="true"
             android:exported="false" />
-        
+
         <!-- 音乐播放服务 -->
         <service
             android:name=".service.MusicService"
@@ -77,13 +78,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
-        
+
         <!-- 封面获取服务 -->
         <service
             android:name=".service.CoverFetchService"
             android:enabled="true"
             android:exported="false" />
-        
+
         <!-- FileProvider for file access -->
         <provider
             android:name="androidx.core.content.FileProvider"
