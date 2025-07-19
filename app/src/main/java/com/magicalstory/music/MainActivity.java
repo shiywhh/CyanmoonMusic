@@ -91,7 +91,6 @@ public class MainActivity extends AppCompatActivity {
     // SplashScreen相关
     private boolean isAppReady = false;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // 在super.onCreate之前安装SplashScreen

@@ -175,7 +175,6 @@
                     <androidx.cardview.widget.CardView
                         android:id="@+id/layout_random_play"
                         android:layout_width="55dp"
-
                         android:layout_height="55dp"
                         android:layout_marginBottom="8dp"
                         android:clickable="true"
@@ -492,20 +491,11 @@
         android:hint="@string/search_music"
         android:textAppearance="@style/TextAppearance.App.Body.Large"
         app:layout_anchor="@id/open_search_bar"
-        tools:visibility="gone">
+        tools:visibility="visible">
 
-        <androidx.core.widget.NestedScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/background_primary"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/open_search_view_suggestion_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </androidx.core.widget.NestedScrollView>
+        <include
+            android:id="@+id/searchLayout"
+            layout="@layout/layout_search" />
     </com.google.android.material.search.SearchView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

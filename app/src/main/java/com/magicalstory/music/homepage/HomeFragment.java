@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -27,11 +29,14 @@ import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.Navigation;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.gson.reflect.TypeToken;
 import com.hjq.gson.factory.GsonFactory;
 import com.magicalstory.music.R;
 import com.google.android.material.search.SearchView;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.base.BaseFragment;
 import com.magicalstory.music.databinding.FragmentHomeBinding;
@@ -43,15 +48,15 @@ import com.magicalstory.music.utils.app.ToastUtils;
 import com.magicalstory.music.adapter.SongHorizontalAdapter;
 import com.magicalstory.music.adapter.AlbumHorizontalAdapter;
 import com.magicalstory.music.adapter.ArtistHorizontalAdapter;
+import com.magicalstory.music.adapter.SearchResultAdapter;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Artist;
+import com.magicalstory.music.model.Playlist;
 import com.magicalstory.music.utils.network.NetUtils;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
-
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import org.litepal.LitePal;
 
@@ -64,6 +69,7 @@ import java.util.concurrent.Executors;
 import okhttp3.Response;
 
 import com.magicalstory.music.model.FavoriteSong;
+import com.magicalstory.music.utils.glide.ColorExtractor;
 import com.magicalstory.music.utils.glide.CoverFallbackUtils;
 import com.magicalstory.music.service.CoverFetchService;
 import com.magicalstory.music.utils.screen.DensityUtil;
@@ -85,6 +91,15 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     private SongHorizontalAdapter myFavoritesAdapter;
     private SongHorizontalAdapter randomRecommendationsAdapter;
 
+    // 预设的gradient drawable列表 - 改为动态生成
+    private List<GradientDrawable> songsLatestAddedGradients;
+    // 预设的颜色值数组 - 改为动态生成
+    private List<Integer> songsLatestAddedColors;
+
+    // 搜索相关
+    private SearchResultAdapter searchResultAdapter;
+    private String currentSearchQuery = "";
+    private String currentSearchType = "all"; // all, songs, album, artist, playlist
 
     // 网络请求相关
     private ExecutorService executorService;
@@ -96,7 +111,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         public void onReceive(Context context, Intent intent) {
             android.util.Log.d("HomeFragment", "收到广播: " + intent.getAction());
             if (MusicScanService.ACTION_SCAN_COMPLETE.equals(intent.getAction())) {
-                dialogUtils.getInstance().dismissProgressDialog();
                 int scanCount = intent.getIntExtra(MusicScanService.EXTRA_SCAN_COUNT, 0);
                 android.util.Log.d("HomeFragment", "扫描完成广播，新增歌曲数量: " + scanCount);
                 ToastUtils.showToast(getContext(), "扫描完成，新增 " + scanCount + " 首歌曲");
@@ -150,6 +164,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         setupSearchView();
         // 初始化RecyclerView
         initRecyclerViews();
+        // 初始化搜索相关
+        initSearchComponents();
         // 先检查权限，但不立即查询数据库
         checkPermissionAndShowUI();
     }
@@ -161,6 +177,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         mainHandler = new Handler(Looper.getMainLooper());
         executorService = Executors.newCachedThreadPool();
 
+        // 初始化预设的gradient drawable列表 - 改为空列表，等待动态生成
+        songsLatestAddedGradients = new ArrayList<>();
+        songsLatestAddedColors = new ArrayList<>();
+
         // 绑定服务
         Intent serviceIntent = new Intent(getContext(), MusicScanService.class);
         context.bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
@@ -170,6 +190,162 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         // 现在线程池和Handler已经初始化，可以检查权限并更新UI
         checkMusicPermissionAndUpdateUI();
+    }
+
+    /**
+     * 基于歌曲列表动态生成渐变和颜色
+     */
+    private void generateGradientsAndColorsFromSongs(List<Song> songs) {
+        if (songs == null || songs.isEmpty()) {
+            android.util.Log.d("HomeFragment", "歌曲列表为空，跳过颜色生成");
+            return;
+        }
+
+        android.util.Log.d("HomeFragment", "开始为 " + songs.size() + " 首歌曲生成渐变和颜色");
+
+        songsLatestAddedGradients.clear();
+        songsLatestAddedColors.clear();
+
+        // 为每首歌曲生成基于专辑封面的颜色
+        for (int i = 0; i < songs.size(); i++) {
+            Song song = songs.get(i);
+            // 构建专辑封面URI
+            String albumArtUri = null;
+            if (song.getAlbumId() > 0) {
+                albumArtUri = "content://media/external/audio/albumart/" + song.getAlbumId();
+            }
+
+            android.util.Log.d("HomeFragment", "处理歌曲[" + i + "]: " + song.getTitle() +
+                    ", 专辑ID: " + song.getAlbumId() +
+                    ", URI: " + albumArtUri);
+
+            // 异步加载专辑封面并提取颜色，传入索引确保顺序一致
+            loadAlbumArtAndExtractColor(albumArtUri, song, i);
+        }
+    }
+
+    /**
+     * 异步加载专辑封面并提取颜色
+     */
+    private void loadAlbumArtAndExtractColor(String albumArtUri, Song song, int index) {
+
+        try {
+            // 使用Glide加载专辑封面
+            android.graphics.Bitmap bitmap = null;
+            if (albumArtUri != null) {
+                try {
+                    bitmap = com.bumptech.glide.Glide.with(getContext())
+                            .asBitmap()
+                            .load(albumArtUri)
+                            .submit()
+                            .get();
+
+                    // 打印原始数据到控制台
+                    android.util.Log.d("HomeFragment", "成功加载专辑封面[" + index + "]: " + song.getTitle() +
+                            ", URI: " + albumArtUri +
+                            ", Bitmap: " + (bitmap != null ? bitmap.getWidth() + "x" + bitmap.getHeight() : "null"));
+                } catch (Exception e) {
+                    android.util.Log.e("HomeFragment", "加载专辑封面失败[" + index + "]: " + e.getMessage(), e);
+                }
+            } else {
+                android.util.Log.d("HomeFragment", "歌曲[" + index + "] " + song.getTitle() + " 没有专辑封面URI");
+            }
+
+            // 提取主色调
+            int dominantColor = ColorExtractor.extractDominantColor(bitmap);
+
+            // 打印提取的颜色信息到控制台
+            android.util.Log.d("HomeFragment", "歌曲[" + index + "] " + song.getTitle() +
+                    " 提取的主色调: #" + String.format("%06X", (0xFFFFFF & dominantColor)) +
+                    ", 颜色值: " + dominantColor);
+
+            // 创建渐变drawable
+            GradientDrawable gradientDrawable = new GradientDrawable(
+                    GradientDrawable.Orientation.LEFT_RIGHT,
+                    new int[]{dominantColor, android.graphics.Color.TRANSPARENT}
+            );
+
+            // 在主线程中更新UI，确保顺序一致
+            if (mainHandler != null) {
+                mainHandler.post(() -> {
+                    // 确保列表大小足够，如果不够则填充到指定索引
+                    while (songsLatestAddedGradients.size() <= index) {
+                        songsLatestAddedGradients.add(null);
+                    }
+                    while (songsLatestAddedColors.size() <= index) {
+                        songsLatestAddedColors.add(null);
+                    }
+
+                    // 在指定索引位置设置渐变和颜色
+                    songsLatestAddedGradients.set(index, gradientDrawable);
+                    songsLatestAddedColors.set(index, dominantColor);
+
+                    android.util.Log.d("HomeFragment", "已设置渐变和颜色[" + index + "]，当前完成数量: " +
+                            getCompletedCount() + "/" + songsLatestAddedAdapter.getItemCount());
+
+                    // 如果所有歌曲的颜色都已提取完成，更新适配器
+                    if (getCompletedCount() == songsLatestAddedAdapter.getItemCount()) {
+                        android.util.Log.d("HomeFragment", "所有歌曲颜色提取完成，更新适配器");
+                        songsLatestAddedAdapter.updateData(
+                                songsLatestAddedAdapter.getSongList(),
+                                songsLatestAddedGradients,
+                                songsLatestAddedColors
+                        );
+                    }
+                });
+            }
+        } catch (Exception e) {
+            android.util.Log.e("HomeFragment", "提取颜色失败[" + index + "]: " + e.getMessage(), e);
+
+            // 如果提取失败，使用默认颜色
+            if (mainHandler != null) {
+                mainHandler.post(() -> {
+                    int defaultColor = android.graphics.Color.parseColor("#3353BE");
+                    android.util.Log.d("HomeFragment", "使用默认颜色[" + index + "]: #3353BE");
+
+                    GradientDrawable defaultGradient = new GradientDrawable(
+                            GradientDrawable.Orientation.LEFT_RIGHT,
+                            new int[]{defaultColor, android.graphics.Color.TRANSPARENT}
+                    );
+
+                    // 确保列表大小足够，如果不够则填充到指定索引
+                    while (songsLatestAddedGradients.size() <= index) {
+                        songsLatestAddedGradients.add(null);
+                    }
+                    while (songsLatestAddedColors.size() <= index) {
+                        songsLatestAddedColors.add(null);
+                    }
+
+                    // 在指定索引位置设置默认渐变和颜色
+                    songsLatestAddedGradients.set(index, defaultGradient);
+                    songsLatestAddedColors.set(index, defaultColor);
+
+                    // 如果所有歌曲的颜色都已提取完成，更新适配器
+                    if (getCompletedCount() == songsLatestAddedAdapter.getItemCount()) {
+                        android.util.Log.d("HomeFragment", "所有歌曲颜色提取完成（包含默认颜色），更新适配器");
+                        songsLatestAddedAdapter.updateData(
+                                songsLatestAddedAdapter.getSongList(),
+                                songsLatestAddedGradients,
+                                songsLatestAddedColors
+                        );
+                    }
+                });
+            }
+        }
+
+    }
+
+    /**
+     * 获取已完成的颜色提取数量
+     */
+    private int getCompletedCount() {
+        int count = 0;
+        for (int i = 0; i < songsLatestAddedGradients.size(); i++) {
+            if (songsLatestAddedGradients.get(i) != null && songsLatestAddedColors.get(i) != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Override
@@ -237,12 +413,51 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         });
     }
 
-    private void setupSearchView() {
-        binding.openSearchView.getEditText().setGravity(Gravity.CENTER_VERTICAL);
-        binding.openSearchView.getEditText().setPadding(0, DensityUtil.dip2px(context, 6), 0, 0);
-        // 设置SearchView的展开和收起监听
+    /**
+     * 初始化搜索相关组件
+     */
+    private void initSearchComponents() {
+        // 初始化搜索结果RecyclerView
+        binding.searchLayout.recyclerviewResult.setLayoutManager(
+                new LinearLayoutManager(getContext(), LinearLayoutManager.VERTICAL, false));
+        searchResultAdapter = new SearchResultAdapter(getContext());
+
+        // 设置搜索结果点击事件
+        searchResultAdapter.setOnSongClickListener((song, position) -> {
+            // 播放选中的歌曲
+            if (getActivity() instanceof MainActivity mainActivity) {
+                List<Song> allSongs = searchResultAdapter.getAllSongs();
+                mainActivity.playFromPlaylist(allSongs, position);
+            }
+        });
+
+        searchResultAdapter.setOnAlbumClickListener((album, position) -> {
+            // 跳转到专辑详情页面
+            Bundle bundle = new Bundle();
+            bundle.putLong("album_id", album.getAlbumId());
+            bundle.putString("artist_name", album.getArtist());
+            bundle.putString("album_name", album.getAlbumName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_home_to_album_detail, bundle);
+        });
+
+        searchResultAdapter.setOnArtistClickListener((artist, position) -> {
+            // 跳转到艺术家详情页面
+            Bundle bundle = new Bundle();
+            bundle.putLong("artist_id", artist.getArtistId());
+            bundle.putString("artist_name", artist.getArtistName());
+            Navigation.findNavController(requireView()).navigate(R.id.action_home_to_artist_detail, bundle);
+        });
+
+        binding.searchLayout.recyclerviewResult.setAdapter(searchResultAdapter);
+
+        // 初始化搜索界面状态 - 默认显示placeholder，隐藏其他
+        binding.searchLayout.layoutEmpty.setVisibility(View.GONE);
+        binding.searchLayout.placeholder.setVisibility(View.VISIBLE);
+
+        // 设置搜索监听器
         binding.openSearchView.addTransitionListener((searchView, previousState, newState) -> {
             if (newState == SearchView.TransitionState.SHOWING) {
+                binding.searchLayout.getRoot().setVisibility(View.VISIBLE);
                 // SearchView展开时隐藏BottomNavigationView
                 hideBottomNavigation();
             } else if (newState == SearchView.TransitionState.HIDING) {
@@ -250,6 +465,284 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 showBottomNavigation();
             }
         });
+
+        // 设置搜索文本变化监听器
+        binding.openSearchView.getEditText().addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                currentSearchQuery = s.toString().trim();
+                android.util.Log.d("HomeFragment", "搜索文本变化: " + currentSearchQuery);
+                if (!TextUtils.isEmpty(currentSearchQuery)) {
+                    performSearch(currentSearchQuery, currentSearchType);
+                } else {
+                    // 清空搜索结果，显示placeholder
+                    searchResultAdapter.updateSearchResults(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                    binding.searchLayout.layoutEmpty.setVisibility(View.GONE);
+                    binding.searchLayout.placeholder.setVisibility(View.VISIBLE);
+                }
+            }
+        });
+
+        // 设置Chip点击监听器
+        binding.searchLayout.chipGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (!checkedIds.isEmpty()) {
+                Chip selectedChip = group.findViewById(checkedIds.get(0));
+                if (selectedChip != null) {
+                    String chipText = selectedChip.getText().toString();
+                    updateSearchType(chipText);
+                }
+            }
+        });
+    }
+
+    /**
+     * 更新搜索类型
+     */
+    private void updateSearchType(String chipText) {
+        String newSearchType;
+        switch (chipText) {
+            case "全部":
+                newSearchType = "all";
+                break;
+            case "歌曲":
+                newSearchType = "songs";
+                break;
+            case "专辑":
+                newSearchType = "album";
+                break;
+            case "艺术家":
+                newSearchType = "artist";
+                break;
+            case "播放列表":
+                newSearchType = "playlist";
+                break;
+            default:
+                newSearchType = "all";
+                break;
+        }
+
+        android.util.Log.d("HomeFragment", "搜索类型切换: " + chipText + " -> " + newSearchType);
+
+        if (!currentSearchType.equals(newSearchType)) {
+            currentSearchType = newSearchType;
+            if (!TextUtils.isEmpty(currentSearchQuery)) {
+                performSearch(currentSearchQuery, currentSearchType);
+            }
+        }
+    }
+
+    /**
+     * 执行搜索
+     */
+    private void performSearch(String query, String searchType) {
+        android.util.Log.d("HomeFragment", "开始搜索: " + query + ", 类型: " + searchType);
+
+        if (executorService == null) {
+            executorService = Executors.newCachedThreadPool();
+        }
+
+        executorService.execute(() -> {
+            try {
+                List<Song> songs = new ArrayList<>();
+                List<Album> albums = new ArrayList<>();
+                List<Artist> artists = new ArrayList<>();
+
+                switch (searchType) {
+                    case "all":
+                        // 搜索全部类型
+                        songs = searchAllSongs(query);
+                        albums = searchAllAlbums(query);
+                        artists = searchAllArtists(query);
+                        break;
+                    case "songs":
+                        songs = searchSongs(query);
+                        break;
+                    case "album":
+                        albums = searchAlbums(query);
+                        break;
+                    case "artist":
+                        artists = searchArtists(query);
+                        break;
+                    case "playlist":
+                        songs = searchByPlaylist(query);
+                        break;
+                }
+
+                // 创建final变量用于lambda表达式
+                final List<Song> finalSongs = songs;
+                final List<Album> finalAlbums = albums;
+                final List<Artist> finalArtists = artists;
+
+                // 在主线程中更新UI
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        if (searchType.equals("all")) {
+                            // 全部搜索：显示所有类型结果
+                            searchResultAdapter.updateSearchResults(finalSongs, finalAlbums, finalArtists);
+                        } else {
+                            // 单一类型搜索
+                            switch (searchType) {
+                                case "songs":
+                                    searchResultAdapter.updateSingleTypeResults("songs", finalSongs);
+                                    break;
+                                case "album":
+                                    searchResultAdapter.updateSingleTypeResults("album", finalAlbums);
+                                    break;
+                                case "artist":
+                                    searchResultAdapter.updateSingleTypeResults("artist", finalArtists);
+                                    break;
+                                case "playlist":
+                                    searchResultAdapter.updateSingleTypeResults("songs", finalSongs);
+                                    break;
+                            }
+                        }
+
+                        // 检查是否有搜索结果
+                        boolean hasResults = !finalSongs.isEmpty() || !finalAlbums.isEmpty() || !finalArtists.isEmpty();
+                        if (hasResults) {
+                            binding.searchLayout.layoutEmpty.setVisibility(View.GONE);
+                            binding.searchLayout.placeholder.setVisibility(View.GONE);
+                        } else {
+                            binding.searchLayout.layoutEmpty.setVisibility(View.VISIBLE);
+                            binding.searchLayout.placeholder.setVisibility(View.GONE);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                android.util.Log.e("HomeFragment", "搜索失败: " + e.getMessage(), e);
+                if (mainHandler != null) {
+                    mainHandler.post(() -> {
+                        searchResultAdapter.updateSearchResults(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                        binding.searchLayout.layoutEmpty.setVisibility(View.VISIBLE);
+                        binding.searchLayout.placeholder.setVisibility(View.GONE);
+                    });
+                }
+            }
+        });
+    }
+
+    /**
+     * 搜索全部歌曲（包括标题、艺术家、专辑匹配）
+     */
+    private List<Song> searchAllSongs(String query) {
+        List<Song> results = new ArrayList<>();
+
+        // 搜索歌曲标题
+        List<Song> titleResults = LitePal.where("title like ?", "%" + query + "%").find(Song.class);
+        results.addAll(titleResults);
+
+        // 搜索艺术家
+        List<Song> artistResults = LitePal.where("artist like ?", "%" + query + "%").find(Song.class);
+        for (Song song : artistResults) {
+            if (!results.contains(song)) {
+                results.add(song);
+            }
+        }
+
+        // 搜索专辑
+        List<Song> albumResults = LitePal.where("album like ?", "%" + query + "%").find(Song.class);
+        for (Song song : albumResults) {
+            if (!results.contains(song)) {
+                results.add(song);
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 搜索全部专辑
+     */
+    private List<Album> searchAllAlbums(String query) {
+        return LitePal.where("albumName like ?", "%" + query + "%").find(Album.class);
+    }
+
+    /**
+     * 搜索全部艺术家
+     */
+    private List<Artist> searchAllArtists(String query) {
+        return LitePal.where("artistName like ?", "%" + query + "%").find(Artist.class);
+    }
+
+    /**
+     * 搜索歌曲（包括标题、艺术家、专辑匹配）
+     */
+    private List<Song> searchSongs(String query) {
+        List<Song> results = new ArrayList<>();
+
+        // 搜索歌曲标题
+        List<Song> titleResults = LitePal.where("title like ?", "%" + query + "%").find(Song.class);
+        results.addAll(titleResults);
+
+        // 搜索艺术家
+        List<Song> artistResults = LitePal.where("artist like ?", "%" + query + "%").find(Song.class);
+        for (Song song : artistResults) {
+            if (!results.contains(song)) {
+                results.add(song);
+            }
+        }
+
+        // 搜索专辑
+        List<Song> albumResults = LitePal.where("album like ?", "%" + query + "%").find(Song.class);
+        for (Song song : albumResults) {
+            if (!results.contains(song)) {
+                results.add(song);
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 搜索专辑
+     */
+    private List<Album> searchAlbums(String query) {
+        return LitePal.where("albumName like ?", "%" + query + "%").find(Album.class);
+    }
+
+    /**
+     * 搜索艺术家
+     */
+    private List<Artist> searchArtists(String query) {
+        return LitePal.where("artistName like ?", "%" + query + "%").find(Artist.class);
+    }
+
+    /**
+     * 按播放列表搜索
+     */
+    private List<Song> searchByPlaylist(String query) {
+        List<Song> results = new ArrayList<>();
+
+        // 先查找匹配的播放列表
+        List<Playlist> playlists = LitePal.where("name like ?", "%" + query + "%").find(Playlist.class);
+
+        for (Playlist playlist : playlists) {
+            // 查找播放列表中的歌曲
+            List<com.magicalstory.music.model.PlaylistSong> playlistSongs =
+                    LitePal.where("playlistId = ?", String.valueOf(playlist.getId())).find(com.magicalstory.music.model.PlaylistSong.class);
+
+            for (com.magicalstory.music.model.PlaylistSong playlistSong : playlistSongs) {
+                Song song = LitePal.find(Song.class, playlistSong.getSongId());
+                if (song != null && !results.contains(song)) {
+                    results.add(song);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private void setupSearchView() {
+        binding.openSearchView.getEditText().setGravity(Gravity.CENTER_VERTICAL);
+        binding.openSearchView.getEditText().setPadding(0, DensityUtil.dip2px(context, 6), 0, 0);
     }
 
     private void hideBottomNavigation() {
@@ -426,7 +919,6 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
      * 开始音乐扫描
      */
     private void startMusicScan() {
-        dialogUtils.getInstance().showProgressDialog(context, "正在扫描本地音乐");
         if (serviceBound && musicScanService != null) {
             if (!musicScanService.isScanning()) {
                 musicScanService.startMusicScan();
@@ -517,10 +1009,10 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
      * 初始化RecyclerView
      */
     private void initRecyclerViews() {
-        // 最近添加的歌曲
+        // 最近添加的歌曲 - 使用空的渐变和颜色列表，等待动态生成
         binding.rvSongsLastestAdded.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-        songsLatestAddedAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>());
+        songsLatestAddedAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         binding.rvSongsLastestAdded.setAdapter(songsLatestAddedAdapter);
 
         // 最近播放的专辑
@@ -543,7 +1035,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         recentArtistsAdapter = new ArtistHorizontalAdapter(getContext(), new ArrayList<>(), this);
         binding.rvRecentArtists.setAdapter(recentArtistsAdapter);
 
-        // 我的收藏 - 使用方形布局
+        // 我的收藏 - 使用方形布局，不传入颜色值数组
         binding.rvMyFavorites.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         myFavoritesAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), true);
@@ -553,7 +1045,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         });
         binding.rvMyFavorites.setAdapter(myFavoritesAdapter);
 
-        // 随机推荐 - 使用方形布局
+        // 随机推荐 - 使用方形布局，不传入颜色值数组
         binding.rvRandomRecommendations.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         randomRecommendationsAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), true);
@@ -629,6 +1121,15 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                             if (latestSongs != null && !latestSongs.isEmpty()) {
                                 songsLatestAddedAdapter.updateData(latestSongs);
                                 binding.layoutSongsLastestAdded.setVisibility(View.VISIBLE);
+
+                                // 基于歌曲列表动态生成渐变和颜色
+                                new Thread() {
+                                    @Override
+                                    public void run() {
+                                        super.run();
+                                        generateGradientsAndColorsFromSongs(latestSongs);
+                                    }
+                                }.start();
                             } else {
                                 binding.layoutSongsLastestAdded.setVisibility(View.GONE);
                             }
@@ -853,12 +1354,33 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
             mainHandler = null;
         }
 
-        // 清理适配器
-        songsLatestAddedAdapter = null;
+        // 清理渐变和颜色列表
+        if (songsLatestAddedGradients != null) {
+            songsLatestAddedGradients.clear();
+            songsLatestAddedGradients = null;
+        }
+        if (songsLatestAddedColors != null) {
+            songsLatestAddedColors.clear();
+            songsLatestAddedColors = null;
+        }
+
+        // 释放适配器资源
+        if (songsLatestAddedAdapter != null) {
+            songsLatestAddedAdapter.release();
+            songsLatestAddedAdapter = null;
+        }
+        if (myFavoritesAdapter != null) {
+            myFavoritesAdapter.release();
+            myFavoritesAdapter = null;
+        }
+        if (randomRecommendationsAdapter != null) {
+            randomRecommendationsAdapter.release();
+            randomRecommendationsAdapter = null;
+        }
+
+        // 清理其他适配器
         recentAlbumsAdapter = null;
         recentArtistsAdapter = null;
-        myFavoritesAdapter = null;
-        randomRecommendationsAdapter = null;
     }
 
     @Override

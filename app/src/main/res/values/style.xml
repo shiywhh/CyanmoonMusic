@@ -16,6 +16,16 @@
         <item name="android:backgroundTint">@color/dialog_background</item>
     </style>
 
+    <style name="fileTypeTopChipStyle" parent="Widget.Material3.Chip.Input">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="closeIconSize">0dp</item>
+        <item name="paddingStart">10dp</item>
+        <item name="textStartPadding">12dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipBackgroundColor">@color/chip_background_color</item>
+    </style>
 
     <!-- 圆形图片 -->
     <style name="circleImageStyle">
@@ -88,7 +98,6 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">30dp</item>
     </style>
-
 
 
     <style name="bottomItemActive" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">

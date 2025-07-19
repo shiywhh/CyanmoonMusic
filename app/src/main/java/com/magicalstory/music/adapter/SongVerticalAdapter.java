@@ -323,6 +323,13 @@ public class SongVerticalAdapter extends RecyclerView.Adapter<SongVerticalAdapte
     }
 
     /**
+     * 获取歌曲列表
+     */
+    public List<Song> getSongList() {
+        return songList != null ? songList : new ArrayList<>();
+    }
+
+    /**
      * 禁用后续的加载动画
      */
     public void disableLoadAnimation() {

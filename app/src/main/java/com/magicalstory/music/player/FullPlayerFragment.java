@@ -38,6 +38,7 @@ import com.bumptech.glide.request.transition.Transition;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.dialog.PlaylistBottomSheetDialogFragment;
+import com.magicalstory.music.dialog.SongBottomSheetDialogFragment;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.slider.Slider;
@@ -753,8 +754,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 更多按钮
         binding.btnMore.setOnClickListener(v -> {
             Log.d(TAG, "更多按钮被点击");
-            // 暂时只显示提示
-            ToastUtils.showToast(context, "更多功能开发中");
+            showSongBottomSheet();
         });
 
         // 专辑封面点击事件
@@ -1601,6 +1601,77 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 binding.btnSleepMode.setVisibility(View.VISIBLE);
             }
         }
+    }
+
+    /**
+     * 显示歌曲底部弹出窗口
+     */
+    private void showSongBottomSheet() {
+        if (controllerHelper == null) {
+            ToastUtils.showToast(context, "播放器未准备好");
+            return;
+        }
+
+        Song currentSong = controllerHelper.getCurrentSong();
+        if (currentSong == null) {
+            ToastUtils.showToast(context, "当前没有播放的歌曲");
+            return;
+        }
+
+        // 创建歌曲底部弹出窗口Fragment
+        SongBottomSheetDialogFragment songBottomSheet = SongBottomSheetDialogFragment.newInstance(currentSong);
+        songBottomSheet.setMediaControllerHelper(controllerHelper);
+
+        // 设置歌曲操作监听器
+        songBottomSheet.setOnSongActionListener(new SongBottomSheetDialogFragment.OnSongActionListener() {
+            @Override
+            public void onPlayNext(Song song) {
+                Log.d(TAG, "下一首播放: " + song.getTitle());
+            }
+
+            @Override
+            public void onAddToPlaylist(Song song) {
+                Log.d(TAG, "添加到播放列表: " + song.getTitle());
+            }
+
+            @Override
+            public void onViewAlbum(Song song) {
+                Log.d(TAG, "查看专辑: " + song.getAlbum());
+            }
+
+            @Override
+            public void onViewArtist(Song song) {
+                Log.d(TAG, "查看艺术家: " + song.getArtist());
+            }
+
+            @Override
+            public void onTagEditor(Song song) {
+                Log.d(TAG, "标签编辑器: " + song.getTitle());
+            }
+
+            @Override
+            public void onEditLyrics(Song song) {
+                Log.d(TAG, "编辑歌词: " + song.getTitle());
+            }
+
+            @Override
+            public void onDetails(Song song) {
+                Log.d(TAG, "详细信息: " + song.getTitle());
+            }
+
+            @Override
+            public void onShare(Song song) {
+                Log.d(TAG, "分享: " + song.getTitle());
+            }
+
+            @Override
+            public void onDelete(Song song) {
+                Log.d(TAG, "从设备上删除: " + song.getTitle());
+            }
+        });
+
+        // 显示歌曲底部弹出窗口Fragment
+        songBottomSheet.show(getParentFragmentManager(), "SongBottomSheet");
     }
 
 

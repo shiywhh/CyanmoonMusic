@@ -21,26 +21,49 @@
 
         <ImageView
             android:id="@+id/cover"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:alpha="0.5"
+            android:alpha="1"
             android:contentDescription="@string/songs_cover"
+            android:fadingEdgeLength="80dp"
+            android:requiresFadingEdge="horizontal"
             android:scaleType="centerCrop"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintDimensionRatio="H,1:1"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <View
             android:id="@+id/gradient_overlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:visibility="gone"
+            android:visibility="visible"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <View
+            android:id="@+id/gradient_overlay2"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/button_play"
+            app:layout_constraintStart_toStartOf="@+id/cover"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible" />
+
+        <View
+            android:id="@+id/gradient_overlay3"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/cover"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/tv_title"
@@ -52,9 +75,9 @@
             android:paddingHorizontal="@dimen/margin_16"
             android:text="歌曲标题"
             android:textColor="@color/white"
-            android:textSize="16sp"
+            android:textSize="14sp"
             app:layout_constraintBottom_toTopOf="@+id/tv_artist"
-            app:layout_constraintEnd_toStartOf="@+id/button_play"
+            app:layout_constraintEnd_toEndOf="@+id/gradient_overlay2"
             app:layout_constraintHorizontal_bias="0.5"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"

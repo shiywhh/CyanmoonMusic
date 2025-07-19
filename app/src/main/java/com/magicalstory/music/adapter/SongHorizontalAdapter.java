@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -30,6 +32,8 @@ import com.magicalstory.music.model.Song;
 import com.magicalstory.music.utils.glide.Glide2;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 歌曲横向滑动列表适配器
@@ -43,8 +47,14 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
     private Context context;
     private List<Song> songList;
+    private List<GradientDrawable> gradientDrawables;
+    private List<Integer> colors;
     private OnItemClickListener onItemClickListener;
     private boolean useSquareLayout = false; // 默认使用横向布局
+
+    // 线程池和主线程Handler
+    private ExecutorService executorService;
+    private Handler mainHandler;
 
     public interface OnItemClickListener {
         void onItemClick(Song song, int position);
@@ -53,12 +63,42 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
     public SongHorizontalAdapter(Context context, List<Song> songList) {
         this.context = context;
         this.songList = songList;
+        this.executorService = Executors.newCachedThreadPool();
+        this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
     public SongHorizontalAdapter(Context context, List<Song> songList, boolean useSquareLayout) {
         this.context = context;
         this.songList = songList;
         this.useSquareLayout = useSquareLayout;
+        this.executorService = Executors.newCachedThreadPool();
+        this.mainHandler = new Handler(Looper.getMainLooper());
+    }
+
+    public SongHorizontalAdapter(Context context, List<Song> songList, List<GradientDrawable> gradientDrawables) {
+        this.context = context;
+        this.songList = songList;
+        this.gradientDrawables = gradientDrawables;
+        this.executorService = Executors.newCachedThreadPool();
+        this.mainHandler = new Handler(Looper.getMainLooper());
+    }
+
+    public SongHorizontalAdapter(Context context, List<Song> songList, List<GradientDrawable> gradientDrawables, boolean useSquareLayout) {
+        this.context = context;
+        this.songList = songList;
+        this.gradientDrawables = gradientDrawables;
+        this.useSquareLayout = useSquareLayout;
+        this.executorService = Executors.newCachedThreadPool();
+        this.mainHandler = new Handler(Looper.getMainLooper());
+    }
+
+    public SongHorizontalAdapter(Context context, List<Song> songList, List<GradientDrawable> gradientDrawables, List<Integer> colors) {
+        this.context = context;
+        this.songList = songList;
+        this.gradientDrawables = gradientDrawables;
+        this.colors = colors;
+        this.executorService = Executors.newCachedThreadPool();
+        this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
     public void setOnItemClickListener(OnItemClickListener listener) {
@@ -87,8 +127,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         Song song = songList.get(position);
-        if (holder instanceof SquareViewHolder) {
-            SquareViewHolder squareHolder = (SquareViewHolder) holder;
+        if (holder instanceof SquareViewHolder squareHolder) {
             // 设置歌曲标题
             squareHolder.binding.tvTitle.setText(song.getTitle());
 
@@ -109,8 +148,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
                     mainActivity.playFromPlaylist(songList, position);
                 }
             });
-        } else if (holder instanceof ViewHolder) {
-            ViewHolder horizontalHolder = (ViewHolder) holder;
+        } else if (holder instanceof ViewHolder horizontalHolder) {
             // 设置歌曲标题
             horizontalHolder.binding.tvTitle.setText(song.getTitle());
 
@@ -118,7 +156,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             horizontalHolder.binding.tvArtist.setText(song.getArtist());
 
             // 加载专辑封面
-            loadAlbumArt(horizontalHolder.binding.cover, song, horizontalHolder);
+            loadAlbumArt(horizontalHolder.binding.cover, song, horizontalHolder, position);
 
             // 设置点击事件
             horizontalHolder.itemView.setOnClickListener(v -> {
@@ -134,40 +172,27 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
         }
     }
 
-    private void loadAlbumArt(ImageView imageView, Song song, ViewHolder holder) {
+    private void loadAlbumArt(ImageView imageView, Song song, ViewHolder holder, int position) {
         // 构建专辑封面URI
         String albumArtUri = null;
         if (song.getAlbumId() > 0) {
             albumArtUri = "content://media/external/audio/albumart/" + song.getAlbumId();
         }
 
-        // 使用Glide加载图片并在完成后进行Palette取色
-        Glide.with(context)
-                .asBitmap()
-                .load(albumArtUri)
-                .placeholder(R.drawable.place_holder_song)
-                .error(R.drawable.place_holder_song)
-                .into(new CustomTarget<Bitmap>() {
-                    @Override
-                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                        imageView.setImageBitmap(resource);
+        // 使用预创建的gradient drawable（只有在有gradientDrawables时才设置）
+        if (gradientDrawables != null && position < gradientDrawables.size()) {
+            holder.binding.gradientOverlay.setBackground(gradientDrawables.get(position));
+            holder.binding.gradientOverlay2.setBackground(gradientDrawables.get(position));
+            holder.binding.gradientOverlay3.setBackground(gradientDrawables.get(position));
 
+            // 设置卡片背景颜色（只有在有colors时才设置）
+            if (colors != null && position < colors.size()) {
+                holder.binding.getRoot().setCardBackgroundColor(colors.get(position));
+            }
+        }
 
-                        // 使用Palette进行取色
-                        Palette.from(resource).generate(palette -> {
-                            if (palette != null) {
-                                applyPaletteColors(palette, holder);
-                            }
-                        });
-                    }
+        Glide2.loadImage(context, imageView, gradientDrawables.isEmpty() ? R.drawable.place_holder_song : albumArtUri, R.drawable.place_holder_song);
 
-                    @Override
-                    public void onLoadCleared(@Nullable Drawable placeholder) {
-                        imageView.setImageDrawable(placeholder);
-                        // 加载失败时使用默认颜色
-                        applyDefaultColors(holder);
-                    }
-                });
     }
 
     private void loadAlbumArtSquare(ImageView imageView, Song song) {
@@ -179,42 +204,6 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
         Glide2.loadImage(context, imageView, albumArtUri, R.drawable.place_holder_song);
     }
 
-    private void applyPaletteColors(Palette palette, ViewHolder holder) {
-        // 获取深色调色板颜色
-        int darkVibrantColor = palette.getDarkVibrantColor(Color.parseColor("#2C2C2C"));
-        int darkMutedColor = palette.getDarkMutedColor(Color.parseColor("#1A1A1A"));
-
-        // 设置CardView背景为深色
-        holder.binding.getRoot().setCardBackgroundColor(darkMutedColor);
-
-        // 创建渐变罩层
-        createGradientOverlay(holder, darkVibrantColor);
-    }
-
-    private void applyDefaultColors(ViewHolder holder) {
-        // 默认深色配色
-        int defaultDarkColor = Color.parseColor("#2C2C2C");
-        int defaultBackgroundColor = Color.parseColor("#1A1A1A");
-
-        holder.binding.getRoot().setCardBackgroundColor(defaultBackgroundColor);
-        holder.binding.tvTitle.setTextColor(defaultDarkColor);
-        holder.binding.tvArtist.setTextColor(defaultDarkColor);
-
-        createGradientOverlay(holder, defaultDarkColor);
-    }
-
-    private void createGradientOverlay(ViewHolder holder, int color) {
-        // 创建左右渐变drawable
-        GradientDrawable gradientDrawable = new GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{color, Color.TRANSPARENT}
-        );
-
-        // 应用渐变背景并显示罩层
-        holder.binding.gradientOverlay.setBackground(gradientDrawable);
-        holder.binding.gradientOverlay.setVisibility(View.VISIBLE);
-    }
-
 
     @Override
     public int getItemCount() {
@@ -224,6 +213,34 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<RecyclerView.Vie
     public void updateData(List<Song> newSongList) {
         this.songList = newSongList;
         notifyDataSetChanged();
+    }
+
+    public void updateData(List<Song> newSongList, List<GradientDrawable> newGradientDrawables) {
+        this.songList = newSongList;
+        this.gradientDrawables = newGradientDrawables;
+        notifyDataSetChanged();
+    }
+
+    public void updateData(List<Song> newSongList, List<GradientDrawable> newGradientDrawables, List<Integer> newColors) {
+        this.songList = newSongList;
+        this.gradientDrawables = newGradientDrawables;
+        this.colors = newColors;
+        notifyDataSetChanged();
+    }
+
+    /**
+     * 获取当前的歌曲列表
+     * @return 歌曲列表
+     */
+    public List<Song> getSongList() {
+        return songList;
+    }
+
+    // 释放资源
+    public void release() {
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
+        }
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
