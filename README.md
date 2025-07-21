@@ -8,6 +8,8 @@
 
 开放源代码给各位小伙伴玩玩吧，花了一周时间开发的，很多地方还没完善或者说没做到位，依靠后人的智慧了！
 
+如果截图看不到，麻烦前往：https://gitee.com/a9292922_admin/MagicalMusic
+
 下面是一些界面截图：
 ![输入图片说明](https://foruda.gitee.com/images/1753087311274952090/6bc24f4f_5144217.jpeg "Screenshot_2025-07-21-16-21-34-516_com.magicalstory.music.jpg")
 ![输入图片说明](https://foruda.gitee.com/images/1753087342513093638/d452977f_5144217.jpeg "Screenshot_2025-07-21-16-21-38-296_com.magicalstory.music.jpg")
