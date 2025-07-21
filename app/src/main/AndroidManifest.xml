@@ -39,6 +39,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/AppTheme.Splash"
+            android:configChanges="orientation|screenSize"
             android:windowSoftInputMode="adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

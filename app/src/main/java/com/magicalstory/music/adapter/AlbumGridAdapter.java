@@ -23,6 +23,7 @@ import com.bumptech.glide.request.RequestOptions;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemAlbumGridBinding;
+import com.magicalstory.music.dialog.AlbumBottomSheetDialogFragment;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Song;
 
@@ -209,6 +210,11 @@ public class AlbumGridAdapter extends RecyclerView.Adapter<AlbumGridAdapter.View
                 playAlbumSongs(mainActivity, album);
             }
         });
+
+        // 设置菜单按钮点击事件 - 显示专辑底部弹窗
+        holder.binding.btnMenu.setOnClickListener(v -> {
+            showAlbumBottomSheet(album);
+        });
         // 设置点击事件
         holder.itemView.setOnClickListener(v -> {
             if (isMultiSelectMode) {
@@ -308,6 +314,17 @@ public class AlbumGridAdapter extends RecyclerView.Adapter<AlbumGridAdapter.View
         if (albumSongs != null && !albumSongs.isEmpty()) {
             Log.d(TAG, "播放专辑: " + album.getAlbumName() + ", 歌曲数量: " + albumSongs.size());
             mainActivity.playFromPlaylist(albumSongs, 0); // 播放专辑的第一首歌曲
+        }
+    }
+
+    /**
+     * 显示专辑底部弹窗
+     */
+    private void showAlbumBottomSheet(Album album) {
+        if (context instanceof MainActivity) {
+            AlbumBottomSheetDialogFragment fragment = AlbumBottomSheetDialogFragment.newInstance(album);
+            fragment.show(((MainActivity) context).getSupportFragmentManager(), "AlbumBottomSheet");
+            Log.d(TAG, "显示专辑底部弹窗: " + album.getAlbumName());
         }
     }
     

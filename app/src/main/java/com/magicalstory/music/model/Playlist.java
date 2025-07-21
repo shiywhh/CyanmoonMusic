@@ -132,7 +132,33 @@ public class Playlist extends LitePalSupport {
         playlistSong.save();
         this.songCount++;
         this.updatedTime = System.currentTimeMillis();
+        
+        // 更新歌单封面为最新添加的歌曲的封面
+        updatePlaylistCover(song);
+        
         this.save();
+    }
+
+    /**
+     * 更新歌单封面
+     * 使用最新添加的歌曲的专辑封面作为歌单封面
+     */
+    private void updatePlaylistCover(Song song) {
+        if (song != null && song.getAlbumId() > 0) {
+            // 使用专辑封面路径作为歌单封面
+            this.coverPath = "content://media/external/audio/albumart/" + song.getAlbumId();
+        }
+    }
+
+    /**
+     * 更新歌单封面为最新歌曲的封面
+     */
+    public void updateCoverToLatestSong() {
+        Song latestSong = PlaylistSong.getLatestSongInPlaylist(this.id);
+        if (latestSong != null) {
+            updatePlaylistCover(latestSong);
+            this.save();
+        }
     }
 
     /**

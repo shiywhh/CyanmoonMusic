@@ -23,6 +23,8 @@ import com.magicalstory.music.utils.file.FileDeleteUtils;
 import com.magicalstory.music.utils.glide.GlideUtils;
 import com.magicalstory.music.utils.text.TimeUtils;
 import com.magicalstory.music.dialog.dialogUtils;
+import com.magicalstory.music.model.Playlist;
+import com.magicalstory.music.utils.playlist.PlaylistAddUtils;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -177,6 +179,13 @@ public class SongBottomSheetDialogFragment extends BottomSheetDialogFragment {
             dismiss();
         });
 
+        // 添加到歌单
+        binding.llAddToPlaylistSelector.setOnClickListener(v -> {
+            Log.d(TAG, "添加到歌单被点击");
+            handleAddToPlaylistSelector();
+            dismiss();
+        });
+
         // 查看专辑
         binding.llViewAlbum.setOnClickListener(v -> {
             Log.d(TAG, "查看专辑被点击");
@@ -278,6 +287,23 @@ public class SongBottomSheetDialogFragment extends BottomSheetDialogFragment {
     }
 
     /**
+     * 处理添加到歌单选择器
+     */
+    private void handleAddToPlaylistSelector() {
+        if (song == null) {
+            ToastUtils.showToast(requireContext(), "歌曲数据为空");
+            return;
+        }
+
+        // 创建包含当前歌曲的列表
+        List<Song> songsToAdd = new ArrayList<>();
+        songsToAdd.add(song);
+
+        // 使用工具类显示歌单选择对话框
+        PlaylistAddUtils.showPlaylistSelectorDialog(requireContext(), songsToAdd);
+    }
+
+    /**
      * 处理查看专辑
      */
     private void handleViewAlbum() {
@@ -358,9 +384,21 @@ public class SongBottomSheetDialogFragment extends BottomSheetDialogFragment {
      * 处理编辑歌词
      */
     private void handleEditLyrics() {
-        // 暂时不实现，显示提示信息
-        ToastUtils.showToast(requireContext(), "编辑歌词功能暂未实现");
-        Log.d(TAG, "编辑歌词功能暂未实现");
+        if (song == null) {
+            ToastUtils.showToast(requireContext(), "歌曲数据为空");
+            return;
+        }
+
+        // 使用MainActivity的导航方法
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            mainActivity.navigateToLyricsEditor(song);
+        }
+
+        // 关闭底部弹出窗口
+        dismiss();
+        
+        Log.d(TAG, "打开歌词编辑器: " + song.getTitle());
     }
 
     /**

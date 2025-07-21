@@ -3,6 +3,7 @@ package com.magicalstory.music.fragment;
 import static java.lang.Thread.sleep;
 
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
@@ -56,7 +57,7 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
 
     // 多选相关
     private boolean isMultiSelectMode = false;
-    private String originalTitle = "最近听过的艺术家";
+    private String originalTitle = "我的艺术家";
 
     private MediaControllerHelper controllerHelper;
     private final MediaControllerHelper.PlaybackStateListener playbackStateListener = new MediaControllerHelper.PlaybackStateListener() {
@@ -174,12 +175,14 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         if (menu != null) {
             MenuItem playNext = menu.findItem(R.id.menu_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.menu_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.menu_add_to_playlist_menu);
             MenuItem selectAll = menu.findItem(R.id.menu_select_all);
             MenuItem removeFromPlaylist = menu.findItem(R.id.menu_remove_from_playlist);
             MenuItem deleteFromDevice = menu.findItem(R.id.menu_delete_from_device);
 
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
             if (selectAll != null) selectAll.setVisible(visible);
             if (removeFromPlaylist != null) removeFromPlaylist.setVisible(visible);
             if (deleteFromDevice != null) deleteFromDevice.setVisible(visible);
@@ -194,10 +197,12 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
             MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
             MenuItem playNext = menu.findItem(R.id.action_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.action_add_to_playlist_menu);
 
             if (shufflePlay != null) shufflePlay.setVisible(visible);
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
         }
     }
 
@@ -212,6 +217,9 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                 return true;
             } else if (itemId == R.id.menu_add_to_playlist) {
                 addToPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist_menu) {
+                addToPlaylistMenuMultiSelect();
                 return true;
             } else if (itemId == R.id.menu_select_all) {
                 selectAll();
@@ -233,6 +241,9 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                 return true;
             } else if (itemId == R.id.action_add_to_playlist) {
                 addToPlaylistNormal();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist_menu) {
+                addToPlaylistMenuNormal();
                 return true;
             }
         }
@@ -477,6 +488,29 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
     }
 
     /**
+     * 添加到歌单（多选模式）
+     */
+    private void addToPlaylistMenuMultiSelect() {
+        List<Artist> selectedArtists = artistAdapter.getSelectedArtists();
+        if (selectedArtists.isEmpty()) {
+            showSnackbar(getString(R.string.select_artists));
+            return;
+        }
+
+        List<Song> allSongs = MusicQueryUtils.getSongsByArtists(selectedArtists);
+        if (allSongs == null || allSongs.isEmpty()) {
+            showSnackbar(getString(R.string.no_songs_in_artists));
+            return;
+        }
+
+        // 使用PlaylistAddUtils显示歌单选择对话框
+        com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(
+                requireContext(),
+                allSongs
+        );
+    }
+
+    /**
      * 全选
      */
     private void selectAll() {
@@ -617,7 +651,23 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
         Thread loadThread = new Thread(() -> {
             try {
                 // 从数据库查询艺术家数据
-                List<Artist> artists = LitePal.order("lastPlayed desc").find(Artist.class);
+                List<Artist> artists;
+                
+                // 检查是否有传递的排序参数
+                Bundle arguments = getArguments();
+                if (arguments != null && arguments.containsKey("sortType")) {
+                    String sortType = arguments.getString("sortType");
+                    if ("dateAdded".equals(sortType)) {
+                        // 按添加时间倒序排列
+                        artists = LitePal.order("dateAdded desc").find(Artist.class);
+                    } else {
+                        // 默认按最后播放时间倒序
+                        artists = LitePal.order("lastPlayed desc").find(Artist.class);
+                    }
+                } else {
+                    // 默认按最后播放时间倒序
+                    artists = LitePal.order("lastPlayed desc").find(Artist.class);
+                }
 
                 sleep(200);
 
@@ -815,6 +865,49 @@ public class ArtistListFragment extends BaseFragment<FragmentArtistBinding> {
                         } else {
                             ToastUtils.showToast(getContext(), "播放控制器未初始化");
                         }
+                    } else {
+                        ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                mainHandler.post(() -> {
+                    ToastUtils.showToast(getContext(), "添加失败：" + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * 添加到歌单（普通模式）
+     */
+    private void addToPlaylistMenuNormal() {
+        if (artistList == null || artistList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_artists_to_add));
+            return;
+        }
+
+        // 在后台线程查询所有艺术家的歌曲
+        new Thread(() -> {
+            try {
+                List<Song> allSongs = new ArrayList<>();
+
+                // 遍历所有艺术家，获取每个艺术家的歌曲
+                for (Artist artist : artistList) {
+                    List<Song> artistSongs = LitePal.where("artist = ?", artist.getArtistName())
+                            .order("dateAdded desc")
+                            .find(Song.class);
+                    if (artistSongs != null) {
+                        allSongs.addAll(artistSongs);
+                    }
+                }
+
+                // 在主线程更新UI并显示歌单选择对话框
+                mainHandler.post(() -> {
+                    if (!allSongs.isEmpty()) {
+                        // 使用PlaylistAddUtils显示歌单选择对话框
+                        com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(getContext(), allSongs);
                     } else {
                         ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
                     }

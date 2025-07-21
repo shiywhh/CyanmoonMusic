@@ -228,9 +228,15 @@ public class MusicScanService extends Service {
             album.setAlbumId(song.getAlbumId());
             album.setSongCount(1);
             album.setYear(song.getYear());
+            // 设置专辑的添加时间为当前歌曲的添加时间
+            album.setDateAdded(song.getDateAdded());
             albumMap.put(albumKey, album);
         } else {
             album.setSongCount(album.getSongCount() + 1);
+            // 如果当前歌曲的添加时间更晚，更新专辑的添加时间
+            if (song.getDateAdded() > album.getDateAdded()) {
+                album.setDateAdded(song.getDateAdded());
+            }
         }
     }
 
@@ -247,9 +253,15 @@ public class MusicScanService extends Service {
             artist.setArtistId(song.getArtistId());
             artist.setSongCount(1);
             artist.setAlbumCount(1);
+            // 设置艺术家的添加时间为当前歌曲的添加时间
+            artist.setDateAdded(song.getDateAdded());
             artistMap.put(artistName, artist);
         } else {
             artist.setSongCount(artist.getSongCount() + 1);
+            // 如果当前歌曲的添加时间更晚，更新艺术家的添加时间
+            if (song.getDateAdded() > artist.getDateAdded()) {
+                artist.setDateAdded(song.getDateAdded());
+            }
         }
     }
 

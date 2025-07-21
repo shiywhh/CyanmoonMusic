@@ -319,6 +319,14 @@ public class MusicSyncUtils {
                 newAlbum.setAlbumId(firstSong.getAlbumId());
                 newAlbum.setSongCount(songs.size());
                 newAlbum.setYear(firstSong.getYear());
+                // 设置专辑的添加时间为该专辑中最新歌曲的添加时间
+                long latestDateAdded = 0;
+                for (Song song : songs) {
+                    if (song.getDateAdded() > latestDateAdded) {
+                        latestDateAdded = song.getDateAdded();
+                    }
+                }
+                newAlbum.setDateAdded(latestDateAdded);
                 newAlbum.save();
                 result.addedAlbums++;
                 Log.d(TAG, "新增专辑: " + firstSong.getAlbum() + " - " + firstSong.getArtist());
@@ -409,6 +417,14 @@ public class MusicSyncUtils {
                 newArtist.setArtistId(firstSong.getArtistId());
                 newArtist.setSongCount(songs.size());
                 newArtist.setAlbumCount(albums.size());
+                // 设置艺术家的添加时间为该艺术家中最新歌曲的添加时间
+                long latestDateAdded = 0;
+                for (Song song : songs) {
+                    if (song.getDateAdded() > latestDateAdded) {
+                        latestDateAdded = song.getDateAdded();
+                    }
+                }
+                newArtist.setDateAdded(latestDateAdded);
                 newArtist.save();
                 result.addedArtists++;
                 Log.d(TAG, "新增艺术家: " + artistName);

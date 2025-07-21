@@ -1,21 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/md_theme_background"
+    android:paddingBottom="80dp"
     tools:context=".homepage.PlaylistFragment">
 
-    <TextView
-        android:id="@+id/tv_title"
+    <!-- AppBarLayout -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/md_theme_background"
+        android:fitsSystemWindows="true"
+        app:elevation="0dp">
+
+        <!-- 搜索栏 -->
+        <com.google.android.material.search.SearchBar
+            android:id="@+id/open_search_bar"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginStart="@dimen/margin_20"
+            android:layout_marginTop="9dp"
+            android:layout_marginEnd="@dimen/margin_20"
+            android:layout_marginBottom="8dp"
+            android:hint="@string/search_music"
+            android:textAppearance="@style/TextAppearance.App.Body.Large"
+            app:backgroundTint="@color/md_theme_surfaceContainer"
+            app:layout_scrollFlags="scroll|enterAlways" />
+
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_sort"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:text="@string/text_name"
+                android:textColor="@color/text_primary"
+                app:icon="@drawable/ic_up"
+                app:iconGravity="end"
+                app:iconTint="@color/text_primary"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_random"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/margin_10"
+                android:text="@string/random_play"
+                android:textColor="@color/text_primary"
+                app:icon="@drawable/ic_random_play"
+                app:iconGravity="end"
+                app:iconTint="@color/text_primary"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_scrollFlags="scroll|enterAlways" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- 主要内容区域 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_playlists"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingHorizontal="@dimen/margin_16"
+        android:paddingBottom="80dp"
+        android:scrollbars="none"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <!-- 空状态布局 -->
+    <LinearLayout
+        android:id="@+id/layout_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingBottom="@dimen/margin_bottom_100"
+        android:visibility="gone"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <ImageView
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:contentDescription="@string/has_no_playlist"
+            android:src="@drawable/ic_playlist_unselected"
+            app:tint="@color/md_theme_primary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/has_no_playlist"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <!-- 进度条 -->
+    <ProgressBar
+        android:id="@+id/progressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="播放列表"
-        android:textSize="24sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_gravity="center"
+        android:indeterminateTint="@color/md_theme_primary"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- 添加按钮 -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add_playlist"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_add"
+        app:layout_behavior="com.google.android.material.floatingactionbutton.FloatingActionButton$Behavior" />
+
+    <!-- 搜索视图 -->
+    <com.google.android.material.search.SearchView
+        android:id="@+id/open_search_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:hint="@string/search_music"
+        android:textAppearance="@style/TextAppearance.App.Body.Large"
+        app:layout_anchor="@id/open_search_bar"
+        tools:visibility="visible">
+
+        <include
+            android:id="@+id/search_layout"
+            layout="@layout/layout_search" />
+    </com.google.android.material.search.SearchView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

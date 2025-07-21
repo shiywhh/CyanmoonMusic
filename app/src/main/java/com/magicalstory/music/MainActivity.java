@@ -39,6 +39,8 @@ import com.gyf.immersionbar.ImmersionBar;
 import com.hjq.gson.factory.GsonFactory;
 import com.magicalstory.music.databinding.ActivityMainBinding;
 import com.magicalstory.music.homepage.HomeFragment;
+import com.magicalstory.music.homepage.LibraryFragment;
+import com.magicalstory.music.homepage.PlaylistFragment;
 import com.magicalstory.music.model.Song;
 import com.magicalstory.music.player.MiniPlayerFragment;
 import com.magicalstory.music.player.FullPlayerFragment;
@@ -417,8 +419,11 @@ public class MainActivity extends AppCompatActivity implements PlaybackStateList
             androidx.navigation.fragment.NavHostFragment navHostFragment = (androidx.navigation.fragment.NavHostFragment) currentFragment;
             androidx.fragment.app.Fragment primaryFragment = navHostFragment.getChildFragmentManager().getPrimaryNavigationFragment();
 
-            if (primaryFragment instanceof HomeFragment) {
-                HomeFragment homeFragment = (HomeFragment) primaryFragment;
+            if (primaryFragment instanceof HomeFragment homeFragment) {
+                return homeFragment.closeSearchView();
+            } else if (primaryFragment instanceof PlaylistFragment homeFragment) {
+                return homeFragment.closeSearchView();
+            }else if (primaryFragment instanceof LibraryFragment homeFragment) {
                 return homeFragment.closeSearchView();
             }
         }
@@ -961,6 +966,49 @@ public class MainActivity extends AppCompatActivity implements PlaybackStateList
             }
         } catch (Exception e) {
             Log.e(TAG, "跳转到歌曲标签编辑器失败", e);
+        }
+    }
+
+    /**
+     * 跳转到歌词编辑器
+     * 使用通用的导航方式，适用于从任何页面跳转
+     */
+    public void navigateToLyricsEditor(Song song) {
+        try {
+            // 获取NavHostFragment
+            androidx.fragment.app.Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+            if (navHostFragment != null) {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+                // 从NavHostFragment获取NavController
+                NavController navController = androidx.navigation.fragment.NavHostFragment.findNavController(navHostFragment);
+
+                // 使用通用的导航方式
+                Bundle bundle = new Bundle();
+                bundle.putSerializable("song", song);
+
+                binding.bottomNavigation.postDelayed(() -> {
+                    try {
+                        // 方法1：使用NavOptions添加动画效果，直接导航到目的地（推荐方式）
+                        NavOptions navOptions = new NavOptions.Builder()
+                                .setEnterAnim(R.anim.fade_in)
+                                .setExitAnim(R.anim.fade_out)
+                                .setPopEnterAnim(R.anim.fade_in_pop)
+                                .setPopExitAnim(R.anim.fade_out_pop)
+                                .build();
+                        navController.navigate(R.id.nav_lyrics_editor, bundle, navOptions);
+                        Log.d(TAG, "成功跳转到歌词编辑器: " + song.getTitle());
+                    } catch (Exception e) {
+                        Log.e(TAG, "直接导航失败，尝试备用方案", e);
+                        ToastUtils.showToast(this, "跳转失败");
+
+                    }
+                }, 500);
+            } else {
+                Log.e(TAG, "NavHostFragment为null，无法执行导航");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "跳转到歌词编辑器失败", e);
         }
     }
 

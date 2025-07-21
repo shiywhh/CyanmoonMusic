@@ -18,6 +18,7 @@ import com.bumptech.glide.request.RequestOptions;
 import com.magicalstory.music.MainActivity;
 import com.magicalstory.music.R;
 import com.magicalstory.music.databinding.ItemAlbumHorizontalBinding;
+import com.magicalstory.music.dialog.AlbumBottomSheetDialogFragment;
 import com.magicalstory.music.model.Album;
 import com.magicalstory.music.model.Song;
 
@@ -84,6 +85,11 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             if (context instanceof MainActivity mainActivity) {
                 playAlbumSongs(mainActivity, album);
             }
+        });
+
+        // 设置菜单按钮点击事件 - 显示专辑底部弹窗
+        holder.binding.btnMenu.setOnClickListener(v -> {
+            showAlbumBottomSheet(album);
         });
     }
 
@@ -193,6 +199,17 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
         notifyDataSetChanged();
         
         Log.d(TAG, "移除了 " + albumsToRemove.size() + " 张专辑");
+    }
+
+    /**
+     * 显示专辑底部弹窗
+     */
+    private void showAlbumBottomSheet(Album album) {
+        if (context instanceof MainActivity) {
+            AlbumBottomSheetDialogFragment fragment = AlbumBottomSheetDialogFragment.newInstance(album);
+            fragment.show(((MainActivity) context).getSupportFragmentManager(), "AlbumBottomSheet");
+            Log.d(TAG, "显示专辑底部弹窗: " + album.getAlbumName());
+        }
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

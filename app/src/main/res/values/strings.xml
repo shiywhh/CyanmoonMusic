@@ -5,9 +5,8 @@
     <string name="nav_home">主页</string>
     <string name="nav_playlist">歌单</string>
     <string name="nav_library">乐库</string>
-    <string name="nav_profile">我的</string>
     <string name="search_music">搜索您的音乐</string>
-    <string name="songs_lastest_added">最近添加的歌曲</string>
+    <string name="songs_lastest_added">最近收听的歌曲</string>
 
     <!-- 功能区域 -->
     <string name="play_history">播放历史</string>
@@ -20,6 +19,9 @@
     <string name="recent_artists">最近听过的艺术家</string>
     <string name="my_collection">我的收藏</string>
     <string name="random_recommendations">随机推荐</string>
+    <string name="my_songs">我的歌曲</string>
+    <string name="my_albums">我的专辑</string>
+    <string name="my_artists">艺人列表</string>
     <string name="title_input">文本输入框</string>
     <string name="input_layout">输入框布局</string>
 
@@ -51,7 +53,26 @@
     
     <!-- 播放列表相关 -->
     <string name="playlist_title">播放列表 (%d首)</string>
-    <string name="recent_added">最近添加</string>
+    <string name="recent_added">最近收听</string>
+    <string name="has_no_playlist">暂无歌单</string>
+    <string name="create_first_playlist">点击右下角按钮创建您的第一个歌单</string>
+    <string name="playlist_cover">歌单封面</string>
+    <string name="playlist_menus">歌单菜单</string>
+    <string name="playlist_play_button">歌单播放按钮</string>
+    <string name="add_to_playlist_menu">添加到歌单</string>
+    <string name="play_next">下一首播放</string>
+    <string name="add_to_queue">添加到播放队列</string>
+    <string name="rename_playlist">重命名</string>
+    <string name="save_as_file">另存为文件</string>
+    <string name="delete_playlist">删除歌单</string>
+    <string name="rename_playlist_title">重命名播放列表</string>
+    <string name="rename_playlist_hint">请输入新的播放列表名称</string>
+    <string name="playlist_name_empty">播放列表名称不能为空</string>
+    <string name="playlist_renamed">播放列表已重命名</string>
+    <string name="playlist_saved">播放列表已保存</string>
+    <string name="playlist_deleted">播放列表已删除</string>
+    <string name="system_playlist_cannot_delete">系统播放列表不能删除</string>
+    <string name="delete_playlist_confirmation">确定要删除播放列表 "%s" 吗？\n\n此操作将永久删除播放列表，无法恢复。</string>
 
     <!-- 多选相关字符串 -->
     <string name="select_none">请选择要操作的项目</string>
@@ -92,6 +113,13 @@
 
     <!-- 歌词相关 -->
     <string name="no_lyrics">暂无歌词</string>
+    <string name="edit_lyrics">点此编辑歌词</string>
+    <string name="lyrics_editor">歌词编辑器</string>
+    <string name="lyrics_content">歌词内容</string>
+    <string name="lyrics_format_guide">歌词格式说明</string>
+    <string name="lyrics_format_example">格式示例：\n[00:00.00]歌词内容\n[00:05.00]下一行歌词\n\n支持时间标签格式：[分:秒.百分秒]</string>
+    <string name="preview">预览</string>
+    <string name="clear">清空</string>
     <string name="lyrics_loading">歌词加载中…</string>
     <string name="lyrics">歌词</string>
     <string name="lyrics_not_found">未找到歌词</string>
@@ -114,7 +142,6 @@
 
     <!-- 菜单项 -->
     <string name="edit_tags">编辑标签</string>
-    <string name="play_next">下一首播放</string>
     <string name="add_to_playlist">添加到播放列表</string>
 
     <!-- 标签编辑器 -->
@@ -135,9 +162,16 @@
     <string name="error_loading_image">加载图片失败</string>
     <string name="added_to_queue_next">已添加到播放队列下一首</string>
     <string name="added_to_playlist">已添加到播放列表</string>
+    
+    <!-- 排序相关 -->
+    <string name="sort_by">排序方式</string>
+    <string name="sort_by_name">名称</string>
+    <string name="sort_by_song_count">歌曲数量</string>
+    <string name="sort_by_create_time">创建时间</string>
+    <string name="no_songs_to_play">没有可播放的歌曲</string>
+    <string name="random_play_failed">随机播放失败</string>
     <string name="create_playlist">创建播放列表</string>
     <string name="no_songs_to_add">没有歌曲可以添加</string>
-    <string name="no_songs_to_play">没有歌曲可以播放</string>
     <string name="no_artists_to_play">没有艺术家可以播放</string>
     <string name="no_albums_to_play">没有专辑可以播放</string>
     <string name="no_artists_to_add">没有艺术家可以添加</string>
@@ -178,4 +212,6 @@
     <string name="track_number">曲目号</string>
     <string name="disc_number">碟片号</string>
     <string name="composer">作曲家</string>
+    <string name="network_search">联网搜索</string>
+    <string name="text_name">名称</string>
 </resources>

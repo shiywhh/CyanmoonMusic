@@ -190,6 +190,11 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
                     // 添加到播放列表
                     addToPlaylist();
                     return true;
+                } else if (itemId == R.id.action_add_to_playlist_menu) {
+                    // 添加到歌单
+                    System.out.println("AlbumDetailFragment: setOnMenuItemClickListener 检测到 action_add_to_playlist_menu 菜单项点击");
+                    addToPlaylistMenu();
+                    return true;
                 }
             }
 
@@ -294,10 +299,12 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         if (menu != null) {
             MenuItem playNext = menu.findItem(R.id.menu_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.menu_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.menu_add_to_playlist_menu);
             MenuItem selectAll = menu.findItem(R.id.menu_select_all);
 
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
             if (selectAll != null) selectAll.setVisible(visible);
         }
     }
@@ -311,12 +318,66 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
             MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
             MenuItem playNext = menu.findItem(R.id.action_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.action_add_to_playlist_menu);
 
             if (editTags != null) editTags.setVisible(visible);
             if (shufflePlay != null) shufflePlay.setVisible(visible);
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
         }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int itemId = item.getItemId();
+
+        if (isMultiSelectMode) {
+            // 多选模式下的菜单处理
+            if (itemId == R.id.menu_play_next) {
+                playNext();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist) {
+                addToPlaylistMultiSelect();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist_menu) {
+                addToPlaylistMenuMultiSelect();
+                return true;
+            } else if (itemId == R.id.menu_select_all) {
+                selectAll();
+                return true;
+            }
+        } else {
+            // 普通模式下的菜单处理
+            if (itemId == R.id.action_edit_tags) {
+                openTagEditor();
+                return true;
+            } else if (itemId == R.id.action_shuffle_play) {
+                // 随机播放专辑歌曲
+                if (albumSongs != null && !albumSongs.isEmpty()) {
+                    if (getActivity() instanceof MainActivity mainActivity) {
+                        mainActivity.playFromPlaylist(albumSongs, 0);
+                        // 启用随机播放模式
+                        MediaControllerHelper.getInstance().setShuffleModeEnabled(true);
+                    }
+                } else {
+                    ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_play));
+                }
+                return true;
+            } else if (itemId == R.id.action_play_next) {
+                addToPlayNext();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist) {
+                addToPlaylist();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist_menu) {
+                System.out.println("AlbumDetailFragment: 检测到 action_add_to_playlist_menu 菜单项点击");
+                addToPlaylistMenu();
+                return true;
+            }
+        }
+
+        return super.onOptionsItemSelected(item);
     }
 
     /**
@@ -486,6 +547,23 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
         }
 
         exitMultiSelectMode();
+    }
+
+    /**
+     * 添加到歌单（多选模式）
+     */
+    private void addToPlaylistMenuMultiSelect() {
+        List<Song> selectedSongs = songAdapter.getSelectedSongs();
+        if (selectedSongs.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.select_songs));
+            return;
+        }
+
+        // 使用PlaylistAddUtils显示歌单选择对话框
+        com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(
+                requireContext(),
+                selectedSongs
+        );
     }
 
     /**
@@ -837,6 +915,21 @@ public class AlbumDetailFragment extends BaseFragment<FragmentAlbumDetailBinding
                 ToastUtils.showToast(getContext(), "播放控制器未初始化");
             }
         } else {
+            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+        }
+    }
+
+    /**
+     * 添加到歌单
+     */
+    private void addToPlaylistMenu() {
+        System.out.println("AlbumDetailFragment: addToPlaylistMenu() 被调用");
+        if (albumSongs != null && !albumSongs.isEmpty()) {
+            System.out.println("AlbumDetailFragment: 歌曲数量 = " + albumSongs.size());
+            // 使用PlaylistAddUtils显示歌单选择对话框
+            com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(getContext(), albumSongs);
+        } else {
+            System.out.println("AlbumDetailFragment: 没有歌曲可添加");
             ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
         }
     }

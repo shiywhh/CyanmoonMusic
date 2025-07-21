@@ -1,21 +1,215 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:background="@color/md_theme_background"
     android:layout_height="match_parent"
-    tools:context=".homepage.LibraryFragment">
+    android:background="@color/md_theme_background">
 
-    <TextView
-        android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="音乐库"
-        android:textSize="24sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <com.magicalstory.music.myView.OptimizedNestedScrollView
+        android:id="@+id/nested_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:scrollbars="none">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="32dp"
+            android:paddingBottom="180dp">
+
+            <com.google.android.material.search.SearchBar
+                android:id="@+id/open_search_bar"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginStart="@dimen/margin_20"
+                android:layout_marginEnd="@dimen/margin_20"
+                android:hint="@string/search_music"
+                android:textAppearance="@style/TextAppearance.App.Body.Large"
+                app:backgroundTint="@color/md_theme_surfaceContainer"
+                app:layout_scrollFlags="scroll" />
+
+            <!-- 我的歌曲 -->
+            <LinearLayout
+                android:id="@+id/layout_my_songs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/margin_10"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/item_header_my_songs"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/height_group_title"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:longClickable="true"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/TextAppearance.groupTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/margin_20"
+                        android:layout_weight="1"
+                        android:text="@string/my_songs" />
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="@dimen/margin_20"
+                        android:src="@drawable/ic_arrow_right" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_my_songs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="@dimen/margin_16"
+                    android:scrollbars="none" />
+            </LinearLayout>
+
+            <!-- 我的专辑 -->
+            <LinearLayout
+                android:id="@+id/layout_my_albums"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/margin_10"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/item_header_my_albums"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/height_group_title"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:longClickable="true"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/TextAppearance.groupTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/margin_20"
+                        android:layout_weight="1"
+                        android:text="@string/my_albums" />
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="@dimen/margin_20"
+                        android:src="@drawable/ic_arrow_right" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_my_albums"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="@dimen/margin_16"
+                    android:scrollbars="none" />
+            </LinearLayout>
+
+            <!-- 艺人列表 -->
+            <LinearLayout
+                android:id="@+id/layout_my_artists"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/margin_10"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/item_header_my_artists"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/height_group_title"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:longClickable="true"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/TextAppearance.groupTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/margin_20"
+                        android:layout_weight="1"
+                        android:text="@string/my_artists" />
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="@dimen/margin_20"
+                        android:src="@drawable/ic_arrow_right" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_my_artists"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="@dimen/margin_16"
+                    android:scrollbars="none" />
+            </LinearLayout>
+            <!-- 空状态布局 -->
+            <LinearLayout
+                android:id="@+id/layout_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone"
+                app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+                <ImageView
+                    android:layout_width="150dp"
+                    android:layout_height="150dp"
+                    android:contentDescription="@string/has_no_playlist"
+                    android:src="@drawable/ic_library_selected"
+                    app:tint="@color/md_theme_primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/has_no_playlist"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.magicalstory.music.myView.OptimizedNestedScrollView>
+
+    <com.google.android.material.search.SearchView
+        android:id="@+id/open_search_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:hint="@string/search_music"
+        android:textAppearance="@style/TextAppearance.App.Body.Large"
+        app:layout_anchor="@id/open_search_bar"
+        tools:visibility="visible">
+
+        <include
+            android:id="@+id/searchLayout"
+            layout="@layout/layout_search" />
+    </com.google.android.material.search.SearchView>
+
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

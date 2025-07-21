@@ -126,6 +126,34 @@
 
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/ll_add_to_playlist_selector"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:paddingHorizontal="@dimen/margin_16"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_playlist"
+                app:tint="@color/text_primary" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="添加到歌单"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
         <!-- 分隔线 -->
         <View
             android:layout_width="match_parent"

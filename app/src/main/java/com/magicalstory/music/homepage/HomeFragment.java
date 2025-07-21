@@ -436,9 +436,9 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
         });
 
 
-        // 最近添加的歌曲标题点击事件
+        // 最近收听的歌曲标题点击事件
         binding.itemHeaderSongsLastestAdded.setOnClickListener(v -> {
-            // 跳转到最近添加的歌曲页面
+            // 跳转到最近收听的歌曲页面
             navigateToRecentSongs();
         });
 
@@ -1091,7 +1091,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
      * 初始化RecyclerView
      */
     private void initRecyclerViews() {
-        // 最近添加的歌曲 - 使用空的渐变和颜色列表，等待动态生成
+        // 最近收听的歌曲 - 使用空的渐变和颜色列表，等待动态生成
         binding.rvSongsLastestAdded.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         songsLatestAddedAdapter = new SongHorizontalAdapter(getContext(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
@@ -1155,8 +1155,8 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
 
         executorService.execute(() -> {
             try {
-                // 加载最近添加的歌曲（按添加时间倒序，取前10首）
-                List<Song> latestSongs = LitePal.order("dateAdded desc").limit(10).find(Song.class);
+                // 加载最近收听的歌曲（按播放时间倒序，取前10首）
+                List<Song> latestSongs = LitePal.order("lastplayed desc").limit(10).find(Song.class);
 
                 // 加载最近播放专辑（按lastplayed倒序排列，取前10个）
                 List<Album> recentAlbums = LitePal.order("lastplayed desc").limit(10).find(Album.class);
@@ -1199,7 +1199,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
                 if (mainHandler != null) {
                     mainHandler.post(() -> {
                         try {
-                            // 更新最近添加的歌曲
+                            // 更新最近收听的歌曲
                             if (latestSongs != null && !latestSongs.isEmpty()) {
                                 songsLatestAddedAdapter.updateData(latestSongs);
                                 binding.layoutSongsLastestAdded.setVisibility(View.VISIBLE);
@@ -1294,7 +1294,7 @@ public class HomeFragment extends BaseFragment<FragmentHomeBinding> {
     }
 
     /**
-     * 跳转到最近添加的歌曲页面
+     * 跳转到最近收听的歌曲页面
      */
     private void navigateToRecentSongs() {
         // 使用Navigation组件进行跳转，动画已在nav_graph.xml中配置

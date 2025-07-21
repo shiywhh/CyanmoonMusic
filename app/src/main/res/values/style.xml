@@ -9,7 +9,10 @@
     <style name="CommProgressDialog" parent="ThemeOverlay.Material3.Dialog.Alert">
         <item name="android:background">@color/dialog_background</item> <!-- 白色背景，适用于日间模式 -->
     </style>
-
+    <style name="TitleStyle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">18sp</item>
+    </style>
     <style name="ThemeProgressDialogStyle" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
         <!--        <item name="android:progressTint">?attr/defaultThemeColor</item>-->
         <item name="android:indeterminateTint">@color/design_default_color_on_primary</item>

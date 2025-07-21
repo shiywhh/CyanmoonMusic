@@ -26,4 +26,10 @@
         android:icon="@drawable/ic_playlist_play"
         android:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_add_to_playlist_menu"
+        android:title="@string/add_to_playlist_menu"
+        android:icon="@drawable/ic_playlist"
+        android:showAsAction="never" />
+
 </menu> 

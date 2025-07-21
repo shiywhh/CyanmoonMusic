@@ -40,7 +40,7 @@ import java.util.List;
 
 /**
  * 歌曲列表Fragment
- * 可以显示不同类型的歌曲列表（最近添加、我的收藏、随机推荐）
+ * 可以显示不同类型的歌曲列表（最近收听、我的收藏、随机推荐）
  */
 @UnstableApi
 public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> {
@@ -53,6 +53,8 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     private static final String DATA_TYPE_ARTIST = "artist";
     private static final String DATA_TYPE_HISTORY = "history";
     private static final String DATA_TYPE_MOST_PLAYED = "most_played";
+    private static final String DATA_TYPE_PLAYLIST = "playlist";
+    private static final String DATA_TYPE_ALL = "all";
 
     // 请求代码常量
     private static final int CLEAR_LIST_REQUEST_CODE = 1002;
@@ -196,6 +198,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         if (menu != null) {
             MenuItem playNext = menu.findItem(R.id.menu_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.menu_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.menu_add_to_playlist_menu);
             MenuItem selectAll = menu.findItem(R.id.menu_select_all);
             MenuItem removeFromPlaylist = menu.findItem(R.id.menu_remove_from_playlist);
             MenuItem deleteFromDevice = menu.findItem(R.id.menu_delete_from_device);
@@ -203,6 +206,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
 
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
             if (selectAll != null) selectAll.setVisible(visible);
             if (removeFromPlaylist != null) removeFromPlaylist.setVisible(visible);
             if (deleteFromDevice != null) deleteFromDevice.setVisible(visible);
@@ -223,11 +227,13 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
             MenuItem shufflePlay = menu.findItem(R.id.action_shuffle_play);
             MenuItem playNext = menu.findItem(R.id.action_play_next);
             MenuItem addToPlaylist = menu.findItem(R.id.action_add_to_playlist);
+            MenuItem addToPlaylistMenu = menu.findItem(R.id.action_add_to_playlist_menu);
             MenuItem clearList = menu.findItem(R.id.action_clear_list);
 
             if (shufflePlay != null) shufflePlay.setVisible(visible);
             if (playNext != null) playNext.setVisible(visible);
             if (addToPlaylist != null) addToPlaylist.setVisible(visible);
+            if (addToPlaylistMenu != null) addToPlaylistMenu.setVisible(visible);
 
             // 根据数据类型决定是否显示清空列表选项
             boolean showClearList = (DATA_TYPE_FAVORITE.equals(dataType) ||
@@ -248,6 +254,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 return true;
             } else if (itemId == R.id.menu_add_to_playlist) {
                 addToPlaylist();
+                return true;
+            } else if (itemId == R.id.menu_add_to_playlist_menu) {
+                addToPlaylistMenuMultiSelect();
                 return true;
             } else if (itemId == R.id.menu_select_all) {
                 selectAll();
@@ -272,6 +281,9 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 return true;
             } else if (itemId == R.id.action_add_to_playlist) {
                 addToPlaylistNormal();
+                return true;
+            } else if (itemId == R.id.action_add_to_playlist_menu) {
+                addToPlaylistMenuNormal();
                 return true;
             } else if (itemId == R.id.action_clear_list) {
                 clearSongList();
@@ -360,9 +372,18 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 String artistName = artistArguments != null ? artistArguments.getString("artistName") : "艺术家";
                 title = artistName + " 的歌曲";
                 break;
+            case DATA_TYPE_PLAYLIST:
+                // 从参数获取歌单名称
+                Bundle playlistArguments = getArguments();
+                String playlistName = playlistArguments != null ? playlistArguments.getString("playlist_name") : "歌单";
+                title = playlistName;
+                break;
+            case DATA_TYPE_ALL:
+                title = "我的歌曲";
+                break;
             case DATA_TYPE_RECENT:
             default:
-                title = "最近添加的歌曲";
+                title = "最近收听的歌曲";
                 break;
         }
         originalTitle = title;
@@ -537,6 +558,19 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
     }
 
     /**
+     * 添加到歌单（普通模式）
+     */
+    private void addToPlaylistMenuNormal() {
+        if (songList == null || songList.isEmpty()) {
+            ToastUtils.showToast(getContext(), getString(R.string.no_songs_to_add));
+            return;
+        }
+
+        // 使用PlaylistAddUtils显示歌单选择对话框
+        com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(getContext(), songList);
+    }
+
+    /**
      * 下一首播放（多选模式）
      */
     private void playNext() {
@@ -580,6 +614,23 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
         }
 
         exitMultiSelectMode();
+    }
+
+    /**
+     * 添加到歌单（多选模式）
+     */
+    private void addToPlaylistMenuMultiSelect() {
+        List<Song> selectedSongs = songAdapter.getSelectedSongs();
+        if (selectedSongs.isEmpty()) {
+            showSnackbar(getString(R.string.select_songs));
+            return;
+        }
+
+        // 使用PlaylistAddUtils显示歌单选择对话框
+        com.magicalstory.music.utils.playlist.PlaylistAddUtils.showPlaylistSelectorDialog(
+                requireContext(),
+                selectedSongs
+        );
     }
 
     /**
@@ -899,7 +950,7 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                 // 根据数据类型查询不同的数据
                 switch (dataType) {
                     case DATA_TYPE_FAVORITE:
-                        // 我的收藏 - 从FavoriteSong表查询真正的收藏歌曲
+                        // 我的收藏 - 从FavoriteSong表查询真正的收藏歌曲，按添加时间倒序
                         List<com.magicalstory.music.model.FavoriteSong> favoriteSongList =
                                 LitePal.order("addTime desc").find(com.magicalstory.music.model.FavoriteSong.class);
                         songs = new ArrayList<>();
@@ -948,21 +999,21 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                         }
                         break;
                     case DATA_TYPE_ALBUM:
-                        // 专辑歌曲 - 根据专辑ID和艺术家查询
+                        // 专辑歌曲 - 根据专辑ID和艺术家查询，按添加时间倒序
                         Bundle arguments = getArguments();
                         if (arguments != null) {
                             long albumId = arguments.getLong("albumId");
                             String artistName = arguments.getString("artistName");
                             songs = LitePal.where("albumId = ? and artist = ?",
                                             String.valueOf(albumId), artistName)
-                                    .order("track asc")
+                                    .order("dateAdded desc")
                                     .find(Song.class);
                         } else {
                             songs = new ArrayList<>();
                         }
                         break;
                     case DATA_TYPE_ARTIST:
-                        // 艺术家歌曲 - 根据艺术家名称查询，按添加时间排序
+                        // 艺术家歌曲 - 根据艺术家名称查询，按添加时间倒序
                         Bundle artistArguments = getArguments();
                         if (artistArguments != null) {
                             String artistName = artistArguments.getString("artistName");
@@ -973,10 +1024,24 @@ public class SongsListFragment extends BaseFragment<FragmentRecentSongsBinding> 
                             songs = new ArrayList<>();
                         }
                         break;
+                    case DATA_TYPE_PLAYLIST:
+                        // 歌单歌曲 - 根据歌单ID查询，按添加时间倒序（最新添加的歌曲在前面）
+                        Bundle playlistArguments = getArguments();
+                        if (playlistArguments != null) {
+                            long playlistId = playlistArguments.getLong("playlist_id");
+                            songs = com.magicalstory.music.model.PlaylistSong.getPlaylistSongs(playlistId);
+                        } else {
+                            songs = new ArrayList<>();
+                        }
+                        break;
+                    case DATA_TYPE_ALL:
+                        // 我的歌曲 - 所有歌曲按添加时间倒序排列
+                        songs = LitePal.order("dateAdded desc").find(Song.class);
+                        break;
                     case DATA_TYPE_RECENT:
                     default:
-                        // 最近添加的歌曲，按添加时间倒序排列
-                        songs = LitePal.order("dateAdded desc").find(Song.class);
+                        // 最近收听的歌曲，按播放时间倒序排列
+                        songs = LitePal.order("lastplayed desc").find(Song.class);
                         break;
                 }
 

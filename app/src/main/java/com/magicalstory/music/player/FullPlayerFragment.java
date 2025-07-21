@@ -1,6 +1,9 @@
 package com.magicalstory.music.player;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -158,6 +161,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private boolean isLyricsVisible = false;
     private final List<LyricLine> currentLyrics = new ArrayList<>();
     private long currentSongId = -1; // 记录当前歌曲ID，用于判断是否需要重新加载歌词
+    private boolean hasLyrics = false; // 标记是否有歌词
 
     // 当前专辑封面和提取的颜色
     private Bitmap currentAlbumBitmap;
@@ -193,6 +197,25 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     private Runnable sleepTimerRunnable;
     private Runnable sleepTimerUpdateRunnable;
 
+    // 歌词更新广播接收器
+    private final BroadcastReceiver lyricsUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("com.magicalstory.music.LYRICS_UPDATED".equals(intent.getAction())) {
+                long songId = intent.getLongExtra("song_id", -1);
+                String songPath = intent.getStringExtra("song_path");
+                
+                if (controllerHelper != null) {
+                    Song currentSong = controllerHelper.getCurrentSong();
+                    if (currentSong != null && currentSong.getId() == songId) {
+                        Log.d(TAG, "收到歌词更新广播，重新加载歌词");
+                        loadLyrics(currentSong);
+                    }
+                }
+            }
+        }
+    };
+
     @Override
     protected FragmentFullPlayerBinding getViewBinding(LayoutInflater inflater, ViewGroup container) {
         return FragmentFullPlayerBinding.inflate(inflater, container, false);
@@ -209,11 +232,18 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         // 初始化歌词View
         initLyricsView();
 
+        // 确保歌词布局初始状态是隐藏的
+        binding.lyricsView.setVisibility(View.GONE);
+        binding.lyricsEmptyLayout.setVisibility(View.GONE);
+
         // 设置点击事件
         setupClickListeners();
 
         // 设置进度条监听
         setupProgressListeners();
+
+        // 注册歌词更新广播接收器
+        registerLyricsUpdateReceiver();
 
         // 设置默认状态
         updateDefaultState();
@@ -261,6 +291,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         if (controllerHelper != null) {
             controllerHelper.removePlaybackStateListener(playbackStateListener);
         }
+
+        // 注销歌词更新广播接收器
+        unregisterLyricsUpdateReceiver();
     }
 
     /**
@@ -458,6 +491,25 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
     }
 
     /**
+     * 注册歌词更新广播接收器
+     */
+    private void registerLyricsUpdateReceiver() {
+        IntentFilter filter = new IntentFilter("com.magicalstory.music.LYRICS_UPDATED");
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(lyricsUpdateReceiver, filter);
+    }
+
+    /**
+     * 注销歌词更新广播接收器
+     */
+    private void unregisterLyricsUpdateReceiver() {
+        try {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(lyricsUpdateReceiver);
+        } catch (Exception e) {
+            Log.w(TAG, "注销歌词更新广播接收器失败", e);
+        }
+    }
+
+    /**
      * 更新默认状态
      */
     private void updateDefaultState() {
@@ -476,9 +528,12 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
         // 清空歌词
         currentLyrics.clear();
-        if (isLyricsVisible) {
-            binding.lyricsView.updateLyrics(currentLyrics);
-        }
+        hasLyrics = false;
+        // 重置歌词显示状态
+        isLyricsVisible = false;
+        // 确保歌词布局隐藏
+        binding.lyricsView.setVisibility(View.GONE);
+        binding.lyricsEmptyLayout.setVisibility(View.GONE);
 
         currentSongId = -1;
         Log.d(TAG, "默认状态设置完成");
@@ -570,7 +625,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
                         // 提取颜色
                         dominantColor = ColorExtractor.extractDominantColor(resource);
-                        darkColor = ColorExtractor.extractDarkColor(resource);
+                        darkColor = ColorExtractor.extractDominantColor(resource);
 
                         // 更新背景罩层
                         updateBackgroundOverlay();
@@ -771,6 +826,25 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             }
         });
 
+        // 编辑歌词点击事件
+        binding.tvEditLyrics.setOnClickListener(v -> {
+            Log.d(TAG, "编辑歌词被点击");
+            if (controllerHelper != null) {
+                Song currentSong = controllerHelper.getCurrentSong();
+                if (currentSong != null) {
+                    // 使用MainActivity的导航方法
+                    if (getActivity() instanceof MainActivity) {
+                        MainActivity mainActivity = (MainActivity) getActivity();
+                        mainActivity.navigateToLyricsEditor(currentSong);
+                    }
+                } else {
+                    ToastUtils.showToast(context, "当前没有播放的歌曲");
+                }
+            } else {
+                ToastUtils.showToast(context, "播放器未准备好");
+            }
+        });
+
         // 歌手名字点击事件
         binding.fullSongArtist.setOnClickListener(v -> {
             Log.d(TAG, "歌手名字被点击");
@@ -837,23 +911,30 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
             @Override
             public void onAnimationEnd(Animation animation) {
-                // 淡出动画结束后，隐藏封面和信息，显示歌词
+                // 淡出动画结束后，隐藏封面和信息，显示歌词区域
                 binding.albumCoverFrame.setVisibility(View.INVISIBLE);
                 binding.songInfoLayout.setVisibility(View.INVISIBLE);
-                binding.lyricsView.setVisibility(View.VISIBLE);
-                binding.lyricsView.startAnimation(fadeInAnimation);
+                
+                if (hasLyrics) {
+                    // 有歌词，显示歌词View
+                    binding.lyricsView.setVisibility(View.VISIBLE);
+                    binding.lyricsEmptyLayout.setVisibility(View.GONE);
+                    binding.lyricsView.startAnimation(fadeInAnimation);
+                } else {
+                    // 没有歌词，显示空状态
+                    binding.lyricsView.setVisibility(View.GONE);
+                    binding.lyricsEmptyLayout.setVisibility(View.VISIBLE);
+                    binding.lyricsEmptyLayout.startAnimation(fadeInAnimation);
+                }
 
                 // 检查是否需要加载歌词
-                binding.lyricsView.post(() -> {
-                    if (controllerHelper != null) {
-                        Song currentSong = controllerHelper.getCurrentSong();
-                        if (currentSong != null && currentSong.getId() != currentSongId) {
-                            // 如果是新歌曲，需要重新加载歌词
-                            loadLyrics(currentSong);
-                        }
-                        // 如果是同一首歌，直接显示歌词，不需要重新加载
+                if (controllerHelper != null) {
+                    Song currentSong = controllerHelper.getCurrentSong();
+                    if (currentSong != null && currentSong.getId() != currentSongId) {
+                        // 如果是新歌曲，需要重新加载歌词
+                        loadLyrics(currentSong);
                     }
-                });
+                }
             }
 
             @Override
@@ -883,8 +964,9 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
             @Override
             public void onAnimationEnd(Animation animation) {
-                // 淡出动画结束后，隐藏歌词，显示封面和信息
+                // 淡出动画结束后，隐藏歌词区域，显示封面和信息
                 binding.lyricsView.setVisibility(View.GONE);
+                binding.lyricsEmptyLayout.setVisibility(View.GONE);
                 binding.albumCoverFrame.setVisibility(View.VISIBLE);
                 binding.songInfoLayout.setVisibility(View.VISIBLE);
                 binding.albumCoverFrame.startAnimation(fadeInAnimation);
@@ -897,7 +979,11 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         });
 
         // 开始淡出动画
-        binding.lyricsView.startAnimation(fadeOutAnimation);
+        if (hasLyrics) {
+            binding.lyricsView.startAnimation(fadeOutAnimation);
+        } else {
+            binding.lyricsEmptyLayout.startAnimation(fadeOutAnimation);
+        }
     }
 
     /**
@@ -925,29 +1011,47 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
                 // 从歌曲文件解析歌词
                 List<LyricLine> lyrics = LyricsParser.parseLyricsFromSong(context, song.getPath());
 
-                // 如果没有找到歌词，显示"暂无歌词"
-                if (lyrics.isEmpty()) {
-                    lyrics.add(new LyricLine(0, getString(R.string.no_lyrics)));
-                }
-
-
                 binding.lyricsView.post(() -> {
                     currentLyrics.clear();
                     currentLyrics.addAll(lyrics);
-                    binding.lyricsView.setLyrics(currentLyrics);
+                    
+                    // 检查是否有真实歌词（不是"暂无歌词"）
+                    hasLyrics = !lyrics.isEmpty() && !lyrics.get(0).getContent().equals(getString(R.string.no_lyrics));
+                    
+                    // 根据当前歌词显示状态来设置可见性
+                    if (isLyricsVisible) {
+                        if (hasLyrics) {
+                            // 有歌词，显示歌词
+                            binding.lyricsView.setLyrics(currentLyrics);
+                            binding.lyricsView.setVisibility(View.VISIBLE);
+                            binding.lyricsEmptyLayout.setVisibility(View.GONE);
+                        } else {
+                            // 没有歌词，显示空状态
+                            binding.lyricsView.setVisibility(View.GONE);
+                            binding.lyricsEmptyLayout.setVisibility(View.VISIBLE);
+                        }
+                    } else {
+                        // 歌词未显示状态，确保两个布局都隐藏
+                        if (hasLyrics) {
+                            // 有歌词，设置歌词内容但不显示
+                            binding.lyricsView.setLyrics(currentLyrics);
+                        }
+                        binding.lyricsView.setVisibility(View.GONE);
+                        binding.lyricsEmptyLayout.setVisibility(View.GONE);
+                    }
 
-                    // 更新当前播放位置的歌词
-                    long currentPosition = controllerHelper.getCurrentPosition();
-                    binding.lyricsView.updateCurrentPosition(currentPosition);
+                    // 更新当前播放位置的歌词（如果歌词可见）
+                    if (hasLyrics && isLyricsVisible) {
+                        long currentPosition = controllerHelper.getCurrentPosition();
+                        binding.lyricsView.updateCurrentPosition(currentPosition);
+                    }
 
                     // 打印调试信息
-                    System.out.println("歌词加载完成，共 " + lyrics.size() + " 行");
+                    System.out.println("歌词加载完成，共 " + lyrics.size() + " 行，是否有歌词: " + hasLyrics + "，歌词显示状态: " + isLyricsVisible);
                 });
 
             }
         }.start();
-
-
     }
 
     /**
@@ -1235,22 +1339,11 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
         });
     }
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        // 注册播放状态监听器
-        if (controllerHelper != null) {
-            controllerHelper.addPlaybackStateListener(playbackStateListener);
-        }
-    }
 
     @Override
     public void onStop() {
         super.onStop();
-        // 移除播放状态监听器
-        if (controllerHelper != null) {
-            controllerHelper.removePlaybackStateListener(playbackStateListener);
-        }
+
     }
 
     /**
@@ -1277,6 +1370,10 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
             return;
         }
 
+        // 注意：新的PlaylistBottomSheetDialogFragment显示的是菜单项，不是播放列表
+        // 这里需要根据实际需求来决定是否显示播放列表
+        // 暂时注释掉，因为新的实现是菜单项而不是播放列表
+        /*
         // 创建播放列表底部弹出窗口Fragment
         playlistBottomSheet = PlaylistBottomSheetDialogFragment.newInstance();
         playlistBottomSheet.setMediaControllerHelper(controllerHelper);
@@ -1290,6 +1387,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
             @Override
             public void onPlaylistItemMoved(int fromPosition, int toPosition) {
+                Log.d(TAG, "播放列表项被移动: " + fromPosition + " -> " + toPosition);
                 Log.d(TAG, "播放列表项被移动: " + fromPosition + " -> " + toPosition);
             }
 
@@ -1308,6 +1406,7 @@ public class FullPlayerFragment extends BaseFragment<FragmentFullPlayerBinding> 
 
         // 显示播放列表Fragment
         playlistBottomSheet.show(getParentFragmentManager(), "PlaylistBottomSheet");
+        */
     }
 
     /**

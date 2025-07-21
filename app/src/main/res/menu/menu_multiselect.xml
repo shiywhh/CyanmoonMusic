@@ -25,6 +25,13 @@
         android:title="添加到播放列表"
         android:visible="false" />
 
+    <!-- 添加到歌单 -->
+    <item
+        android:id="@+id/menu_add_to_playlist_menu"
+        android:icon="@drawable/ic_playlist"
+        android:showAsAction="ifRoom"
+        android:title="@string/add_to_playlist_menu"
+        android:visible="false" />
 
     <item
         android:id="@+id/menu_delete_from_device"

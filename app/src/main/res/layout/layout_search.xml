@@ -80,7 +80,7 @@
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:overScrollMode="never"
-        android:paddingBottom="100dp"
+        android:paddingBottom="120dp"
         android:scrollbars="none"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior" />
 
@@ -89,6 +89,7 @@
         android:layout_width="300dp"
         android:layout_height="300dp"
         android:layout_gravity="center"
+        android:layout_marginBottom="120dp"
         android:src="@drawable/ic_music_girl" />
 
     <LinearLayout
@@ -96,7 +97,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="120dp"
         android:gravity="center"
         android:orientation="vertical"
         android:visibility="gone">
@@ -112,7 +113,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/margin_10"
             android:text="@string/search_empty"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/md_theme_onSurface"
             android:textSize="20sp" />
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

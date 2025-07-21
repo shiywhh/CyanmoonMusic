@@ -14,6 +14,7 @@ public class Artist extends LitePalSupport {
     private String coverUrl;        // 艺术家封面URL
     private boolean coverFetched;   // 是否已经尝试过获取封面
     private long lastplayed;        // 最后播放时间
+    private long dateAdded;         // 添加时间
 
     public Artist() {}
 
@@ -88,5 +89,13 @@ public class Artist extends LitePalSupport {
 
     public void setLastplayed(long lastplayed) {
         this.lastplayed = lastplayed;
+    }
+
+    public long getDateAdded() {
+        return dateAdded;
+    }
+
+    public void setDateAdded(long dateAdded) {
+        this.dateAdded = dateAdded;
     }
 }

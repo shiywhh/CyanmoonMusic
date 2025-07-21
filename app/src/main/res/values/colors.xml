@@ -141,6 +141,7 @@
     <color name="md_theme_surfaceContainerHigh_highContrast">#D3D4DB</color>
     <color name="md_theme_surfaceContainerHighest_highContrast">#C5C6CD</color>
     <color name="md_theme_navigationBarBackground">#E8EBF9</color>
+    <color name="md_theme_PlayBackground">#E5FFFFFF</color>
 
     <!-- 常用颜色定义 -->
     <!-- 背景颜色 -->

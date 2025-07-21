@@ -5,6 +5,15 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/nav_home">
 
+    <!-- 全局导航动作 -->
+    <action
+        android:id="@+id/action_global_lyrics_editor"
+        app:destination="@id/nav_lyrics_editor"
+        app:enterAnim="@anim/fade_in"
+        app:exitAnim="@anim/fade_out"
+        app:popEnterAnim="@anim/fade_in_pop"
+        app:popExitAnim="@anim/fade_out_pop" />
+
     <fragment
         android:id="@+id/nav_home"
         android:name="com.magicalstory.music.homepage.HomeFragment"
@@ -52,24 +61,76 @@
         android:id="@+id/nav_playlist"
         android:name="com.magicalstory.music.homepage.PlaylistFragment"
         android:label="@string/nav_playlist"
-        tools:layout="@layout/fragment_playlist" />
+        tools:layout="@layout/fragment_playlist">
+        <action
+            android:id="@+id/action_playlist_to_recent_songs"
+            app:destination="@id/nav_recent_songs"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_playlist_to_album_detail"
+            app:destination="@id/nav_album_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_playlist_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_library"
         android:name="com.magicalstory.music.homepage.LibraryFragment"
         android:label="@string/nav_library"
-        tools:layout="@layout/fragment_library" />
-
-    <fragment
-        android:id="@+id/nav_profile"
-        android:name="com.magicalstory.music.homepage.ProfileFragment"
-        android:label="@string/nav_profile"
-        tools:layout="@layout/fragment_profile" />
+        tools:layout="@layout/fragment_library">
+        <action
+            android:id="@+id/action_library_to_recent_songs"
+            app:destination="@id/nav_recent_songs"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_library_to_albums"
+            app:destination="@id/nav_albums"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_library_to_artists"
+            app:destination="@id/nav_artists"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_library_to_album_detail"
+            app:destination="@id/nav_album_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+        <action
+            android:id="@+id/action_library_to_artist_detail"
+            app:destination="@id/nav_artist_detail"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in_pop"
+            app:popExitAnim="@anim/fade_out_pop" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_recent_songs"
         android:name="com.magicalstory.music.fragment.SongsListFragment"
-        android:label="最近添加的歌曲"
+        android:label="最近收听的歌曲"
         tools:layout="@layout/fragment_recent_songs">
         <argument
             android:name="dataType"
@@ -82,6 +143,10 @@
         android:name="com.magicalstory.music.fragment.AlbumListFragment"
         android:label="专辑"
         tools:layout="@layout/fragment_album">
+        <argument
+            android:name="sortType"
+            app:argType="string"
+            android:defaultValue="lastPlayed" />
         <action
             android:id="@+id/action_albums_to_album_detail"
             app:destination="@id/nav_album_detail"
@@ -96,6 +161,10 @@
         android:name="com.magicalstory.music.fragment.ArtistListFragment"
         android:label="艺术家"
         tools:layout="@layout/fragment_artist">
+        <argument
+            android:name="sortType"
+            app:argType="string"
+            android:defaultValue="lastPlayed" />
         <action
             android:id="@+id/action_artists_to_artist_detail"
             app:destination="@id/nav_artist_detail"
@@ -222,6 +291,16 @@
         android:name="com.magicalstory.music.fragment.SongTagEditorFragment"
         android:label="@string/song_tag_editor"
         tools:layout="@layout/fragment_song_tag_editor">
+        <argument
+            android:name="song"
+            app:argType="com.magicalstory.music.model.Song" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_lyrics_editor"
+        android:name="com.magicalstory.music.fragment.LyricsEditorFragment"
+        android:label="@string/lyrics_editor"
+        tools:layout="@layout/fragment_lyrics_editor">
         <argument
             android:name="song"
             app:argType="com.magicalstory.music.model.Song" />

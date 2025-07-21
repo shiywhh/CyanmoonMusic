@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="@dimen/margin_2"
+    android:layout_marginTop="@dimen/margin_2"
+    android:layout_marginEnd="@dimen/margin_2"
+    android:layout_marginBottom="@dimen/margin_2"
+    android:orientation="vertical">
+
+    <!-- 多选背景 -->
+    <View
+        android:id="@+id/view_multiselect_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_selected_round"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <!-- 歌单封面 -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginStart="@dimen/margin_6"
+        android:layout_marginTop="@dimen/margin_6"
+        android:layout_marginEnd="@dimen/margin_6"
+        app:cardCornerRadius="@dimen/margin_10"
+        app:cardElevation="0dp"
+        app:layout_constraintDimensionRatio="H,1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/iv_cover"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/black"
+            android:contentDescription="@string/playlist_cover"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_playlist" />
+
+        <ImageView
+            android:id="@+id/btn_menu"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:contentDescription="@string/playlist_menus"
+            android:padding="3dp"
+            android:src="@drawable/ic_more_ver"
+            app:tint="@color/white" />
+
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="start|bottom"
+            android:id="@+id/btnPlay"
+            android:layout_margin="8dp"
+            android:background="@drawable/button_album_play"
+            android:contentDescription="@string/playlist_play_button"
+            android:padding="3dp"
+            android:src="@drawable/ic_play"
+            app:tint="@color/text_primary" />
+    </androidx.cardview.widget.CardView>
+
+    <!-- 歌单名称 -->
+    <TextView
+        android:id="@+id/tv_playlist_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/margin_6"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="@dimen/margin_6"
+        android:ellipsize="end"
+        android:gravity="start"
+        android:maxLines="1"
+        android:text="歌单名称"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@+id/cardView" />
+
+    <!-- 歌曲数量 -->
+    <TextView
+        android:id="@+id/tv_song_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/margin_6"
+        android:layout_marginEnd="@dimen/margin_6"
+        android:layout_marginBottom="@dimen/margin_6"
+        android:ellipsize="end"
+        android:gravity="start"
+        android:maxLines="1"
+        android:text="0 首歌曲"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tv_playlist_name" />
+
+</androidx.constraintlayout.widget.ConstraintLayout> 

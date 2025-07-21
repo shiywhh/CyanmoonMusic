@@ -68,9 +68,27 @@ public class PlaylistSong extends LitePalSupport {
     }
 
     /**
-     * 获取播放列表中的所有歌曲
+     * 获取播放列表中的所有歌曲（按添加时间倒序，最新添加的歌曲在前面）
      */
     public static List<Song> getPlaylistSongs(long playlistId) {
+        List<Song> songs = new ArrayList<>();
+        List<PlaylistSong> playlistSongs = LitePal.where("playlistId = ?", String.valueOf(playlistId))
+                .order("addedTime DESC")
+                .find(PlaylistSong.class);
+        
+        for (PlaylistSong playlistSong : playlistSongs) {
+            Song song = LitePal.find(Song.class, playlistSong.getSongId());
+            if (song != null) {
+                songs.add(song);
+            }
+        }
+        return songs;
+    }
+
+    /**
+     * 获取播放列表中的所有歌曲（按位置排序，用于播放顺序）
+     */
+    public static List<Song> getPlaylistSongsByPosition(long playlistId) {
         List<Song> songs = new ArrayList<>();
         List<PlaylistSong> playlistSongs = LitePal.where("playlistId = ?", String.valueOf(playlistId))
                 .order("position ASC, addedTime ASC")
@@ -127,5 +145,19 @@ public class PlaylistSong extends LitePalSupport {
             playlistSong.setPosition(position);
             playlistSong.save();
         }
+    }
+
+    /**
+     * 获取播放列表中最新的歌曲（用于更新封面）
+     */
+    public static Song getLatestSongInPlaylist(long playlistId) {
+        PlaylistSong latestPlaylistSong = LitePal.where("playlistId = ?", String.valueOf(playlistId))
+                .order("addedTime DESC")
+                .findFirst(PlaylistSong.class);
+        
+        if (latestPlaylistSong != null) {
+            return LitePal.find(Song.class, latestPlaylistSong.getSongId());
+        }
+        return null;
     }
 } 
